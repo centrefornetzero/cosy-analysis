@@ -1,0 +1,33 @@
+{
+    "id": "C1566A5C",
+    "path": null,
+    "project_path": null,
+    "type": "r_dataframe",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1705068207446.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "expression": "consumption_data %>% filter(mpan == \"2000011424349\") %>% arrange(datetime)",
+        "caption": "consumption_data %>% filter(mpan == \"2000011424349\") %>% arrange(datetime)",
+        "totalObservations": 37940,
+        "displayedObservations": 37940,
+        "variables": 5,
+        "cacheKey": "DED78FFF",
+        "object": "",
+        "environment": "_rs_no_env",
+        "contentUrl": "grid_resource/gridviewer.html?env=_rs_no_env&obj=&cache_key=DED78FFF&max_display_columns=50",
+        "preview": 0,
+        "Source": "Source"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 0,
+    "encoding": "",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1705068207446,
+    "read_only": false,
+    "read_only_alternatives": []
+}

@@ -1,0 +1,209 @@
+---
+title: "Cosy analysis"
+author: "Louise Bernard"
+date: "2024-01-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load the package
+# Ensure necessary libraries are loaded
+library(bigrquery)
+library(fixest)
+library(data.table)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(tidyr)
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+# Save results because downloading is very long
+
+if (!file.exists("data/scratch/smart_meters.RDS")) {
+  # Store the project ID
+  projectid = 'cnz-data-warehouse-d66eb552a5'
+  
+  # Set your query
+  sql = 'SELECT mpan, interval_start, consumption_kwh FROM `cnz-data-warehouse-d66eb552a5.src_cosy.heatpump`'
+  
+  # Run the query; this returns a bq_table object that you can query further
+  tb <- bq_project_query(projectid, sql)
+  
+  # Store the data in a tibble
+  consumption_data <-bq_table_download(tb, n_max=Inf, bigint="integer64", page=250000)
+  # Save
+  saveRDS(consumption_data, "data/scratch/smart_meters.RDS")
+  
+} else {
+  consumption_data <- readRDS("data/scratch/smart_meters.RDS")
+}
+
+```
+
+```{r}
+
+# load agreement data to know when they switched to cosy
+# this part could be improved by adding which tariff they are on 
+# I have been ignoring that people can switch back to non cosy
+
+if (!file.exists("data/scratch/aggregated_data.RDS")) {
+  agreement_data <- fread("data/input/Cosy_-_agreement_data_2024_01_12.csv") %>%
+    mutate(mpan = as.character(mpan)) %>%
+    filter(product_display_name=="Cosy Octopus") %>%
+    group_by(mpan) %>%
+    arrange(agreement_valid_from) %>%
+    slice(1)
+  
+  # create dummy for cosy adoption
+  consumption_data <- consumption_data %>%
+    left_join(agreement_data %>% select(mpan, agreement_valid_from), by="mpan")  %>%
+    mutate(date = as.Date(datetime),
+           agreement_valid_from = as.Date(agreement_valid_from),
+           is_on_cosy = ifelse(date>= agreement_valid_from,1, 0),
+           is_on_cosy = ifelse(is.na(is_on_cosy), 0, is_on_cosy),
+           weeks_since_cosy = ifelse(!is.na(agreement_valid_from), 
+                                     floor(as.numeric(difftime(datetime, agreement_valid_from, units = "weeks"))), 
+                                     NA),
+           hour = hour(datetime),
+           rate_period = case_when(
+             hour >= 4 & hour < 7   ~ "Morning Cosy",
+             hour >= 13 & hour < 16 ~ "Afternoon Cosy",
+             hour >= 16 & hour < 19 ~ "Peak Rate",
+             TRUE                   ~ "Other"
+           ))
+  
+  saveRDS(consumption_data, "data/scratch/smart_meters_merged.RDS")
+  
+  # Aggregate the data
+  aggregated_data <- consumption_data %>%
+    group_by(mpan, rate_period,is_on_cosy, date, weeks_since_cosy) %>%
+    summarise(total_consumption = sum(consumption_kwh)) 
+  
+  rm(consumption_data)
+  saveRDS(aggregated_data, "data/scratch/aggregated_data.RDS")
+} else {
+  aggregated_data <- readRDS("data/scratch/aggregated_data.RDS")
+}
+
+```
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+
+# Prepare data for line plot (aggregate by month)
+monthly_data <- aggregated_data %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month) %>%
+  summarise(monthly_consumption = mean(total_consumption))
+
+# Line Plot
+ggplot(monthly_data, aes(x = month, y = monthly_consumption)) +
+  geom_line() +
+  labs(title = "Monthly Consumption Over Time", x = "Month", y = "Total Consumption") +
+  theme_minimal()
+
+
+```
+
+``` {r}
+# Prepare data for bar chart
+cosy_data <- aggregated_data %>%
+  group_by(is_on_cosy, rate_period) %>%
+  summarise(total_consumption = mean(total_consumption))
+
+# Line Plot
+ggplot(cosy_data, aes(x = as.factor(is_on_cosy), y = total_consumption, fill = as.factor(is_on_cosy))) +
+  geom_bar(stat = "identity") +
+  labs(title = "Consumption by Period with Cosy", x = "Rate Period", y = "Total Consumption") +
+  theme_minimal() +
+  facet_grid(~rate_period)
+```
+
+```{r}
+etable(feols(total_consumption ~ as.factor(is_on_cosy) | date + mpan, 
+             data = aggregated_data, 
+             cluster = ~mpan, 
+             split = ~ rate_period))
+
+```
+
+```{r}
+
+# filter for panel
+tt <- aggregated_data %>% 
+  group_by(mpan) %>% 
+  mutate(week = week(date)) %>% 
+  summarise(start = min(date), min_week=min(week), max_week=max(week), count= n()) %>% 
+  mutate(share_obs = count/3164) %>%
+  filter(start < (as.Date("2022-12-13") - weeks(15)),
+         share_obs > 0.5)
+
+
+# Fixed-effects regression
+est_did <- feols(total_consumption ~ + i(weeks_since_cosy, -1) | date + mpan, 
+                 data = aggregated_data %>% filter(mpan %in% tt$mpan, weeks_since_cosy>-15, weeks_since_cosy<15),
+                 split =~ rate_period,
+                 cluster = ~mpan)
+
+# Now we can plot the result of the interaction with coefplot
+etable(est_did)
+
+coefplot(est_did)
+coefplot(est_did[2], title="Effect on total consumption - Morning Off Peak Cosy")
+coefplot(est_did[1], title="Effect on total consumption - Afternoon Off Peak Cosy")
+coefplot(est_did[3], title="Effect on total consumption - Peak rate")
+coefplot(est_did[4], title="Effect on total consumption - Other rate")
+
+
+```
+
+
+
+```{r}
+etable(feols(total_consumption ~ as.factor(is_on_cosy) | date + mpan, 
+             data = aggregated_data %>% group_by(mpan, date, is_on_cosy) %>% summarise(total_consumption=sum(total_consumption)), 
+             cluster = ~mpan))
+
+```
+
+```{r}
+# Prepare data
+aggregated_data_prepared <- aggregated_data %>%
+  filter(!is.na(weeks_since_cosy)) %>%
+  mutate(weeks_recoded = case_when(
+    weeks_since_cosy < -10  ~ -10,
+    weeks_since_cosy > 10   ~ 10,
+    TRUE                    ~ weeks_since_cosy
+  )) %>% group_by(mpan, date, weeks_recoded) %>% summarise(total_consumption=sum(total_consumption))
+
+# Fixed-effects regression
+est_did <- feols(total_consumption ~ + i(weeks_recoded, 0) | date + mpan, 
+                 data = aggregated_data_prepared %>% filter(weeks_recoded > -10 ) %>% filter(weeks_recoded < 10), 
+                 cluster = ~mpan)
+
+# Now we can plot the result of the interaction with coefplot
+coefplot(est_did)
+
+
+
+# add weather
+# check cohorts
+# when they got hp
+# callaway and sant'anna
+# 
+```
+
+

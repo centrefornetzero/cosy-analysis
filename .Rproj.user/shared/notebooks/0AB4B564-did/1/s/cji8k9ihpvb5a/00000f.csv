@@ -1,0 +1,6 @@
+"0",""
+"0","# Prepare data for line plot (aggregate by month)"
+"0","monthly_data <- aggregated_data %>%"
+"0","  mutate(month = floor_date(date, ""month"")) %>%"
+"0","  group_by(month) %>%"
+"0","  summarise(monthly_consumption = mean(total_consumption))"

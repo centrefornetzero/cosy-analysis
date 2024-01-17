@@ -1,0 +1,434 @@
+# Load the package
+# dtplyr and dbplyr
+# Ensure necessary libraries are loaded
+library(furrr)
+library(purrr)
+library(bigrquery)
+library(fixest)
+library(data.table)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+# library(RColorBrewer)
+library(randomizr)
+# library(tidyr)
+# library(tidyverse)
+
+
+# Save results because downloading is very long
+
+if (!file.exists("data/scratch/eligible_smart_data.RDS")) {
+  # Store the project ID
+  projectid = 'cnz-data-warehouse-d66eb552a5'
+  
+  # Set your query
+  sql = '
+SELECT DISTINCT
+  mpan_identifier
+FROM
+  `cnz-data-warehouse-d66eb552a5.src_shape_shifters.eligible_smart_data`
+'
+  
+  # Run the query; this returns a bq_table object that you can query further
+  tb <- bq_project_query(projectid, sql)
+  
+  # Store the data in a tibble
+  df_mpans <-bq_table_download(tb)
+  
+  # Print the number of MPANs
+  length(df_mpans$mpan_identifier)
+  
+  # Select randomely 100 MPANs
+  set.seed(1234567)
+  mpan_selection <- sample(df_mpans$mpan_identifier, 2000)
+  
+  # Transform your randomly selected MPANs into a comma-separated string
+  mpan_string <- paste0("('", paste(mpan_selection, collapse = "','"), "')")
+  
+  # Set your query
+  sql = sprintf("
+SELECT *
+FROM
+  `cnz-data-warehouse-d66eb552a5.src_shape_shifters.eligible_smart_data`
+WHERE mpan_identifier IN %s
+", mpan_string)
+  
+  # Run the query; this returns a bq_table object that you can query further
+  tb <- bq_project_query(projectid, sql)
+  
+  # Store the data in a tibble
+  df <-bq_table_download(tb,bigint = "integer64")
+  
+  # Save
+  saveRDS(df, "data/scratch/eligible_smart_data.RDS")
+  
+} else {
+  df <- readRDS("data/scratch/eligible_smart_data.RDS")
+}
+
+
+df <- df %>%
+  mutate(
+    timestamp = as.POSIXct(datetime_local / 1e9, origin = "1970-01-01"),
+    hour = hour(timestamp),
+    week = week(timestamp),
+    month = month(timestamp),
+    rate = case_when(
+      hour >= 23 | hour < 6 ~ "off-peak",
+      (hour >= 6 & hour < 16) | (hour >= 19 & hour < 23) ~ "daytime",
+      hour >= 16 & hour < 19 ~ "evening peak",
+      TRUE ~ "undefined"
+    ),
+    day_of_week = wday(timestamp, label = TRUE)
+  )
+
+# Inspect the data
+summary(df)
+
+# Convert df to a data.table object
+setDT(df)
+
+# Create average by time
+avg_by_hour <- df[, .(avg_consumption = mean(consumption, na.rm = TRUE)), by = hour]
+avg_by_day <- df[, .(avg_consumption = mean(consumption, na.rm = TRUE)), by = day_of_week]
+avg_by_week <- df[, .(avg_consumption = mean(consumption, na.rm = TRUE)), by = week]
+avg_by_month <- df[, .(avg_consumption = mean(consumption, na.rm = TRUE)), by = month]
+
+# By Hour
+ggplot(avg_by_hour, aes(x = hour, y = avg_consumption)) +
+  geom_line() + geom_point() +
+  labs(title = "Average Consumption by Hour", x = "Hour", y = "Average Consumption") +
+  theme_minimal()
+
+# By Day
+ggplot(avg_by_day, aes(x = day_of_week, y = avg_consumption)) +
+  geom_line(group = 1) + geom_point() +  # 'group = 1' is needed since day_of_week is a factor
+  labs(title = "Average Consumption by Day of Week", x = "Day of Week", y = "Average Consumption") +
+  theme_minimal()
+
+# By Week
+ggplot(avg_by_week, aes(x = week, y = avg_consumption)) +
+  geom_line() + geom_point() +
+  labs(title = "Average Consumption by Week", x = "Week", y = "Average Consumption") +
+  theme_minimal()
+
+# By Month
+ggplot(avg_by_month, aes(x = month, y = avg_consumption)) +
+  geom_line(group = 1) + geom_point() +  # 'group = 1' is needed since month is a factor
+  labs(title = "Average Consumption by Month", x = "Month", y = "Average Consumption") +
+  theme_minimal()
+
+# Create count of obs by period
+obs_by_week <- df[, .(n_obs = .N), by = week]
+obs_by_month <- df[, .(n_obs = .N), by = month]
+
+# Plot
+# By Week
+ggplot(obs_by_week, aes(x = week, y = n_obs)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Number of Observations by Week", x = "Week", y = "Number of Observations") +
+  theme_minimal()
+
+# By Month
+ggplot(obs_by_month, aes(x = month, y = n_obs)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Number of Observations by Month", x = "Month", y = "Number of Observations") +
+  theme_minimal()
+
+
+# Get a list of all objects in the environment
+all_objects <- ls()
+
+# Remove objects that are not 'df'
+to_remove <- setdiff(all_objects, "df")
+rm(list = to_remove)
+
+# estimate coefficients
+estimate_coeffs <- function(useT, useC, length_trial=5, analysis_type = "iv", sim=123456, sample_size = 325 ) {
+  # 
+  # useT = 0.1
+  # useC = 0
+  # length_trial=6
+  # sim=123456
+  # sample_size = 325
+  # 
+  # 
+  # print(paste(useT, useC, length_trial, analysis_type, sim, sample_size))
+  
+  # length_trial =6
+  # useC=0
+  # useT=0.5
+  l = 9 - length_trial
+  
+  # set seed
+  set.seed(sim)
+  
+  # which dataset
+  mpan_selection <- sample(df$mpan_identifier %>% unique, sample_size)
+  
+  # simulation
+  dat <- df  %>% 
+    filter(mpan_identifier %in% mpan_selection) %>%
+    group_by(mpan_identifier, rate) %>%
+    summarise(avg_consumption = mean(consumption, na.rm = TRUE)) %>%
+    filter(avg_consumption>0, avg_consumption<2)  # trim extreme values 
+  
+  # average daytime consumption
+  mean_consumption <- dat %>%
+    inner_join(df, by = c("mpan_identifier", "rate")) %>%
+    filter(month > l) %>%
+    group_by(rate) %>%
+    summarise(mean_consumption = mean(consumption, na.rm = TRUE)) 
+  
+  # set the proportion treat
+  n <- dim(dat)[1]
+  dat$trt <- simple_ra(n, 0.8)
+  
+  # assign treatment
+  dat <- dat %>%
+    arrange(trt)
+  
+  # Create use variable using the provided useT and useC values
+  dat$use <- c(rbinom((dat %>% filter(trt == 0) %>% dim())[1], 1, useC),
+               rbinom((dat %>% filter(trt == 1) %>% dim())[1], 1, useT))
+  
+  # Merge and preprocess the data as per your original script
+  reg_df <- dat %>%
+    inner_join(df, by = c("mpan_identifier", "rate")) %>% 
+    filter(month > l) %>%
+    filter(!day_of_week == "Sun", !rate == "off-peak")
+  
+  if (analysis_type=="itt") {
+    # itt
+    model_summary <- feols(consumption ~ trt +  avg_consumption | date_day, 
+                           data = reg_df, split = ~ rate,   
+                           cluster = ~ mpan_identifier, se = "cluster")
+  }
+  if (analysis_type=="iv") {
+    # iv
+    model_summary <- feols(consumption ~ avg_consumption | date_day | use  ~ trt, 
+                           data = reg_df, split = ~ rate,  
+                           cluster = ~ mpan_identifier, se = "cluster")
+  } 
+  
+  # Extract the entire summary tables for each model and convert to data.table format
+  coefficients_list <- lapply(1:length(unique(reg_df$rate)), function(i) {
+    coef_df <- as.data.table(model_summary[[i]]$coeftable)
+    coef_df[, varname := names(model_summary[[i]]$coefficients)]
+    coef_df[, rate := unique(reg_df$rate)[i]]
+    coef_df[, MDES := `Std. Error`*2.8]
+    coef_df[, MDES_consumption := MDES/ mean_consumption[mean_consumption$rate==unique(reg_df$rate)[i], ]$mean_consumption]
+    # Bind parameters to the coefficient dataframe
+    coef_df[, c("useT", "useC", "lengthTrial", "analysis_type" , "seed", "sample_size") := .(useT, useC, length_trial, analysis_type, sim, sample_size )]
+    return(coef_df)
+  })
+  
+  # Combine the coefficient tables from itt and iv into one data.table
+  combined_coef <- rbindlist(coefficients_list, idcol = "model")
+  
+  return(combined_coef)
+}
+
+# Example usage
+result <- estimate_coeffs(useT = 0.1, useC = 0.0, length_trial = 6, sample_size = 2000)
+print(result)
+
+# # Example usage
+# result <- estimate_coeffs(useT = 0.1, useC = 0.0, length_trial = 6, analysis_type = "itt", sample_size = 100)
+# print(result)
+# names(result)
+
+# Sample unique sizes
+sample_sizes <- seq(500, 2000, 500)
+trial_lengths <- c(4,6,8)
+sims <- sample(1000000, 10)
+
+# Set up a parallel plan using multisession
+plan(multisession)
+
+# Generate all combinations of sample_sizes and trial_lengths
+combinations <- expand.grid(sample_size = sample_sizes, length_trial = trial_lengths, sim = sims)
+print(combinations)
+
+# Map over all combinations to run estimate_coeffs
+resuts_itt <- pmap_dfr(
+  list(combinations$sim, combinations$sample_size, combinations$length_trial),
+  ~ estimate_coeffs(useT= 0.1, useC = 0, length_trial = ..3, analysis_type = "itt", sim = ..1, sample_size = ..2)
+)
+
+print(resuts_itt)
+
+
+library(patchwork)
+
+# Precompute the summary data
+summary_data <- resuts_itt %>%
+  filter(varname == "trt") %>%
+  group_by(sample_size, lengthTrial) %>%
+  summarize(
+    avg_MDES = mean(MDES, na.rm = TRUE),
+    avg_MDES_consumption = mean(MDES_consumption, na.rm = TRUE)
+  )
+
+# Graph 1: MDES in kWh
+plot1 <- ggplot(data = resuts_itt %>% filter(varname == "trt"), 
+                aes(x = as.factor(sample_size), y = MDES, fill = as.factor(lengthTrial))) + 
+  geom_boxplot() +
+  theme_minimal() +  # Use a minimalistic theme
+  labs(title = "MDES",
+       x = "Sample Size",
+       y = "MDES in kWh") + 
+  theme_minimal() + 
+  theme(legend.position = "none") +
+  scale_fill_brewer(palette="OrRd") +
+  facet_grid(~ rate)
+plot1
+
+# Graph 2: MDES as a share of average consumption
+plot2 <- ggplot(data = resuts_itt %>% filter(varname == "trt"), 
+                aes(x = as.factor(sample_size), y = MDES_consumption, fill = as.factor(lengthTrial))) + 
+  geom_boxplot() +
+  theme_minimal() +  # Use a minimalistic theme
+  labs(title = "",
+       x = "Sample Size",
+       y = "MDES as % of Average Consumption") + 
+  scale_y_continuous(labels = scales::percent_format(1)) +
+  theme_minimal() + 
+  theme(legend.position = "right") +
+  labs(fill = "Trial Length (months)") +
+  facet_grid(~ rate) + 
+  scale_fill_brewer(palette="OrRd") 
+plot2 
+
+# Combine the two plots with a shared legend at the bottom
+combined_plot <- plot1 | plot2 & theme(legend.position = "bottom")
+
+# Print the combined plot
+print(combined_plot)
+
+
+# Set up a parallel plan using multisession
+plan(multisession)
+
+resuts_iv <- pmap_dfr(
+  list(combinations$sim, combinations$sample_size, combinations$length_trial),
+  ~ estimate_coeffs(useT= 0.1, useC = 0, length_trial = ..3, analysis_type = "iv", sim = ..1, sample_size = ..2)
+)
+
+print(resuts_iv)
+
+
+
+# Plot 1: MDES
+plot1 <- ggplot(resuts_iv %>% filter(varname == "fit_use"), aes(x = as.factor(sample_size), y = MDES, fill = as.factor(lengthTrial))) + 
+  geom_boxplot() +
+  labs(title = "",
+       x = "Sample Size",
+       y = "MDES in kWn") + 
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1") +
+  theme(legend.position = "none") +  # Remove legend for the first plot
+  facet_grid(~ rate) + 
+  scale_fill_brewer(palette="OrRd") 
+
+plot1
+
+# Plot 2: MDES_consumption
+plot2 <- ggplot(resuts_iv %>% filter(varname == "fit_use", useC==0), 
+                aes(x = as.factor(sample_size), y = MDES_consumption, fill = as.factor(lengthTrial))) + 
+  geom_boxplot() +
+  labs(title = "",
+       x = "Sample Size",
+       y = "MDES as % of Average Consumption") + 
+  scale_y_continuous(labels = scales::percent_format(1)) +
+  theme_minimal() + 
+  theme(legend.position = "right") +
+  labs(fill = "Trial Length (months)") +
+  facet_grid(~ rate) + 
+  scale_fill_brewer(palette="OrRd") 
+plot2 
+
+# Combine the two plots with a shared legend at the bottom
+combined_plot <- plot1 | plot2 & theme(legend.position = "bottom")
+
+# Print the combined plot
+print(combined_plot)
+
+
+
+library(dplyr)
+library(bench)
+library(fixest) # assuming feols comes from this package
+
+# Your original function goes here
+estimate_coeffs <- function(useT, useC, length_trial=5, analysis_type = "iv", sim=123456, sample_size = 325 ) {
+  # ... your function's code ...
+}
+
+# Define the range of sample sizes to test
+sample_sizes <- seq(500, 2000, 500) # example sizes
+
+library(bench)
+
+# Function to run benchmark
+run_benchmark <- function(sample_size) {
+  bench_result <- bench::mark(
+    estimate_coeffs(useT=0.1, useC=0, length_trial=5, analysis_type="iv", sim=123456, sample_size=sample_size),
+    memory = TRUE,
+    check = FALSE
+  )
+  
+  # find out sample size
+  # which dataset
+  set.seed(123456)
+  mpan_selection <- sample(df$mpan_identifier %>% unique, sample_size)
+  N <- df[df$mpan_identifier %in% mpan_selection,]$mpan_identifier %>% length()
+  
+  # Extract time and memory
+  time_taken <- summary(bench_result)[["median"]]
+  memory_used <- summary(bench_result)[["mem_alloc"]]
+  
+  # Return a list with time and memory
+  return(list(sample_size = N, time = as.numeric(time_taken), memory = as.numeric(memory_used)))
+}
+
+# Use lapply to apply the benchmark function to each sample size
+results_list <- lapply(sample_sizes, run_benchmark)
+
+# Convert the list of lists to a list of one-row data frames
+results_rows <- lapply(results_list, function(x) { as.data.frame(matrix(unlist(x), nrow = 1)) })
+
+# Combine all the one-row data frames into one data frame
+results <- do.call(rbind, results_rows)
+names(results) <- c("sample_size", "time", "memory")
+
+# Print the results
+print(results)
+
+# Given data points
+# Log-log linear model for time
+model_time <- lm(log(time) ~ log(sample_size), data = results)
+
+# Log-log linear model for memory
+model_memory <- lm(log(memory) ~ log(sample_size), data = results)
+
+# New sample sizes for prediction
+new_sample_sizes <- c(results$sample_size, 25e6, 50e6, 75e6, 100e6, 125e6, 150e6, 175e6, 200e6)
+
+# what would be the prediction if the data was all setosa?
+newdata = data.frame(sample_size = new_sample_sizes)
+newdata$predicted_time = exp(predict(model_time, newdata = newdata))
+newdata$predicted_memory = exp(predict(model_memory, newdata = newdata))
+newdata$predicted_memory_GB = newdata$predicted_memory / 8e+9
+
+# Create a data frame for the predicted results
+predictions <- data.frame(
+  sample_size = new_sample_sizes,
+  predicted_time = predicted_time,
+  predicted_memory = predicted_memory
+)
+# Print the predictions
+print(predictions)
+
+
+
