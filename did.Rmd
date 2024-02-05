@@ -6,11 +6,12 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, include=FALSE, warning  = FALSE)
 
 # Load the package
 # Ensure necessary libraries are loaded
-library(bigrquery)
+# Load necessary libraries
+library(did)
 library(fixest)
 library(data.table)
 library(lubridate)
@@ -21,44 +22,54 @@ library(tidyr)
 
 ```
 
-## R Markdown
+## Introduction
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+This document presents the results of the impact of the adoption of cosy tariff on smart meter electricity consumption at the household level.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+To do:
+- Add weather [done - but using reanalysis data, the MET data from databricks only starts in 2022]
+- Implement Callaway and sant'anna DiD [done but more work needed on the panel balance]
+- Decide of a threshold for the event study (how many weeks before / after adoption we want to capture, do we want to put all weeks before in a large category or exclude them)
+- Can we find out when they install their HP
+- not yet treated
+- epc data
 
-```{r cars}
-# Save results because downloading is very long
 
-if (!file.exists("data/scratch/smart_meters.RDS")) {
-  # Store the project ID
-  projectid = 'cnz-data-warehouse-d66eb552a5'
-  
-  # Set your query
-  sql = 'SELECT mpan, interval_start, consumption_kwh FROM `cnz-data-warehouse-d66eb552a5.src_cosy.heatpump`'
-  
-  # Run the query; this returns a bq_table object that you can query further
-  tb <- bq_project_query(projectid, sql)
-  
-  # Store the data in a tibble
-  consumption_data <-bq_table_download(tb, n_max=Inf, bigint="integer64", page=250000)
-  # Save
-  saveRDS(consumption_data, "data/scratch/smart_meters.RDS")
-  
-} else {
-  consumption_data <- readRDS("data/scratch/smart_meters.RDS")
-}
 
-```
-
-```{r}
-
-# load agreement data to know when they switched to cosy
-# this part could be improved by adding which tariff they are on 
-# I have been ignoring that people can switch back to non cosy
-
+```{r download-data}
+# Save results because downloading / processing is very long
 if (!file.exists("data/scratch/aggregated_data.RDS")) {
-  agreement_data <- fread("data/input/Cosy_-_agreement_data_2024_01_12.csv") %>%
+  if (!file.exists("data/scratch/smart_meters.RDS")) {
+    
+    library(bigrquery)
+    
+    
+    # Store the project ID
+    projectid = 'cnz-data-warehouse-d66eb552a5'
+    
+    # Set your query
+    sql = 'SELECT mpan, interval_start, consumption_kwh FROM `cnz-data-warehouse-d66eb552a5.src_cosy.heatpump`'
+    
+    # Run the query; this returns a bq_table object that you can query further
+    tb <- bq_project_query(projectid, sql)
+    
+    # Store the data in a tibble
+    consumption_data <-bq_table_download(tb, n_max=Inf, bigint="integer64", page=250000)
+    unique_consumption_data <- unique(consumption_data, by = c("mpan", "datetime"))
+    
+    # Save
+    saveRDS(unique_consumption_data, "data/scratch/smart_meters.RDS")
+    
+  } else {
+    consumption_data <- readRDS("data/scratch/smart_meters.RDS")
+  }
+  
+  
+  # load agreement data to know when they switched to cosy
+  # this part could be improved by adding which tariff they are on 
+  # I have been ignoring that people can switch back to non cosy
+  
+  agreement_data <- fread("data/input/Cosy agreement.csv")%>%
     mutate(mpan = as.character(mpan)) %>%
     filter(product_display_name=="Cosy Octopus") %>%
     group_by(mpan) %>%
@@ -67,7 +78,7 @@ if (!file.exists("data/scratch/aggregated_data.RDS")) {
   
   # create dummy for cosy adoption
   consumption_data <- consumption_data %>%
-    left_join(agreement_data %>% select(mpan, agreement_valid_from), by="mpan")  %>%
+    left_join(agreement_data %>% select(mpan, agreement_valid_from, tariff_gsp_group_id, tariff_gsp_group_name), by="mpan")  %>%
     mutate(date = as.Date(datetime),
            agreement_valid_from = as.Date(agreement_valid_from),
            is_on_cosy = ifelse(date>= agreement_valid_from,1, 0),
@@ -87,7 +98,7 @@ if (!file.exists("data/scratch/aggregated_data.RDS")) {
   
   # Aggregate the data
   aggregated_data <- consumption_data %>%
-    group_by(mpan, rate_period,is_on_cosy, date, weeks_since_cosy) %>%
+    group_by(mpan, tariff_gsp_group_id, tariff_gsp_group_name, rate_period,is_on_cosy, date, weeks_since_cosy) %>%
     summarise(total_consumption = sum(consumption_kwh)) 
   
   rm(consumption_data)
@@ -97,18 +108,22 @@ if (!file.exists("data/scratch/aggregated_data.RDS")) {
 }
 
 ```
-## Including Plots
+## Summary statistics
 
-You can also embed plots, for example:
+This graph shows monthly electricity consumption. 
 
-```{r, echo=FALSE}
+```{r monthly-consumption, echo=FALSE}
 
-# Prepare data for line plot (aggregate by month)
-monthly_data <- aggregated_data %>%
-  mutate(month = floor_date(date, "month")) %>%
-  group_by(month) %>%
-  summarise(monthly_consumption = mean(total_consumption))
-
+if (!file.exists("data/scratch/monthly_data.RDS")) {
+  # Prepare data for line plot (aggregate by month)
+  monthly_data <- aggregated_data %>%
+    mutate(month = floor_date(date, "month")) %>%
+    group_by(month) %>%
+    summarise(monthly_consumption = mean(total_consumption))
+  saveRDS(monthly_data, "data/scratch/monthly_data.RDS")
+} else {
+  monthly_data <- readRDS("data/scratch/monthly_data.RDS")
+}
 # Line Plot
 ggplot(monthly_data, aes(x = month, y = monthly_consumption)) +
   geom_line() +
@@ -118,12 +133,49 @@ ggplot(monthly_data, aes(x = month, y = monthly_consumption)) +
 
 ```
 
-``` {r}
-# Prepare data for bar chart
-cosy_data <- aggregated_data %>%
-  group_by(is_on_cosy, rate_period) %>%
-  summarise(total_consumption = mean(total_consumption))
+``` {r, weather}
 
+weather <- fread("data/input/Cosy Analysis Weather 2024-02-05.csv") %>%
+  mutate(next_date_day = as.Date(date_day)+1)
+
+weather_agg <- weather %>%
+    mutate(month = floor_date(date_day, "month")) %>%
+  group_by(month) %>%
+  summarise(avg_heating_degree = mean(daily_avg_heating_degree))
+
+# Line Plot
+ggplot(weather_agg, aes(x = c(month), y = avg_heating_degree)) +
+  geom_line() +
+  labs(title = "HDD Over Time", x = "Month", y = "HDD") +
+  theme_minimal()
+
+print("Using a cut-off a 2 HDD for data analysis:")
+
+heating_months <- weather_agg %>% filter(avg_heating_degree> 2)
+
+```
+
+
+## Descriptive statistics on cosy adoption
+
+The Cosy tariff has 4 different periods:
+
+![Cosy double dip]("/graph/Sky Blue Bar Chart Instagram.webp")
+
+
+This bar chart shows average consumption pre and post cosy for each period of the day:
+
+
+``` {r, pre-post, include=TRUE}
+# Prepare data for bar chart
+if (!file.exists("data/scratch/cosy_data.RDS")) {
+  cosy_data <- aggregated_data %>%
+    group_by(is_on_cosy, rate_period) %>%
+    summarise(total_consumption = mean(total_consumption))
+  saveRDS(cosy_data, "data/scratch/cosy_data.RDS")
+} else {
+  cosy_data <- readRDS("data/scratch/cosy_data.RDS")
+}
 # Line Plot
 ggplot(cosy_data, aes(x = as.factor(is_on_cosy), y = total_consumption, fill = as.factor(is_on_cosy))) +
   geom_bar(stat = "identity") +
@@ -132,78 +184,258 @@ ggplot(cosy_data, aes(x = as.factor(is_on_cosy), y = total_consumption, fill = a
   facet_grid(~rate_period)
 ```
 
-```{r}
-etable(feols(total_consumption ~ as.factor(is_on_cosy) | date + mpan, 
-             data = aggregated_data, 
-             cluster = ~mpan, 
-             split = ~ rate_period))
+## Difference in differences
+
+We run the following model by period and on total daily consumption for all customers that have adopted Cosy in the past year: 
+
+$$Consumption_{it} = \alpha OnCosy_{it} + \delta_t +  \gamma_i + GSP \times \delta_t+  \epsilon_{it} $$
+with:
+- $Consumption_{it}$ - electricty consumption in kWh (column 1) and log (column 2) for customer $i$ on day $t$ 
+- $OnCosy_{it}$ a dummy variable equals 1 if the customer has switched to Cosy, 0 otherwise. To be noted: right now, adoption is permanent, I am not switching back to 0 for people that switched to another tariff
+-  $\delta_t$, $\gamma_i$, $ GSP \times \delta_t$ are day $t$,  customer $i$, and GSP regions times day fixed effects
+The standard errors are clustered at the customer (MPAN) level. 
+
+### Consumption by period
+
+```{r, did-period, include=TRUE}
+
+
+aggregated_data <- aggregated_data %>%
+  left_join(weather, by=c("date"="next_date_day", "tariff_gsp_group_id" = "gsp_group_id")) %>%
+    mutate(month = floor_date(date, "month")) %>%
+  filter(month %in% heating_months$month)
+
+
+if (!file.exists("data/scratch/did_table.RDS")) {
+  
+  m1 <- feols(total_consumption ~ as.factor(is_on_cosy) | date + mpan + date^tariff_gsp_group_id, 
+              data = aggregated_data, 
+              cluster = ~mpan, 
+              split = ~ rate_period)
+  
+  m2 <- feols(log(total_consumption) ~ as.factor(is_on_cosy) | date + mpan + date^tariff_gsp_group_id, 
+              data = aggregated_data, 
+              cluster = ~mpan, 
+              split = ~ rate_period)
+  did_table <- etable(m1, m2)
+  saveRDS(did_table, "data/scratch/did_table.RDS")
+} else {
+  did_table <- readRDS("data/scratch/did_table.RDS")
+}
+
+did_table
+rm(did_table)
+
 
 ```
 
-```{r}
 
-# filter for panel
-tt <- aggregated_data %>% 
-  group_by(mpan) %>% 
-  mutate(week = week(date)) %>% 
-  summarise(start = min(date), min_week=min(week), max_week=max(week), count= n()) %>% 
-  mutate(share_obs = count/3164) %>%
-  filter(start < (as.Date("2022-12-13") - weeks(15)),
-         share_obs > 0.5)
+### Total electricity consumption
 
+We repeat the same analysis on total daily consumption (all periods together): 
 
-# Fixed-effects regression
-est_did <- feols(total_consumption ~ + i(weeks_since_cosy, -1) | date + mpan, 
-                 data = aggregated_data %>% filter(mpan %in% tt$mpan, weeks_since_cosy>-15, weeks_since_cosy<15),
-                 split =~ rate_period,
-                 cluster = ~mpan)
+```{r, did-daily-total, include=TRUE}
+# aggregate all periods together to get daily consumption
+if (!file.exists("data/scratch/did_daily_table.RDS")) {
+  tot <- aggregated_data %>% group_by(mpan, date, is_on_cosy, tariff_gsp_group_id) %>% 
+    summarise(total_consumption=sum(total_consumption)) 
+  
+  m1 <- feols(total_consumption ~ as.factor(is_on_cosy) | date + mpan + date^tariff_gsp_group_id, 
+              data = tot, 
+              cluster = ~mpan)
+  
+  m2 <- feols(log(total_consumption) ~ as.factor(is_on_cosy) | date + mpan + date^tariff_gsp_group_id, 
+              data = tot, 
+              cluster = ~mpan)
+  did_daily_table <- etable(m1, m2)
+  saveRDS(did_daily_table, "data/scratch/did_daily_table.RDS") 
+  
+} else {
+  did_daily_table <- readRDS("data/scratch/did_daily_table.RDS")
+}
+did_daily_table
+rm(did_daily_table)
+
+```
+
+## Event study
+
+We run the following model by period for all customers that have adopted Cosy in the past year: 
+
+$$Consumption_{it} = \sum^W _{w={-140, -9, ..., 1, ..,28}} \alpha_w WeeksSinceCosy^w_{it} + X\beta + \delta_t +  \gamma_i +  \epsilon_{it} $$
+where:
+- $WeeksSinceCosy^w_{it}$  is a categorical variable equals to the number of weeks before and after the adoption of Cosy. We use the week prior adoption as omitted category. 
+
+### Consumption by period
+
+```{r, event-study-period, eval=FALSE}
+
+if (!file.exists("data/scratch/est_did.RDS")) {
+  # Fixed-effects regression
+  est_did <- feols(total_consumption ~ + i(weeks_since_cosy, -1) | date + mpan, 
+                   data = aggregated_data %>% ,
+                   split =~ rate_period,
+                   cluster = ~mpan)
+  saveRDS(est_did, "data/scratch/est_did.RDS")
+} else {
+  est_did <- readRDS("data/scratch/est_did.RDS")
+}
 
 # Now we can plot the result of the interaction with coefplot
-etable(est_did)
 
-coefplot(est_did)
 coefplot(est_did[2], title="Effect on total consumption - Morning Off Peak Cosy")
 coefplot(est_did[1], title="Effect on total consumption - Afternoon Off Peak Cosy")
 coefplot(est_did[3], title="Effect on total consumption - Peak rate")
 coefplot(est_did[4], title="Effect on total consumption - Other rate")
 
 
-```
 
-
-
-```{r}
-etable(feols(total_consumption ~ as.factor(is_on_cosy) | date + mpan, 
-             data = aggregated_data %>% group_by(mpan, date, is_on_cosy) %>% summarise(total_consumption=sum(total_consumption)), 
-             cluster = ~mpan))
+etable(est_did$`sample.var: rate_period; sample: Afternoon Cosy`)
+etable(est_did$`sample.var: rate_period; sample: Morning Cosy`)
+etable(est_did$`sample.var: rate_period; sample: Other`)
+etable(est_did$`sample.var: rate_period; sample: Peak Rate`)
 
 ```
 
-```{r}
+
+```{r, event-study-period-log,  eval=FALSE}
+if (!file.exists("data/scratch/est_did_log.RDS")) {
+  # Fixed-effects regression
+  est_did_log <- feols(log(total_consumption) ~ + i(weeks_since_cosy, -1) | date + mpan + date^tariff_gsp_group_id, 
+                       data = aggregated_data,
+                       split =~ rate_period,
+                       cluster = ~mpan)
+  saveRDS(est_did_log, "data/scratch/est_did_log.RDS")
+} else {
+  est_did_log <- readRDS("data/scratch/est_did_log.RDS")
+}
+```
+
+### Total consumption
+
+```{r, event-study-daily-total,  eval=FALSE}
 # Prepare data
-aggregated_data_prepared <- aggregated_data %>%
-  filter(!is.na(weeks_since_cosy)) %>%
-  mutate(weeks_recoded = case_when(
-    weeks_since_cosy < -10  ~ -10,
-    weeks_since_cosy > 10   ~ 10,
-    TRUE                    ~ weeks_since_cosy
-  )) %>% group_by(mpan, date, weeks_recoded) %>% summarise(total_consumption=sum(total_consumption))
-
-# Fixed-effects regression
-est_did <- feols(total_consumption ~ + i(weeks_recoded, 0) | date + mpan, 
-                 data = aggregated_data_prepared %>% filter(weeks_recoded > -10 ) %>% filter(weeks_recoded < 10), 
-                 cluster = ~mpan)
+if (file.exists("data/scratch/est_did_tt.RDS")) {
+  aggregated_data_prepared <- aggregated_data %>%
+    filter(!is.na(weeks_since_cosy))%>% group_by(mpan, date, weeks_since_cosy, tariff_gsp_group_id) %>% 
+    summarise(total_consumption=sum(total_consumption))
+  
+  
+  # Fixed-effects regression
+  est_did_tt <- feols(total_consumption ~ + i(weeks_since_cosy, 0) | date + mpan + date^tariff_gsp_group_id, 
+                      data = aggregated_data_prepared, 
+                      cluster = ~mpan)
+  est_did_table <- etable(est_did_tt)
+  saveRDS(est_did_table, "data/scratch/est_did_tt.RDS")
+} else {
+  est_did_table <- readRDS("data/scratch/est_did_tt.RDS")
+}
 
 # Now we can plot the result of the interaction with coefplot
+etable(est_did_tt)
 coefplot(est_did)
 
-
-
-# add weather
-# check cohorts
-# when they got hp
-# callaway and sant'anna
-# 
 ```
 
 
+
+
+```{r, event-study-daily-total-log,  eval=FALSE}
+# 
+# # filter for panel
+# tt <- aggregated_data %>% 
+#   group_by(mpan) %>% 
+#   mutate(week = week(date)) %>% 
+#   summarise(start = min(date), min_week=min(week), max_week=max(week), count= n()) %>% 
+#   mutate(share_obs = count/3164) %>%
+#   filter(start < (as.Date("2022-12-13") - weeks(15)),
+#          share_obs > 0.5)
+# 
+# 
+# # Fixed-effects regression
+# est_did <- feols(total_consumption ~ + i(weeks_since_cosy, -1) + daily_avg_cloud_cover_total +
+#                    daily_avg_heating_degree + daily_avg_wind_speed 
+#                  | date + mpan, 
+#                  data = aggregated_data %>% filter(mpan %in% tt$mpan, weeks_since_cosy>-15, weeks_since_cosy<15),
+#                  split =~ rate_period,
+#                  cluster = ~mpan)
+# 
+# # Now we can plot the result of the interaction with coefplot
+# etable(est_did)
+# 
+# coefplot(est_did)
+# coefplot(est_did[2], title="Effect on total consumption - Morning Off Peak Cosy")
+# coefplot(est_did[1], title="Effect on total consumption - Afternoon Off Peak Cosy")
+# coefplot(est_did[3], title="Effect on total consumption - Peak rate")
+# coefplot(est_did[4], title="Effect on total consumption - Other rate")
+```
+
+
+## Callaway Sant'Anna DiD
+
+```{r, callsanta, include=TRUE}
+
+
+# Getting unique rate periods to loop over
+unique_periods <- unique(aggregated_data$rate_period)
+
+if (!file.exists("data/scratch/estimates_list.RDS")) { 
+  
+  # Initialize a list to store estimates for each period
+  estimates_list <- list()
+  
+  for(period in unique_periods) {
+    did_data <- aggregated_data %>%
+      filter(rate_period == period) %>%
+      mutate(week_cosy = as.numeric(ifelse(is_on_cosy == 1, week(date), NA))) %>%
+      filter(!is.na(week_cosy)) %>%
+      group_by(mpan, rate_period) %>%
+      summarise(firstweek = min(week_cosy, na.rm = TRUE)) %>%
+      inner_join(aggregated_data, by = c("mpan", "rate_period")) %>%
+      mutate(week = week(date)) %>%
+      group_by(mpan, firstweek, week, tariff_gsp_group_id) %>%
+      summarise(total_consumption = sum(total_consumption),
+                weekly_avg_cloud_cover_total = mean(daily_avg_cloud_cover_total),
+                weekly_avg_heating_degree = mean(daily_avg_heating_degree),
+                weekly_avg_wind_speed = mean(daily_avg_wind_speed)
+      ) %>%
+      mutate(id = as.numeric(mpan),
+             week = as.numeric(week))
+    
+    # Estimating the treatment effect using the Callaway and Sant'Anna method
+    est_cs <- att_gt(yname = "total_consumption",
+                     tname = "week",
+                     idname = "id",
+                     gname = "firstweek",
+                     data = did_data,
+                     control_group="notyettreated",
+                     allow_unbalanced_panel = TRUE)
+    
+    # agg
+    agg.simple <- aggte(est_cs, type = "simple", na.rm = TRUE, clustervars="id")
+    print(paste("Aggregate effect for", period))
+    print(summary(agg.simple))
+    
+    # event study style
+    agg.es <- aggte(est_cs, type = "dynamic", na.rm = TRUE, clustervars="id")
+    
+    # Store estimates in the list with period as the name
+    estimates_list[[period]] <- list(simple = agg.simple, dynamic = agg.es)
+    
+    saveRDS(estimates_list, "data/scratch/estimates_list.RDS")
+  }
+} else {
+  estimates_list <- readRDS("data/scratch/estimates_list.RDS")
+}
+
+for(period in unique_periods) {
+  
+  print(paste("Aggregate effect for", period))
+  print(summary(estimates_list[[period]]$simple))
+  
+  # Plotting for each period
+  ggdid_title <- paste(period, "Effect")
+  print(ggdid(estimates_list[[period]]$dynamic, title = ggdid_title))
+  
+}
+```
