@@ -1,0 +1,358 @@
+---
+title: "First event analysis"
+author: "Louise Bernard"
+date: "2023-12-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+library(bigrquery)
+library(data.table)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(purrr)
+library(furrr)
+library(scales)
+library(fixest)
+```
+
+## First event pre-analysis
+
+**Compare Reduction in Consumption:** This document aims to compare the reduction in consumption achieved through the CNZ randomized encouragement design against the reduction obtained using baseline consumption calculations.
+
+**Analysis Platforms:** Another goal is to determine which analyses should be conducted on a computer and which require a server.
+
+
+The second goal is to see which analysis could be done on computer and what should be done on a server. 
+
+The first saving sessions of Winter 2023 took place between '2023-11-16 17:30:00.000' and '2023-11-16 18:30:00.000'. 
+We extracted half hourly consumption data for every customers in our treatment and control group for 1 day prior, during and 1 day after the event. 
+
+The average decrease in consumption for people signed-up for OctoPlus was 0.03 kWh (s.d. 0.88 kWh) while the average baseline consumption is 0.72 kWh. 
+
+The average decrease in consumption for people signed-up for OctoPlus and opted-in was 0.21 kWh (s.d. 0.71), about 29% decrease compared to baseline, which is equivalent to a log change of 0.34.  
+
+We find smaller decrease in kWh but higher for log change using simple OLS - `-0.13` kWh for opt-in, `0.46` log change. Using the RED, we find an ITT close to 0 and `-0.09` kWh for the LATE estimate. 
+
+
+``` {r, comparison-baseline}
+# Data on signups and optins
+baseline <- fread("../data/input/session 1 - event optin.csv") 
+
+# Signup averages
+signup_reduction <- baseline %>%
+  summarize(
+    mean = mean(net_reduction_kwh, na.rm = TRUE),
+    sd = sd(net_reduction_kwh, na.rm = TRUE))
+
+# Calculate averages
+optin_reduction <- baseline %>%
+  filter(is_opted_into_event=="TRUE") %>%
+  summarize(
+    mean = mean(net_reduction_kwh, na.rm = TRUE),
+    sd = sd(net_reduction_kwh, na.rm = TRUE))
+
+# Log changes
+ln_optin_reduction <-baseline %>%
+  filter(is_opted_into_event=="TRUE") %>%
+  summarize(
+    mean = log(mean(baseline_consumption_delta_kwh, na.rm = TRUE))-log(mean(consumption_delta_kwh, na.rm = TRUE)))
+
+
+```
+
+## Randomized Encouragement Design Analysis
+
+We model the following ordinary least squares 
+
+$$Y_{it}=\alpha + \beta_1 Encouragement_{i} + X \gamma + W \beta_2 + \epsilon_{it}$$
+Where:
+
+- $Y_{it}$ represents electricity consumption (kWh) for consumer $i$ at the half-hour level $t$ during Saving Sessions or the logarithmic electricity consumption (excluding half-hours with 0kWh consumption) 
+- $Encouragement_{i}$ is a binary variable: 1 if the customer i is part of the treatment group (received an email invitation encouraging sign-up to OctoPlus) and 0 if in the control group.
+- $\beta_1$ represents the impact of being encouraged to sign up to OctoPlus
+- $X$ is a vector of customer characteristics, including previous consumption (in the final version, we would use consumption prior to the first date of OctoPlus sign-up encouragement emails being sent out by Octopus Energy but in here we use Estimated Annual Consumption), is the customer prepay and GSP regions (variables we stratified on) 
+- $W$ a set of weather controls averaged for the last 24h that varies at the regional level: heating degree days, wind speed, cloud coverage
+- $\epsilon_{it}$ represents the error term. We cluster standard errors at the level of consumer $i$. 
+
+
+```{r accounts, include=FALSE}
+# Store the project ID
+projectid = 'cnz-data-warehouse-d66eb552a5'
+
+if (!file.exists( "../data/scratch/accounts.RDS")) {
+  # Set your query
+  sql <- "SELECT * FROM `cnz-data-warehouse-d66eb552a5.src_saving_sessions_2.treatment_accounts`;"
+  
+  # Run the query; this returns a bq_table object that you can query further
+  tb <- bq_project_query(projectid, sql)
+  
+  # Store the rows of the data in a tibble
+  accounts <-bq_table_download(tb)
+  
+  # Convert your dataframe to a data.table
+  accounts <- as.data.table(accounts)
+  
+  # save accounts details
+  saveRDS(accounts, "../data/scratch/accounts.RDS")
+} else {
+  accounts <- readRDS("../data/scratch/accounts.RDS")
+}
+```
+
+```{r event-data, include=FALSE}
+
+if (!file.exists("../data/scratch/session1.RDS")) {
+  # Set your query
+  sql <- "SELECT * FROM `cnz-data-warehouse-d66eb552a5.src_saving_sessions_2.treatment_elec_interval` WHERE interval_start >= '2023-11-16 17:30:00.000' AND interval_start < '2023-11-16 18:30:00.000';"
+  
+  # Run the query; this returns a bq_table object that you can query further
+  tb <- bq_project_query(projectid, sql)
+  
+  # Store the rows of the data in a tibble
+  df <-bq_table_download(tb)
+  
+  # Convert your dataframe to a data.table
+  session1 <- as.data.table(df)
+  
+  saveRDS(df, "../data/scratch/session1.RDS")
+} else {
+  session1 <- readRDS("../data/scratch/session1.RDS")
+}
+
+# Merge and clean
+session1 <- session1 %>% inner_join(accounts)
+rm(accounts)
+```
+
+
+
+
+```{r download-data, eval=FALSE, include=FALSE}
+# Set your query
+sql <- 'SELECT DISTINCT interval_start FROM `cnz-data-warehouse-d66eb552a5.src_saving_sessions_2.treatment_elec_interval`;'
+
+# Run the query; this returns a bq_table object that you can query further
+tb <- bq_project_query(projectid, sql)
+
+# Store the rows of the data in a tibble
+intervals <- bq_table_download(tb)
+
+# Function to split the vector into chunks
+split_into_chunks <- function(vec, chunk_size) {
+  split(vec, ceiling(seq_along(vec)/chunk_size))
+}
+
+# Retrieve all interval_start timestamps and sort them
+interval_starts <- sort(as.character(intervals$interval_start))
+chunk_size <- 2 # Define your chunk size
+chunks <- split_into_chunks(interval_starts, chunk_size)
+
+# Process each chunk
+for (i in seq_along(chunks)) {
+  chunk <- chunks[[i]]
+  
+  # Convert interval_start list to a comma-separated string of literals
+  # Assuming interval_start is a timestamp, they should be formatted as string literals
+  intervals_list <- paste(sprintf("'%s'", chunk), collapse = ", ")
+  
+  # Modify your query to include a WHERE clause for the interval_start
+  sql <- sprintf(
+    "SELECT * FROM `cnz-data-warehouse-d66eb552a5.src_saving_sessions_2.treatment_elec_interval`
+      WHERE interval_start IN (%s)",
+    intervals_list
+  )
+  
+  # Run the query for the current chunk
+  tb <- bq_project_query(projectid, sql)
+  df <- bq_table_download(tb)
+  
+  # Save the data in a uniquely named file
+  saveRDS(df, paste0("../data/scratch/df_chunk_", i, ".RDS"))
+}
+
+
+# Assuming your working directory is set correctly to where the "../data/scratch/" folder is located
+all_files <- list.files(path = "../data/scratch", pattern = "df_chunk_.*\\.RDS", full.names = TRUE)
+all_dfs <- lapply(all_files, readRDS)
+df <- do.call(rbind, all_dfs)
+
+# Convert your dataframe to a data.table
+df <- as.data.table(df)
+
+```
+
+
+``` {r, late}
+# Weather data in the last half hour and day
+weather <- fread("../data/input/weather_2023_12_12.csv")
+
+# Merge together
+session1 <- session1 %>%
+  left_join(baseline %>% 
+              select(account_id, is_opted_into_event, campaign_created_at)) %>%
+  mutate(opted_in = ifelse(is_opted_into_event == TRUE, 1, 0),
+         opted_in = ifelse(is.na(opted_in), 0, opted_in),
+         signed_up = ifelse(as.Date(campaign_created_at)<= as.Date("2023-11-16  17:30:00 UTC"), 1, 0),
+         signed_up = ifelse(is.na(signed_up), 0, signed_up),
+         export_dummy = ifelse(!is.na(export_read_value), 1, 0),
+         consumption_delta = ifelse(!is.na(export_read_value), read_value-export_read_value, read_value),
+         regsample = ifelse(consumption_delta>0 & !is.na(current_energy_efficiency) & !is.na(latest_meterpoint_eac), 1,0),
+         tariff_gsp_group_id = gsub("_H", "_C", tariff_gsp_group_id)) %>%
+  left_join(weather, by=c("tariff_gsp_group_id"="closet_gsp_group", "interval_start"="merge_time"))
+
+summary(session1)
+
+```
+
+
+## Regressions
+
+
+``` {r regressions, include=FALSE}
+
+# First Set: With Covariates
+model1_ols <- feols(consumption_delta ~ opted_in + latest_meterpoint_eac + current_energy_efficiency | daily_avg_cloud_cover_total + daily_avg_heating_degree + daily_avg_wind_speed+ is_prepay+  interval_start + tariff_gsp_group_name, data = session1, cluster = ~ account_id, se = "cluster")
+model1_itt <- feols(consumption_delta ~ treat + latest_meterpoint_eac + current_energy_efficiency |  daily_avg_cloud_cover_total + daily_avg_heating_degree + daily_avg_wind_speed+ is_prepay+  interval_start + tariff_gsp_group_name , data = session1, cluster = ~ account_id, se = "cluster")
+model1_late_signup <- feols(consumption_delta ~  latest_meterpoint_eac + current_energy_efficiency |  daily_avg_cloud_cover_total + daily_avg_heating_degree + daily_avg_wind_speed+ is_prepay+  interval_start + tariff_gsp_group_name | signed_up ~ treat, data = session1, cluster = ~ account_id, se = "cluster")
+model1_late_optin <- feols(consumption_delta ~  latest_meterpoint_eac + current_energy_efficiency |  daily_avg_cloud_cover_total + daily_avg_heating_degree + daily_avg_wind_speed+ is_prepay+  interval_start + tariff_gsp_group_name | opted_in ~ treat, data = session1, cluster = ~ account_id, se = "cluster")
+
+
+# Second Set: Logs
+model2_ols <- feols(log(consumption_delta) ~ opted_in + log(latest_meterpoint_eac) + log(current_energy_efficiency) |  daily_avg_cloud_cover_total + daily_avg_heating_degree + daily_avg_wind_speed+ is_prepay+  interval_start + tariff_gsp_group_name , data = session1, cluster = ~ account_id, se = "cluster")
+model2_itt <- feols(log(consumption_delta) ~ treat + log(latest_meterpoint_eac) + log(current_energy_efficiency)  |  daily_avg_cloud_cover_total + daily_avg_heating_degree + daily_avg_wind_speed+ is_prepay+  interval_start + tariff_gsp_group_name , data = session1, cluster = ~ account_id, se = "cluster")
+model2_late_signup <- feols(log(consumption_delta) ~  log(latest_meterpoint_eac) + log(current_energy_efficiency)  |  daily_avg_cloud_cover_total + daily_avg_heating_degree + daily_avg_wind_speed+ is_prepay+  interval_start + tariff_gsp_group_name | signed_up ~ treat, data = session1, cluster = ~ account_id, se = "cluster")
+model2_late_optin <- feols(log(consumption_delta) ~  log(latest_meterpoint_eac) + log(current_energy_efficiency)  |  daily_avg_cloud_cover_total + daily_avg_heating_degree + daily_avg_wind_speed+ is_prepay+  interval_start + tariff_gsp_group_name | opted_in ~ treat, data = session1, cluster = ~ account_id, se = "cluster")
+```
+
+In the first table, we present the results for consumption in kWh. Column 1 shows the results for opt-in to the event - capturing both the effect of sign-up, opt-in and endogenous selection. Column 2 is the reduced form of invitation on consumption (Intent To Treat). Column 3 is the first stage of the impact of invitation on sign-up. Column 4 is the Local Average Treatment Effect of the compliers using invitation as an instrument for sign-up. Column 3 is the first stage of the impact of invitation on opt-in.Column 4 is the Local Average Treatment Effect of the compliers using invitation as an instrument for opt-in. 
+
+The regression analysis provides insights into electricity consumption reductions:
+
+1. **Opted-In (Column 1):** Decrease of `-0.13` kWh (standard error 0.0011) for those opted into OctoPlus, compared to the baseline average decrease of `0.21` kWh (s.d. `0.71` kWh).
+
+2. **Intent To Treat (Column 2):** ITT effect of invitation at `-0.0025` kWh (standard error 0.0017), smaller than the baseline average decrease of `0.72` kWh.
+
+3. **First Stage - Signed Up (Column 3):** Invitation's impact on signing up, coefficient `0.19`, meaning that receiving the invitation increased sign-up by almost 20%. It is reflecting a signed-up rate 20% in the control group and 40% in the treatment group before the first event. 
+
+4. **LATE - Signed Up (Column 4):** Decrease of `-0.01` kWh in consumption, compared to baseline average decrease of `0.03` kWh (s.d. `0.88` kWh).
+
+5. **First Stage - Opted In (Column 5):** Invitation's impact on opting in, coefficient `0.03`.
+
+6. **LATE - Opted In (Column 6):** Decrease of `-0.09` kWh in consumption.
+
+
+The analysis indicates that the Randomized Encouragement Design (RED) estimates are more conservative compared to baselining results. However, this does not necessarily imply differing outcomes by the trial's end. The need for more events to achieve sufficient power and potential communication issues during the first event could reconcile these initial differences in estimates.
+
+
+``` {r, tables}
+# Display Tables
+etable(model1_ols, model1_itt, model1_late_signup, model1_late_optin, title = "Consumption in kWh", 
+       order = c("treat", "opted_in", "signed_up"), headers = c("OLS", "ITT", "1st stage", "LATE", "1 stage", "LATE"), 
+       stage=1:2, 
+       fitstat = ~ r2 + F + n)
+
+```
+
+
+The log consumption regression analysis shows:
+
+1. **Opted-In (OLS Model):** Significant decrease in log consumption of `-0.46`, compared to baselining log change of `0.34`.
+
+2. **Intent To Treat (ITT Model):** ITT effect at `-0.0037`, minimal impact.
+
+3. **LATE - Signed Up:** Decrease in log consumption `-0.02`.
+
+4. **LATE - Opted In:** Decrease in log consumption `-0.14`.
+
+
+``` {r}
+etable(model2_ols, model2_itt, model2_late_signup, model2_late_optin, title = "Ln Consumption", 
+       order = c("treat", "opted_in", "signed_up"), headers = c("OLS", "ITT", "LATE", "LATE"), stage=2,
+       fitstat = ~ r2 + F + n)
+
+
+```
+
+## Event study
+
+```{r}
+
+# select a subsample to keep the data ok
+accounts <- readRDS("../data/scratch/accounts.RDS")
+
+set.seed(12345)
+random_treat <- sample(accounts[accounts$is_treat ==1,]$account_id, 10000)
+random_control <- sample(accounts[accounts$is_treat ==0,]$account_id, 10000)
+
+accounts_selection <- accounts %>%
+  filter(account_id %in% random_control | account_id %in% random_treat) 
+accounts_selection <- accounts_selection$account_id
+
+# Assuming accounts_selection is a vector of account_ids
+accounts_selection <- paste0(accounts_selection,  collapse = ", ")
+
+# Constructing the SQL query
+sql <- paste("SELECT a.account_id, a.treat, a.interval_start, ",
+             "(CASE WHEN a.export_read_value IS NOT NULL THEN a.read_value - a.export_read_value ELSE a.read_value END) AS consumption ",
+             "FROM `cnz-data-warehouse-d66eb552a5.src_saving_sessions_2.treatment_elec_interval` as a ",
+             "WHERE a.account_id IN (", accounts_selection, ");", sep = "")
+
+
+# Run the query; this returns a bq_table object that you can query further
+tb <- bq_project_query(projectid, sql)
+
+# Store the rows of the data in a tibble
+# Specifying n_max in bq_table_download might not be necessary if you only want the first 100 rows
+df <- bq_table_download(tb, n_max = Inf, page_size = 100000)
+
+
+# Merge together
+event_study <- df %>%
+  left_join(baseline %>% 
+              select(account_id, is_opted_into_event, campaign_created_at)) %>%
+  mutate(opted_in = ifelse(is_opted_into_event == TRUE, 1, 0),
+         opted_in = ifelse(is.na(opted_in), 0, opted_in),
+         signed_up = ifelse(as.Date(campaign_created_at)<= as.Date("2023-11-16  17:30:00 UTC"), 1, 0),
+         signed_up = ifelse(is.na(signed_up), 0, signed_up)) 
+
+# Define the event start time
+event_start <- as.POSIXct("2023-11-16 17:30:00", tz = "UTC")
+
+event_study <- event_study %>%
+  mutate(time_since_event = round(difftime(interval_start, event_start, units = "hours")/2),
+         hour = hour(interval_start))
+summary(event_study)
+
+```
+```{r}
+
+model1_ols <- feols(consumption ~  i(time_since_event, is_opted_into_event, -1) | interval_start + as.factor(hour) + account_id, 
+                    data = event_study, 
+                    cluster = ~ account_id, 
+                    se = "cluster")
+etable(model1_ols)
+coefplot(model1_ols,keep=".is_opted_into_event")
+```
+```{r}
+
+model1_itt <- feols(consumption ~  i(time_since_event,-1) + i(time_since_event, treat, -1) | hour, 
+                    data = event_study, 
+                    cluster = ~ account_id, 
+                    se = "cluster")
+etable(model1_itt)
+coefplot(model1_itt,keep=".treat")
+
+
+```
+
+```{r}
+model1_late_signup <- feols(consumption ~  i(time_since_event, -1) |  hour | i(time_since_event, opted_in, -1) ~  i(time_since_event, treat, -1), data = event_study, cluster = ~ account_id, se = "cluster")
+
+etable(model1_late_signup)
+coefplot(model1_late_signup,keep="opted_in")
+
+```

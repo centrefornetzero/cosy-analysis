@@ -1,19 +1,15 @@
-"0","knitr::opts_chunk$set(echo = TRUE)"
+"0","knitr::opts_chunk$set(echo = TRUE, include=FALSE, warning  = FALSE)"
 "0",""
 "0","# Load the package"
 "0","# Ensure necessary libraries are loaded"
-"0","library(bigrquery)"
-"2","Registered S3 methods overwritten by 'dbplyr':
-  method         from
-  print.tbl_lazy     
-  print.tbl_sql      
-"
-"0","library(fixest)"
-"0","library(data.table)"
+"0","# Load necessary libraries"
+"0","library(did)"
 "2","Registered S3 method overwritten by 'data.table':
   method           from
   print.data.table     
 "
+"0","library(fixest)"
+"0","library(data.table)"
 "2","data.table 1.14.8 using 1 threads (see ?getDTthreads).  Latest news: r-datatable.com
 "
 "2","**********

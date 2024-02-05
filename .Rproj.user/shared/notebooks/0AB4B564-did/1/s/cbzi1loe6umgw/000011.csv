@@ -1,0 +1,8 @@
+"0",""
+"0","print(""Using a cut-off a 2 HDD for data analysis:"")"
+"1","[1]"
+"1"," ""Using a cut-off a 2 HDD for data analysis:"""
+"1","
+"
+"0","heating_months <- weather_agg %>% filter(avg_heating_degree> 2)"
+"0",""
