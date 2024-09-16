@@ -1,0 +1,32 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:hp-impact} Impact of Predicted Heat Pump Installations (restricted to winter months)}
+   \centering
+   \begin{tabular}{lccccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variable: & \multicolumn{5}{c}{Half Hourly Consumption in kWh}\\
+      Rate period                    & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall \\   
+      Model:                         & (1)            & (2)            & (3)             & (4)             & (5)\\  
+      \midrule
+      \emph{Variables}\\
+      OnCosy $=$ 1                   & 0.5184$^{***}$ & 0.2968$^{***}$ & -0.1556$^{***}$ & -0.1098$^{***}$ & 0.0158$^{***}$\\   
+                                     & (0.0110)       & (0.0070)       & (0.0045)        & (0.0039)        & (0.0029)\\   
+      \midrule
+      \emph{Fixed-effects}\\
+      Household                      & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      Day                            & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      HDD                            & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                   & 3,178,661      & 3,179,904      & 3,179,891       & 3,184,632       & 3,184,633\\  
+      Size of the 'effective' sample & 6,737          & 6,737          & 6,737           & 6,737           & 6,737\\  
+      Pre-Treatment Average          & 0.3886         & 0.3306         & 0.4458          & 0.3941          & 0.3914\\  
+      Number of Time Periods         & 11,551         & 11,551         & 11,551          & 11,551          & 11,551\\  
+      R$^2$                          & 0.56294        & 0.49552        & 0.49033         & 0.61542         & 0.67367\\  
+      \midrule \midrule
+      \multicolumn{6}{l}{\emph{Clustered (Household) standard-errors in parentheses}}\\
+      \multicolumn{6}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+

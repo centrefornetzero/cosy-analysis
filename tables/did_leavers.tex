@@ -1,0 +1,36 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:did-leavers} Impact of Cosy for Leavers}
+   \centering
+   \begin{tabular}{lccccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variable: & \multicolumn{5}{c}{Half Hourly Consumption in kWh}\\
+      Rate period                                  & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall \\   
+      Model:                                       & (1)            & (2)            & (3)             & (4)             & (5)\\  
+      \midrule
+      \emph{Variables}\\
+      Cosy Contract Active $=$ 1                   & 0.5160$^{***}$ & 0.3126$^{***}$ & -0.1574$^{***}$ & -0.1044$^{***}$ & 0.0209$^{***}$\\   
+                                                   & (0.0162)       & (0.0097)       & (0.0065)        & (0.0052)        & (0.0040)\\   
+      leavers $\times$ Cosy Contract Active $=$ 1  & 0.1530$^{***}$ & 0.0579$^{***}$ & -0.0045         & -0.0596$^{***}$ & -0.0125$^{**}$\\   
+                                                   & (0.0292)       & (0.0173)       & (0.0098)        & (0.0085)        & (0.0060)\\   
+\midrule
+\emph{Pre-Treatment Average}\
+      Half Hourly Consumption                      & 0.3952         & 0.3298         & 0.4261          & 0.3979          & 0.3922\\  
+      \midrule
+      \emph{Fixed-effects}\\
+      HDD                                          & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      Household                                    & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      Day                                          & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                                 & 3,148,057      & 3,148,620      & 3,148,593       & 3,153,228       & 3,153,230\\  
+      Number of Households               & 6,657          & 6,657          & 6,657           & 6,657           & 6,657\\  
+      Number of Time Periods                       & 916            & 916            & 916             & 916             & 916\\  
+      R$^2$                                        & 0.57744        & 0.49833        & 0.49426         & 0.62202         & 0.67398\\  
+      \midrule \midrule
+      \multicolumn{6}{l}{\emph{Clustered (Household) standard-errors in parentheses}}\\
+      \multicolumn{6}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+
