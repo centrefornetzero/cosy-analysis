@@ -1,0 +1,34 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:hp-did} HP Installation on Electricity Consumption}
+   \centering
+   \begin{tabular}{lcccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variable: & \multicolumn{4}{c}{Consumption in kWh per half hour}\\
+       & \multicolumn{2}{c}{TWFE} & \multicolumn{2}{c}{CS} \\ 
+                                     & Peak Rate      & Overall        & Peak Rate      & Overall \\   
+      Model:                         & (1)            & (2)            & (3)            & (4)\\  
+      \midrule
+      \emph{Variables}\\
+      Is HP Installed $=$ 1          & 0.1825$^{***}$ & 0.1584$^{***}$ & 0.1825$^{***}$ & 0.1584$^{***}$\\   
+                                     & (0.0061)       & (0.0087)       & (0.0061)       & (0.0087)\\   
+      \midrule
+      Pre-Treatment Average          & 0.2595         & 0.2488         & 0.2595         & 0.2488\\  
+\midrule
+      \emph{Fixed-effects}\\
+      HDD                            & Yes            & Yes            & Yes            & Yes\\  
+      MPAN                           & Yes            & Yes            & Yes            & Yes\\  
+      Day                            & Yes            & Yes            & Yes            & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                   & 866,715        & 865,775        & 866,715        & 865,775\\  
+      Size of the 'effective' sample & 1,444          & 1,444          & 1,444          & 1,444\\  
+      Number of Time Periods         & 916            & 916            & 916            & 916\\  
+      R$^2$                          & 0.53247        & 0.35892        & 0.53247        & 0.35892\\  
+      \midrule \midrule
+      \multicolumn{5}{l}{\emph{Clustered (MPAN) standard-errors in parentheses}}\\
+      \multicolumn{5}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+

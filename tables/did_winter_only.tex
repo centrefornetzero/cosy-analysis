@@ -1,0 +1,33 @@
+
+\begin{table}[htbp]
+   \caption{\label{did-winter} Cosy Adoption in kWh per day (restricted to winter months)}
+   \centering
+   \begin{tabular}{lccccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variables: & \multicolumn{4}{c}{Consumption in kWh per period} & Consumption in kWh per day\\
+      Rate period                    & Afternoon Cosy & Morning Cosy  & Other          & Peak Rate       &  \\   
+      Model:                         & (1)            & (2)           & (3)            & (4)             & (5)\\  
+      \midrule
+      \emph{Variables}\\
+      OnCosy $=$ 1                   & 0.5696$^{***}$ & 1.847$^{***}$ & -2.102$^{***}$ & -0.7759$^{***}$ & -0.3953\\   
+                                     & (0.0886)       & (0.1174)      & (0.2016)       & (0.0455)        & (0.3294)\\   
+      Winter $\times$ OnCosy $=$ 1   & 2.883$^{***}$  & 3.129$^{***}$ & -1.799$^{***}$ & -1.143$^{***}$  & 3.127$^{***}$\\   
+                                     & (0.1014)       & (0.1206)      & (0.2692)       & (0.0665)        & (0.4276)\\   
+      \midrule
+      \emph{Fixed-effects}\\
+      HDD                            & Yes            & Yes           & Yes            & Yes             & Yes\\  
+      MPAN                           & Yes            & Yes           & Yes            & Yes             & Yes\\  
+      Day                            & Yes            & Yes           & Yes            & Yes             & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                   & 1,526,241      & 1,525,130     & 1,529,587      & 1,526,344       & 1,529,587\\  
+      Size of the 'effective' sample & 5,196          & 5,196         & 5,196          & 5,196           & 5,196\\  
+      R$^2$                          & 0.56800        & 0.62042       & 0.64408        & 0.52453         & 0.71641\\  
+      Within R$^2$                   & 0.04619        & 0.07131       & 0.01306        & 0.03432         & 0.00302\\  
+      \midrule \midrule
+      \multicolumn{6}{l}{\emph{Clustered (MPAN) standard-errors in parentheses}}\\
+      \multicolumn{6}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+

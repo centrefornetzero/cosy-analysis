@@ -1,0 +1,46 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:did-hetero} Peak time consumption}
+   \centering
+   \begin{tabular}{lcccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variables: & Consumption in kWh per period & Share of daily consumption & \multicolumn{2}{c}{Consumption in kWh per period}\\
+      Model:                                  & (1)             & (2)             & (3)            & (4)\\  
+      \midrule
+      \emph{Variables}\\
+      OnCosy $=$ 1                            & -0.7152$^{***}$ & -0.0513$^{***}$ & -1.246$^{***}$ & -1.226$^{***}$\\   
+                                              & (0.0854)        & (0.0021)        & (0.1736)       & (0.0423)\\   
+      EAC in mWh $\times$ OnCosy $=$ 1        & -0.0804$^{***}$ & 0.0007$^{***}$  &                &   \\   
+                                              & (0.0137)        & (0.0003)        &                &   \\   
+      OnCosy $=$ 1 $\times$ EPC $=$ B         &                 &                 & 0.1148         &   \\   
+                                              &                 &                 & (0.1949)       &   \\   
+      OnCosy $=$ 1 $\times$ EPC $=$ C         &                 &                 & 0.0895         &   \\   
+                                              &                 &                 & (0.1876)       &   \\   
+      OnCosy $=$ 1 $\times$ EPC $=$ D         &                 &                 & -0.0142        &   \\   
+                                              &                 &                 & (0.1865)       &   \\   
+      OnCosy $=$ 1 $\times$ EPC $=$ E         &                 &                 & -0.0209        &   \\   
+                                              &                 &                 & (0.2093)       &   \\   
+      OnCosy $=$ 1 $\times$ EPC $=$ F         &                 &                 & -0.2578        &   \\   
+                                              &                 &                 & (0.2549)       &   \\   
+      OnCosy $=$ 1 $\times$ EPC $=$ G         &                 &                 & 0.2260         &   \\   
+                                              &                 &                 & (0.3630)       &   \\   
+      Prev Is Variable $\times$ OnCosy $=$ 1  &                 &                 &                & -0.1984$^{**}$\\   
+                                              &                 &                 &                & (0.0930)\\   
+      \midrule
+      \emph{Fixed-effects}\\
+      HDD                                     & Yes             & Yes             & Yes            & Yes\\  
+      MPAN                                    & Yes             & Yes             & Yes            & Yes\\  
+      Day                                     & Yes             & Yes             & Yes            & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                            & 1,239,900       & 1,235,328       & 1,042,525      & 1,515,648\\  
+      Size of the 'effective' sample          & 3,891           & 3,891           & 3,242          & 5,153\\  
+      R$^2$                                   & 0.51899         & 0.34835         & 0.51482        & 0.51958\\  
+      Within R$^2$                            & 0.02899         & 0.02401         & 0.02488        & 0.02558\\  
+      \midrule \midrule
+      \multicolumn{5}{l}{\emph{Clustered (MPAN) standard-errors in parentheses}}\\
+      \multicolumn{5}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+

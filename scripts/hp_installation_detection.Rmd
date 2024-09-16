@@ -1,0 +1,279 @@
+---
+title: "hp installation detection"
+author: "Louise Bernard"
+date: "2024-07-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(kableExtra)
+library(did)
+library(fixest)
+library(data.table)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(tidyr)
+library(bacondecomp)
+library(scales)  # For date formatting
+library(forcats)
+library(viridis)  # Load the viridis package for better color options
+library(caret)
+library(stringr)
+
+```
+
+## Heat Pump Installation {-}
+
+```{r gas, include=FALSE}
+# get install date
+hp_install_date <- fread("../data/input/cosy_-_hp_details_2024_06_25.csv") %>%
+  select(account_id, installed_at) %>%
+  mutate(installed_at = as.Date(installed_at)) %>%
+  distinct(installed_at, account_id)
+
+# get people from the survey responders
+survey_responses <- fread("../data/input/responses.csv") %>%
+  select(-Other) %>% 
+  rename(account_number = kid) %>%
+  inner_join(fread("../data/input/survey_ids.csv"))  %>%
+  mutate(installed_at_2 = as.Date(`When was your heat pump installed?`)) %>%
+  distinct(installed_at_2, account_id) %>%
+  group_by(account_id) %>%
+  arrange(account_id, installed_at_2) %>% 
+  slice(1) %>%
+  filter(!is.na(installed_at_2), !is.na(account_id))
+
+# merge gas, cosy adoption and weather data
+gas_readings <- fread("../data/input/cosy_-_cosy_gas_readings_2024_06_27.csv") %>%
+  select(-mpan) %>%
+  distinct() 
+
+# get weekly weather
+weather <- fread("../data/input/cosy_-_weather_weekly_2024_06_13.csv") 
+
+
+# ev half hours 
+# Read the CSV file
+ev_charging <- fread("../data/input/cosy_-_ev_detection_2024_07_04.csv") %>%
+  mutate(ev_charging = 1,
+         adjusted_date = as.POSIXct(interval_start, format="%Y-%m-%d %H:%M:%S"),
+         settlement_week = floor_date(as.Date(adjusted_date), "week")+1) %>%
+  group_by(account_id,, settlement_week) %>%
+  tally() %>%
+  rename(ev_charging=n)
+
+# EV users details
+ev_users <- fread("../data/input/cosy_-_ev_detection_2024_07_04.csv")  %>%
+  group_by(account_id) %>%
+  summarise(is_ev_detected= min(as.Date(interval_start)))
+
+
+# create weekly data
+weekly_data <- readRDS("../data/scratch/aggregated_data.RDS") %>%
+  filter(rate_period == "Overall")  %>%
+  mutate(settlement_week = floor_date(date, "week")+1) %>%
+  group_by(account_id,  gsp_group_id, settlement_week) %>%
+  summarise(total_consumption = sum(total_consumption),
+            cosy_contract_active = round(mean(cosy_contract_active))) %>%
+  left_join(weather %>% rename(settlement_week=week_date)) %>%
+  left_join(hp_install_date)  %>%
+  left_join(survey_responses)  %>%
+  left_join(gas_readings) %>%
+  left_join(ev_charging) %>%
+  left_join(ev_users) %>%
+  arrange(account_id, settlement_week) %>%
+  mutate(is_hp_installed = ifelse(!is.na(installed_at), 
+                                  as.numeric(installed_at <= settlement_week),
+                                  ifelse(!is.na(installed_at_2),  as.numeric(installed_at_2 <= settlement_week),
+                                         NA)),
+         gas_user = as.numeric(account_id %in% gas_readings$account_id),
+         ev_user = as.numeric(settlement_week >= is_ev_detected),
+         gas_rolling_avg = zoo::rollapply(weekly_consumption, width = 3, FUN = mean, align = "right", fill = NA),
+         elec_rolling_avg = zoo::rollapply(total_consumption, width = 3, FUN = mean, align = "right", fill = NA),
+         gas_diff = c(NA, diff(weekly_consumption)),
+         elec_diff = c(NA, diff(total_consumption))) %>%
+  select(total_consumption, weekly_consumption, avg_heating_degree, is_hp_installed, settlement_week, cosy_contract_active, gsp_group_id) 
+
+features <- weekly_data %>%
+  filter(!is.na(is_hp_installed)) %>%
+  mutate(across(everything(), ~ replace_na(.x, 0))) %>%
+  ungroup()
+
+# Step 3: Train-Test Split
+set.seed(123)
+split_accounts <- sample(unique(features$account_id), size = 0.7 * length(unique(features$account_id)))
+
+train_data <- features %>% filter(account_id %in% split_accounts)
+test_data <- features  %>% filter(!account_id %in% split_accounts)
+
+train_features <- train_data %>%
+  select(-is_hp_installed)
+train_target <- train_data$is_hp_installed
+
+test_features <- test_data %>%
+  select(-is_hp_installed)
+test_target <- test_data$is_hp_installed
+
+# Step 4: Model Training (Random Forest Classifier)
+model <- train(
+  train_features, as.factor(train_target),
+  method = "rf",
+  ntree = 100
+)
+
+# Step 5: Model Evaluation
+predictions <- predict(model, test_features)
+confusion_matrix <- confusionMatrix(predictions, as.factor(test_target))
+
+# Feature importance plot (from the random forest model)
+importance <- varImp(model, scale = FALSE)
+
+# Create the plot
+ggplot(importance, aes(x = reorder(Variables, Overall), y = Overall)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Features", y = "Importance")
+
+# Save the plot
+ggsave("../graphs/importance.png")
+```
+
+``` {r}
+# Prepare a data frame with the original test data and predictions
+results <- data.frame(
+  settlement_week = test_data$settlement_week,
+  Actual = test_target,
+  Predicted = predictions
+)
+
+# Function to classify predictions into true positive, false positive, etc.
+get_prediction_type <- function(actual, predicted) {
+  if (actual == 1 && predicted == 1) {
+    return("True Positive")
+  } else if (actual == 0 && predicted == 1) {
+    return("False Positive")
+  } else if (actual == 1 && predicted == 0) {
+    return("False Negative")
+  } else {
+    return("True Negative")
+  }
+}
+
+# Apply the function to classify each row
+results$PredictionType <- mapply(get_prediction_type, results$Actual, results$Predicted)
+
+# Summarize by month
+time_summary <- results %>%
+  group_by(settlement_week, PredictionType) %>%
+  summarize(Count = n(), .groups = 'drop')
+
+# Plot using ggplot2
+ggplot(time_summary, aes(x = settlement_week, y = Count, color = PredictionType, shape = PredictionType, group = PredictionType)) +
+  geom_line() +
+  geom_point(size = 3) +
+  scale_color_brewer(palette = "Set2") +
+  scale_shape_manual(
+    values = c(
+      "True Positive" = 16,  # Filled circle
+      "True Negative" = 17,  # Filled triangle
+      "False Positive" = 1,  # Empty circle
+      "False Negative" = 2   # Empty triangle
+    )
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Week",
+    y = "Count",
+    color = "Prediction Type",
+    shape = "Prediction Type"
+  )
+
+# Save the plot
+ggsave("../graphs/predictions_over_time.png")
+
+
+```
+
+
+```{r attachedpredictions, eval=FALSE}
+
+# Prepare the features from the original merged dataset (ensure the same feature engineering is applied)
+merged_data <-  weekly_data %>%
+  filter(is.na(is_hp_installed)) %>%
+  mutate(across(everything(), ~ replace_na(.x, 0))) %>%
+  ungroup()
+
+# Make predictions using the trained model
+predictions <- predict(model, merged_data)
+
+# Add predictions back to the dataset
+merged_data$predicted_is_hp_installed <- as.numeric(predictions)-1
+
+# Check the first few rows to confirm predictions are attached
+predicted_counts <- merged_data %>%
+  full_join(features) %>%
+  mutate(
+    # Step 1: Prioritize `is_hp_installed` if not missing
+    predicted_is_hp_installed = ifelse(!is.na(is_hp_installed), is_hp_installed, predicted_is_hp_installed),
+    # # Step 2: Propagate `1` if it was present in a previous month for this `hashed_mpan`
+    # predicted_is_hp_installed = cummax(predicted_is_hp_installed)
+  ) %>%
+  group_by(account_id) %>%
+  filter(predicted_is_hp_installed==1) %>%
+  summarise(pred_installed_at = min(settlement_week))
+saveRDS(predicted_counts, "../data/scratch/predicted_counts.RDS")
+
+# Aggregate the number of HP for each date
+predicted_counts %>%
+  group_by(pred_installed_at) %>%
+  tally() %>%
+  # Plot the aggregated data using a bar chart
+  ggplot(aes(x = as.Date(pred_installed_at), y = n)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  scale_x_date(
+    labels = scales::date_format("%w %b %y"),  # Formatting months and years
+    date_breaks = "3 month"  # Adjust this based on your data density
+  ) +
+  labs(
+    x = "Date",
+    y = "Total HP"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Improve readability by rotating labels
+  )
+
+ggsave("../graphs/predicted_HP_installations.png")
+
+
+# Check the impact of HP installation
+aggregated_data <-  readRDS("../data/scratch/aggregated_data.RDS") %>%
+  left_join(predicted_counts) %>%
+  mutate(predicted_is_hp_installed = as.numeric(pred_installed_at <= date))
+
+m1 <- feols(consumption_hh ~ i(cosy_contract_active, ref=0) | account_id + date + daily_avg_heating_degree, 
+            data = aggregated_data,
+            split = ~ rate_period,
+            cluster = ~ account_id)
+
+m2 <- feols(consumption_hh ~ i(cosy_contract_active, ref=0) + i(predicted_is_hp_installed, ref=0) | account_id + date + daily_avg_heating_degree, 
+            data = aggregated_data,
+            split = ~ rate_period,
+            cluster = ~ account_id)
+
+etable(m2)
+
+etable(m1, tex=TRUE, title = "Impact of Predicted Heat Pump Installations (restricted to winter months)",
+       label="tab:hp-impact",
+       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "../tables/hp_impact.tex", replace = TRUE)
+
+
+# # Remove all objects except the specified ones
+# rm(list = setdiff(ls(), c("aggregated_data")))
+
+```

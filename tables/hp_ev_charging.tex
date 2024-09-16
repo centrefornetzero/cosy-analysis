@@ -1,0 +1,32 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:hp-ev-charging} HP Installation on Probability of Charging EV by Period}
+   \centering
+   \begin{tabular}{lcccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variable: & \multicolumn{4}{c}{Charging EV}\\
+                                     & Morning Cosy & Afternoon Cosy & Peak Rate & Other \\   
+      Model:                         & (1)          & (2)            & (3)       & (4)\\  
+      \midrule
+      \emph{Variables}\\
+      Is HP Installed $=$ 1          & -0.0012      & 0.0044$^{**}$  & 0.0014    & -0.0046\\   
+                                     & (0.0061)     & (0.0021)       & (0.0026)  & (0.0073)\\   
+      \midrule
+\emph{Pre-Treatment Average}\\
+      Charging EV             & 0.02         & 0.01           & 0.02      & 0.95\\  
+\midrule
+      \emph{Fixed-effects}\\
+      Household                      & Yes          & Yes            & Yes       & Yes\\  
+      Day                            & Yes          & Yes            & Yes       & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                   & 77,424       & 77,424         & 77,424    & 77,424\\  
+      Number of Households & 516          & 516            & 516       & 516\\  
+      R$^2$                          & 0.25291      & 0.16432        & 0.11802   & 0.26085\\  
+      \midrule \midrule
+      \multicolumn{5}{l}{\emph{Clustered (Household) standard-errors in parentheses}}\\
+      \multicolumn{5}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+

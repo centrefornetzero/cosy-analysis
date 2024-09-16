@@ -1,0 +1,32 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:hp-did-gas-conso} HP Installation on Gas Consumption}
+   \centering
+   \begin{tabular}{lcc}
+      \tabularnewline \midrule \midrule
+      Dependent Variable: & \multicolumn{2}{c}{Weekly Gas Consumption in kWh}\\
+                                     & TWFE           & CS \\   
+      Model:                         & (1)            & (2)\\  
+      \midrule
+      \emph{Variables}\\
+      Is HP Installed $=$ 1          & -243.2$^{***}$ & -243.2$^{***}$\\   
+                                     & (11.19)        & (11.19)\\   
+      \midrule
+      \emph{Fixed-effects}\\
+      MPAN                           & Yes            & Yes\\  
+      HDD                            & Yes            & Yes\\  
+      Week                           & Yes            & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                   & 66,171         & 66,171\\  
+      Size of the 'effective' sample & 583            & 583\\  
+      Pre-Treatment Average          & 222.5916       & 222.5916\\  
+      Number of Time Periods         & 303            & 303\\  
+      R$^2$                          & 0.78813        & 0.78813\\  
+      \midrule \midrule
+      \multicolumn{3}{l}{\emph{Clustered (MPAN) standard-errors in parentheses}}\\
+      \multicolumn{3}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+

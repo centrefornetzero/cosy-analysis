@@ -1,0 +1,40 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:did-lcts} Impact of Cosy by LCTs Ownership}
+   \centering
+   \begin{tabular}{lccccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variable: & \multicolumn{5}{c}{Half Hourly Consumption in kWh}\\
+      Rate period                                      & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall \\   
+      Model:                                           & (1)            & (2)            & (3)             & (4)             & (5)\\  
+      \midrule
+      \emph{Variables}\\
+      Cosy Contract Active $=$ 1                       & 0.2212$^{***}$ & 0.1968$^{***}$ & -0.0900$^{***}$ & -0.0530$^{***}$ & 0.0094\\   
+                                                       & (0.0210)       & (0.0165)       & (0.0113)        & (0.0083)        & (0.0065)\\   
+      Homebattery $\times$ Cosy Contract Active $=$ 1  & 0.7317$^{***}$ & 0.3693$^{***}$ & -0.0973$^{***}$ & -0.1660$^{***}$ & 0.0210$^{*}$\\   
+                                                       & (0.0415)       & (0.0277)       & (0.0178)        & (0.0141)        & (0.0110)\\   
+      HasSolarPV $\times$ Cosy Contract Active $=$ 1   & -0.0072        & -0.0622$^{**}$ & -0.0182         & 0.0078          & -0.0061\\   
+                                                       & (0.0350)       & (0.0250)       & (0.0189)        & (0.0131)        & (0.0105)\\   
+      HasEV $\times$ Cosy Contract Active $=$ 1        & 0.4127$^{***}$ & 0.2025$^{***}$ & -0.0850$^{***}$ & -0.1155$^{***}$ & -0.0055\\   
+                                                       & (0.0549)       & (0.0360)       & (0.0202)        & (0.0193)        & (0.0132)\\   
+\midrule
+\emph{Pre-Treatment Average}\\
+      Half Hourly Consumption                          & 0.3853         & 0.3165         & 0.3963          & 0.3874          & 0.3790\\  
+      \midrule
+      \emph{Fixed-effects}\\
+      Household                                        & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      Day                                              & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      HDD                                              & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                                     & 1,222,705      & 1,222,888      & 1,222,889       & 1,224,531       & 1,224,531\\  
+      Number of Households                   & 2,439          & 2,439          & 2,439           & 2,439           & 2,439\\  
+      Number of Time Periods                           & 11,551         & 11,551         & 11,551          & 11,551          & 11,551\\  
+      R$^2$                                            & 0.59743        & 0.50536        & 0.48882         & 0.61786         & 0.66379\\  
+      \midrule \midrule
+      \multicolumn{6}{l}{\emph{Clustered (Household) standard-errors in parentheses}}\\
+      \multicolumn{6}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+
