@@ -1,0 +1,401 @@
+---
+title: "Cosy analysis"
+author: "Louise Bernard"
+date: "2024-03-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, include=FALSE, warning  = FALSE)
+
+# Load the package
+# Ensure necessary libraries are loaded
+# Load necessary libraries
+library(did)
+library(fixest)
+library(data.table)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(tidyr)
+
+```
+
+## Introduction
+
+This document presents the results of the impact of the adoption of cosy tariff on smart meter electricity consumption at the household level.
+
+Done:
+
+- Add weather [done - but using reanalysis data, the MET data from databricks only starts in 2022]: I decided to use GSP* date trends instead
+- Implement Callaway and sant'anna DiD [done but more work needed on the panel balance]: I have settled on almost a year but could restrict further
+- Decide of a threshold for the event study (how many weeks before / after adoption we want to capture, do we want to put all weeks before in a large category or exclude them)
+
+To do: 
+
+- Can we find out when they install their HP
+- heterogeneity: epc data, what tariff they were on before
+- calculate price elasticities
+- calculate emissions savings
+
+
+
+```{r download-data}
+
+aggregated_data <- fread("data/input/Cosy Cal.csv") %>%
+  rename(total_consumption = total_read_value,
+         tariff_gsp_group_id = gsp) %>%
+  mutate(date = as.Date(settlement_date),
+         is_on_cosy = ifelse(pre_post_cosy=="post", 1, 0)
+  ) %>% 
+  select(-c(settlement_date, pre_post_cosy))
+
+
+# Define the start date from which to count weeks
+start_date <- min(aggregated_data$date, na.rm = TRUE)
+
+adoption <- aggregated_data %>%
+  group_by(mpan, is_on_cosy) %>%
+  arrange(mpan, is_on_cosy, date) %>%
+  slice(1) %>%
+  filter(is_on_cosy==1) %>%
+  ungroup() %>%
+  select(mpan, date) %>%
+  rename(adoption = date) %>%
+  mutate(
+    firstweek = floor_date(adoption, "week")
+  )
+
+did_data <- aggregated_data %>%
+  inner_join(adoption) %>%
+  mutate(weeks_since_cosy = floor(as.numeric(difftime(date, adoption, units = "weeks")))) %>%
+  group_by(mpan, date)  %>%
+  mutate(
+    # Calculate the difference in weeks from the start_date
+    week = as.numeric(difftime(date, start_date, units = "weeks")) %/% 1 + 1,
+    # Assuming you have a way to determine 'firstweek', adjust similarly if needed
+    firstweek = as.numeric(difftime(firstweek, start_date, units = "weeks")) %/% 1 + 1) %>%
+  group_by(mpan, firstweek, weeks_since_cosy, week, tariff_gsp_group_id, rate_period) %>%
+  summarise(total_consumption = sum(total_consumption)) %>%
+  mutate(
+    id = as.numeric(mpan),
+    firstweek = as.numeric(firstweek),
+    week = as.numeric(week), 
+    is_on_cosy = ifelse(firstweek<=week, 1, 0)) %>%
+  filter(!is.na(week)) %>%
+  group_by(mpan, week) %>%
+  mutate(weekly_consumption = sum(total_consumption),
+         share_consumption = total_consumption/weekly_consumption) 
+
+
+weather <- fread("data/input/Cosy Analysis Weather Mar 26.csv") %>%
+  mutate(
+    # Calculate the difference in weeks from the start_date
+    week = as.numeric(difftime(week_start, start_date, units = "weeks")) %/% 1 + 1)
+
+did_data <- did_data %>%
+  left_join(weather, by=c("week", "tariff_gsp_group_id" = "gsp_group_id")) 
+
+did_data <- did_data %>%
+  mutate(month = month(week_start))
+
+rm(aggregated_data)
+```
+## Summary statistics
+
+This graph shows weekly electricity consumption. 
+
+```{r plot, echo=TRUE}
+# Line Plot
+ggplot(did_data, aes(x = week, y = total_consumption, rate_period)) +
+  geom_line() +
+  labs(title = "Weekly Consumption Over Time", x = "Month", y = "Total Consumption") +
+  theme_minimal() +
+  facet_grid(~ rate_period)
+
+# Bar Chart
+ggplot(did_data, aes(x = week, y = total_consumption, fill = rate_period)) +
+  geom_bar(stat = "summary", fun = "mean", position = "dodge") +
+  labs(title = "Average Weekly Consumption Over Time", x = "Week", y = "Average Total Consumption") +
+  theme_minimal() +
+  facet_grid(~ rate_period)
+
+
+```
+
+``` {r, weather, eval=FALSE}
+# Line Plot
+ggplot(weather_agg, aes(x = c(month), y = avg_heating_degree)) +
+  geom_line() +
+  labs(title = "HDD Over Time", x = "Month", y = "HDD") +
+  theme_minimal()
+
+```
+
+
+## Descriptive statistics on cosy adoption
+
+The Cosy tariff has 4 different periods:
+
+```{r event, include=TRUE, fig.cap="Cosy Double Di[", out.width = '50%'}
+knitr::include_graphics("graph/Sky Blue Bar Chart Instagram.webp")
+```
+
+This bar chart shows average consumption pre and post cosy for each period of the day:
+
+``` {r, pre-post, include=TRUE}
+# Prepare data for bar chart
+# Line Plot
+ggplot(did_data, aes(x = as.factor(is_on_cosy), y = total_consumption, fill = as.factor(is_on_cosy))) +
+  geom_bar(stat = "summary") +
+  labs(title = "Consumption by Period with Cosy", x = "Rate Period", y = "Average Weekly Consumption") +
+  theme_minimal() +
+  facet_grid(~rate_period)
+```
+
+## Difference in differences
+
+We run the following model by period and on total daily consumption for all customers that have adopted Cosy in the past year: 
+
+$$Consumption_{it} = \alpha OnCosy_{it} + \delta_t +  \gamma_i + GSP \times \delta_t+  \epsilon_{it} $$
+with:
+
+- $Consumption_{it}$ - electricty consumption in kWh (column 1) and log (column 2) for customer $i$ on day $t$ 
+- $OnCosy_{it}$ a dummy variable equals 1 if the customer has switched to Cosy, 0 otherwise. To be noted: right now, adoption is permanent, I am not switching back to 0 for people that switched to another tariff
+- $\delta_t$, $\gamma_i$, $ GSP \times \delta_t$ are day $t$,  customer $i$, and GSP regions times day fixed effects
+The standard errors are clustered at the customer (MPAN) level. 
+
+### Consumption by period
+
+```{r, did-period, include=TRUE}
+
+m1 <- feols(total_consumption ~ as.factor(is_on_cosy) | week + mpan + week^tariff_gsp_group_id,
+            data = did_data,
+            cluster = ~mpan,
+            split = ~ rate_period)
+m2 <- feols(weekly_consumption ~ as.factor(is_on_cosy) | week + mpan + week^tariff_gsp_group_id,
+            data = did_data %>% select(mpan, week, is_on_cosy, tariff_gsp_group_id, weekly_consumption) %>% distinct(),
+            cluster = ~mpan)
+
+did <- etable(m1, m2)
+
+did
+
+rm(did)
+
+
+```
+
+
+### Share electricity consumption
+
+We repeat the same analysis on share of daily consumption by period. 
+
+```{r, did-daily-total, include=TRUE}
+
+m1 <- feols(share_consumption ~ as.factor(is_on_cosy) | week + mpan + week^tariff_gsp_group_id, 
+            data = did_data, 
+            cluster = ~mpan, 
+            split = ~ rate_period)
+
+did <- etable(m1)
+
+did
+
+rm(did)
+
+```
+
+## Event study
+
+We run the following model by period for all customers that have adopted Cosy in the past year: 
+
+$$Consumption_{it} = \sum^W _{w={-52, -9, ..., 1, ..,52}} \alpha_w WeeksSinceCosy^w_{it} + X\beta + \delta_t +  \gamma_i +  \epsilon_{it} $$
+where:
+- $WeeksSinceCosy^w_{it}$  is a categorical variable equals to the number of weeks before and after the adoption of Cosy. We use the week prior adoption as omitted category. 
+
+### Consumption by period
+
+```{r panelcheck}
+
+# Calculating the first and last week of data for each mpan
+mpan_weeks <- aggregated_data %>%
+  group_by(mpan) %>%
+  summarise(
+    first_date = min(date),
+    last_date = max(date),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    first_week = floor_date(first_date, "week"),
+    last_week = floor_date(last_date, "week")
+  )
+
+# Creating a table by first and last week
+week_table <- mpan_weeks %>%
+  group_by(first_week, last_week) %>%
+  summarise(
+    count = n(),
+    .groups = 'drop'
+  )
+
+# Viewing the table
+head(week_table)
+table(aggregated_data$weeks_since_cosy)
+
+
+```
+
+```{r, event-study-period,  include=TRUE}
+
+# Fixed-effects regression
+est_did <- feols(total_consumption ~  i(weeks_since_cosy, -1) |  mpan + month, 
+                 data = did_data %>% filter(weeks_since_cosy > -50,
+                                            weeks_since_cosy < 50),
+                 split =~ rate_period,
+                 cluster = ~mpan)
+
+m2 <- feols(weekly_consumption ~ i(weeks_since_cosy, -1) |  mpan + month,
+            data = did_data %>% 
+              filter(weeks_since_cosy > -50,
+                                            weeks_since_cosy < 50)%>% 
+              select(mpan, weeks_since_cosy, month, weekly_consumption) %>% distinct(),
+            cluster = ~mpan)
+
+# Now we can plot the result of the interaction with coefplot
+
+coefplot(est_did[2], title="Effect on total consumption - Morning Off Peak Cosy")
+coefplot(est_did[1], title="Effect on total consumption - Afternoon Off Peak Cosy")
+coefplot(est_did[3], title="Effect on total consumption - Peak rate")
+coefplot(est_did[4], title="Effect on total consumption - Other rate")
+coefplot(m2, title="Effect on total consumption - Other rate")
+
+
+```
+
+
+```{r, event-study-period-share, eval=FALSE}
+
+# Remove all objects except for 'aggregated_data'
+rm(list = setdiff(ls(), "did_data"))
+gc()
+
+est_did <- feols(share_consumption ~ i(weeks_since_cosy, -1) |  mpan + month, 
+                 data = did_data %>% filter(weeks_since_cosy > -50,
+                                            weeks_since_cosy < 50,
+                                            !is.na(share_consumption)),
+                 split =~ rate_period,
+                 cluster = ~mpan) 
+
+
+# Now we can plot the result of the interaction with coefplot
+
+coefplot(est_did[2], title="Effect on total consumption - Morning Off Peak Cosy")
+coefplot(est_did[1], title="Effect on total consumption - Afternoon Off Peak Cosy")
+coefplot(est_did[3], title="Effect on total consumption - Peak rate")
+coefplot(est_did[4], title="Effect on total consumption - Other rate")
+
+```
+
+## Callaway Sant'Anna DiD
+
+```{r, callsanta, include=TRUE}
+# Getting unique rate periods to loop over
+unique_periods <- unique(did_data$rate_period)
+
+if (!file.exists("data/scratch/estimates_list.RDS")) { 
+  
+  # Initialize a list to store estimates for each period
+  estimates_list <- list()
+  
+  for(period in unique_periods) {
+    
+
+    # Estimating the treatment effect using the Callaway and Sant'Anna method
+    est_cs <- att_gt(yname = "total_consumption",
+                     tname = "week",
+                     idname = "id",
+                     gname = "firstweek",
+                     data = did_data,
+                     control_group="notyettreated",
+                     allow_unbalanced_panel = TRUE)
+    
+    # agg
+    agg.simple <- aggte(est_cs, type = "simple", na.rm = TRUE, clustervars="id", min_e = -49, max_e=49, bstrap=TRUE)
+    
+    # event study style
+    agg.es <- aggte(est_cs, type = "dynamic", na.rm = TRUE, clustervars="id", min_e = -49, max_e=49, bstrap=TRUE)
+    
+    # by cohort
+    agg.grp <- aggte(est_cs, type = "group", na.rm = TRUE, clustervars="id", min_e = -49, max_e=49, bstrap=TRUE)
+    
+    # by season
+    agg.cal <- aggte(MP = est_cs, type = "calendar",  na.rm = TRUE, clustervars="id", min_e = -49, max_e=49, bstrap=TRUE)
+    
+    # Store estimates in the list with period as the name
+    estimates_list[[period]] <- list(simple = agg.simple, dynamic = agg.es, group = agg.grp, calendar = agg.cal)
+    
+  }
+  
+  
+  # Adjust your existing code to calculate 'week' and 'firstweek' as the number of weeks from the start_date
+  did_data <- aggregated_data %>%
+    mutate(
+      # Calculate the difference in weeks from the start_date
+      week = as.numeric(difftime(date, start_date, units = "weeks")) %/% 1 + 1,
+      # Assuming you have a way to determine 'firstweek', adjust similarly if needed
+      firstweek = as.numeric(difftime(firstweek, start_date, units = "weeks")) %/% 1 + 1) %>%
+    group_by(mpan, firstweek, week, tariff_gsp_group_id) %>%
+    summarise(total_consumption = sum(total_consumption)) %>%
+    mutate(
+      id = as.numeric(mpan),
+      firstweek = as.numeric(firstweek),
+      week = as.numeric(week)
+    )
+  
+  # Estimating the treatment effect using the Callaway and Sant'Anna method
+  est_cs <- att_gt(yname = "total_consumption",
+                   tname = "week",
+                   idname = "id",
+                   gname = "firstweek",
+                   data = did_data,
+                   control_group="notyettreated",
+                   allow_unbalanced_panel = TRUE)
+  
+  # agg
+  agg.simple <- aggte(est_cs, type = "simple", na.rm = TRUE, clustervars="id", min_e = -49, max_e=49, bstrap=TRUE)
+  
+  # event study style
+  agg.es <- aggte(est_cs, type = "dynamic", na.rm = TRUE, clustervars="id", min_e = -49, max_e=49, bstrap=TRUE)
+  
+  # by cohort
+  agg.grp <- aggte(est_cs, type = "group", na.rm = TRUE, clustervars="id", min_e = -49, max_e=49, bstrap=TRUE)
+  
+  # by season
+  agg.cal <- aggte(MP = est_cs, type = "calendar",  na.rm = TRUE, clustervars="id", min_e = -49, max_e=49, bstrap=TRUE)
+  
+  # Store estimates in the list with period as the name
+  estimates_list[["Overall"]] <- list(simple = agg.simple, dynamic = agg.es, group = agg.grp, calendar = agg.cal)
+  
+  saveRDS(estimates_list, "data/scratch/estimates_list.RDS")
+  
+  
+} else {
+  estimates_list <- readRDS("data/scratch/estimates_list.RDS")
+}
+
+for(period in c(unique_periods, "Overall")) {
+  
+  print(paste("Aggregate effect for", period))
+  print(summary(estimates_list[[period]]$simple))
+  
+  # Plotting for each period
+  ggdid_title <- paste(period, "Effect")
+  print(ggdid(estimates_list[[period]]$dynamic, title = ggdid_title))
+  print(ggdid(estimates_list[[period]]$calendar, title = ggdid_title))
+  print(ggdid(estimates_list[[period]]$group, title = ggdid_title))
+  
+} 
+```
+Ω

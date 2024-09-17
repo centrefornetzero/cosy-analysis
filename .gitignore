@@ -1,0 +1,11 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+**/data/
+**/Rproj.user/
+**/Rhistory/
+**/tables/
+**/graphs/
+.DS_Store
+**/.DS_Store/
