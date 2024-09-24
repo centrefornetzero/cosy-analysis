@@ -147,6 +147,7 @@ cosy_saving5 <- aggregated_data %>%
             mean_consumption = sum(mean_consumption)) %>%
   mutate( structural_gain =  marginal_price-cosy_price,
           share_gain = 1-(marginal_price-structural_gain+load_shifting_gain)/marginal_price,
+          saving_gbp = 365.25*(marginal_price-cosy_price-load_shifting_gain)
           property_value_category = factor(property_value_category, labels = labels))
 
 # Define the shades of reds
@@ -170,6 +171,42 @@ ggplot(cosy_saving5, aes(x = `property_value_category`, y = share_gain, fill = `
     axis.text.x = element_text(angle = 45, hjust = 1),  # Tilt x-axis labels for better readability
     legend.position = "none"  # Remove legend
   )
+
+
+# Create the ggplot
+ggplot(cosy_saving5, aes(x = `property_value_category`, y = share_gain, fill = `property_value_category`)) +
+  # Bar plot for share_gain
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  # Horizontal dashed line for "Average Savings in the Sample (%)" with legend
+  geom_hline(aes(yintercept = cosy_avg_saving$share_gain, color = "Average Savings in Sample (%)"), 
+             linetype = "dashed", alpha = 0.6, show.legend = TRUE) +
+  # Second horizontal line at y = 0 (no legend needed)
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  # Line for savings in GBP on the secondary y-axis
+  geom_line(aes(x = `property_value_category`, y = saving_gbp/3000, group = 1, color = "Savings in £"), size = 1) +
+  # Manual fill color for bars
+  scale_fill_manual(values = red_palette) +
+  # Define color legend for the horizontal line and the line plot
+  scale_color_manual(name = "Legend", values = c("Average Savings in Sample (%)" = cosy_color, 
+                                                 "Savings in £" = cosy_color)) +
+  # Labels
+  labs(
+    x = "Property Value Decile",
+    y = "Average Savings (%)"
+  ) +
+  # Primary y-axis for share_gain, secondary y-axis for saving_gbp
+  scale_y_continuous(
+    labels = scales::percent_format(), 
+    sec.axis = sec_axis(~.*3000, name = "Savings in £")
+  ) +
+  # Minimal theme
+  theme_minimal() +
+  # Tilt x-axis labels for better readability
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  
+    legend.position = "none"  # Place legend at the bottom
+  )
+
 # Save the combined plot
 ggsave("graphs/property_value_average_bill_saving.png", device = "png", width = 16, height = 12, units = "cm")
 
