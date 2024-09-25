@@ -2084,6 +2084,8 @@ etable(m1, m1c, tex = TRUE, title = "HP Installation on Electricity Consumption 
 
 CleanPreAverage("../tables/hp_did_ev.tex")
 
+
+
 ```
 
 ```{r charging-time}
@@ -2715,6 +2717,80 @@ ggplot(all_coefs %>% filter(outcome == "Total Consumption", period != "Overall")
 
 # Save the combined plot
 ggsave("../graphs/hp_income_category_combined.png", device = "png", width = 16, height = 12, units = "cm")
+```
+
+## property value
+
+```{r}
+
+# create property value decile
+breaks <- hp_installed %>%
+  filter(!is.na(property_value)) 
+breaks <-
+  quantile(breaks$property_value/1000, probs = seq(0, 1, by = 0.1)) %>%
+  unique()
+
+# Create pretty labels for the categories
+labels <- sapply(1:(length(breaks)-1), function(i) paste0("£", round(breaks[i]), "k-", round(breaks[i+1]), "k"))
+labels[10] <- "£742k+"
+  
+hp_installed <- hp_installed %>%
+  mutate(property_value_category = cut(property_value/1000, 
+                               breaks = breaks, 
+                               include.lowest = TRUE,
+                               labels = labels))
+# property_value check
+m_property_value <- feols(consumption_hh ~ i(is_hp_installed, property_value_category, ref =0) 
+                  | date +  account_id + daily_avg_heating_degree,
+                  data = hp_installed,
+                  split = ~ rate_period,
+                  cluster = ~account_id)
+
+for (i in 1:5) {
+  
+  # Find model
+  val <- m_property_value[[i]]$model_info$sample$value
+  j <- which(sapply(1:5, function(j) m1[[j]]$model_info$sample$value) == val)
+  
+  # Extract coefficients and standard errors for total_consumption
+  coefs_total <- coeftable(m_property_value[i]) %>%
+    data.frame() %>%
+    separate(coefficient, into = c("cosy_contract_active", "remove1", "Property Value Category", "remove2"), sep = "::") %>%
+    mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
+           upper_ci = Estimate + 1.96 * `Std..Error`,
+           outcome = "Total Consumption") %>%
+    mutate(`Property Value Category` = factor(`Property Value Category`, levels = labels))
+  
+  # Define the shades of reds
+  red_palette <- c("#FF9999", "#FF8080", "#FF6666", "#FF4D4D", "#FF3333", "#FF1A1A", "#FF0000", "#E60000", "#CC0000", "#B20000")
+  
+  # Create the ggplot
+  ggplot(coefs_total, aes(x = `Property Value Category`, y = Estimate, 
+                          fill = `Property Value Category`)) +
+    geom_bar(stat = "identity", show.legend = FALSE) +
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, color = "grey") +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
+    geom_hline(yintercept = m1[[j]]$coefficients, linetype = "dashed", color = hp_color, alpha = 0.6) +  # Add horizontal line at ATE
+    scale_fill_manual(values = red_palette) +
+    labs(
+      x = "Property Value Decile",
+      y = "Estimate (kWh)"
+    ) +
+    scale_y_continuous(
+      sec.axis = sec_axis(~ ./(m1[[j]]$coefficients), name = "% of ATE", labels = scales::percent_format())
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),  # Tilt x-axis labels for better readability
+      legend.position = "none"  # Remove legend
+    )
+  
+  # Print the plot
+  ggsave(paste0("../graphs/hp_property_value_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
+         width = 16, height = 8, units = "cm")
+  
+}
+
 ```
 
 ## Heatloss 

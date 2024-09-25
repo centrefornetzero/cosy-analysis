@@ -1290,8 +1290,8 @@ cs_mpan <- list()
 
 for(period in periods) {
   
-   # load data to check missing obs
-    did_data <- aggregated_data %>%
+  # load data to check missing obs
+  did_data <- aggregated_data %>%
     ungroup() %>%
     filter(rate_period == period) %>% 
     mutate(settlement_week = floor_date(date, "week"),
@@ -1309,10 +1309,10 @@ for(period in periods) {
   # Load CS
   est_cs <- readRDS(paste0("../data/scratch/did_cosy_", period, ".RDS"))
   aggte_res  <- aggte(est_cs, type="simple", alp=0.01)
-    
+  
   print(paste("Aggregate effect for", period))
   print(summary(aggte_res))
-
+  
   cs_mpan[[period]] <- did_data$hashed_mpan[did_data$id %in% unique(aggte_res$DIDparams$data$id)]
 } 
 
@@ -2038,8 +2038,14 @@ etable(m1, m1, tex=TRUE, title = "Cosy Adoption",
        fitstat = ~ N + g + pre_avg +t_obs + r2, file = "../tables/did.tex", replace = TRUE, label="tab:did-main")
 
 CleanPreAverage("../tables/did.tex")
-#}
 
+file_content <- readLines("../tables/did.tex")
+
+# Modify the table formatting
+file_content[5] <- gsub("\\\\begin\\{tabular\\}\\{lcccccccccc\\}", "\\\\begin{tabular}{@{}l@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}}", file_content[5])
+
+# Write the modified content back to the LaTeX file
+writeLines(file_content, "../tables/did.tex")
 
 ```
 
@@ -2567,11 +2573,11 @@ df <- aggregated_data %>%
 # Run the regression model
 m1_filtered <- feols(consumption_hh ~ i(cosy_contract_active, ref=0) |
                        account_id + date + daily_avg_heating_degree,
-                 data = df,
-                 split = ~ rate_period,
-                 cluster = ~account_id)
+                     data = df,
+                     split = ~ rate_period,
+                     cluster = ~account_id)
 tempreg <- feols(consumption_hh ~ i(cosy_contract_active) +
-                  i(cosy_contract_active, `Home battery`, ref=0) +
+                   i(cosy_contract_active, `Home battery`, ref=0) +
                    i(cosy_contract_active, `Has Solar PV`, ref=0) +
                    i(cosy_contract_active, `Has EV`, ref=0) |
                    account_id + date + daily_avg_heating_degree,
@@ -2632,7 +2638,7 @@ ggplot(lct_matrix_wide, aes(x = reorder(Combination, -share), y = share, fill = 
     legend.position = "none")  # Remove legend
 
 ggsave("../graphs/lct_combinaison.png",
-         width = 16, height = 8, units = "cm")
+       width = 16, height = 8, units = "cm")
 
 
 # Step 1: Calculate the share of each LCT
