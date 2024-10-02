@@ -989,7 +989,7 @@ apply_twfe_models <- function(data, filename_prefix) {
   # Apply the TWFE models
   
   m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + avg_heating_degree + settlement_week, 
-              data = data, cluster = ~ account_id)
+              data = data %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id)
   m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + avg_heating_degree + settlement_week, 
               data = data, cluster = ~ account_id)
   m3 <- feols(total_consumption ~ i(is_hp_installed) | account_id + avg_heating_degree + settlement_week, 
@@ -2377,7 +2377,7 @@ for (i in 1:5) {
     ) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
     labs(
-      x = "Average Temperature in Degrees",
+      x = "Average Temperature in Degrees (°C)",
       y = "Estimate (kWh)"
     ) +
     theme_minimal()

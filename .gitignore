@@ -9,3 +9,6 @@
 **/graphs/
 .DS_Store
 **/.DS_Store/
+.Rproj.user/shared/notebooks/paths
+.Rhistory
+.DS_Store
