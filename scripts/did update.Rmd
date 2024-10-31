@@ -83,30 +83,17 @@ cosy_color <- "#5F8ED9"      # Replace with the exact hex code for Cosy
 ```
 
 
-<!--
-To do:
-
--- Add more descriptive statistics on cosy customers
--- Look at price rate data  
--- placebo with people that have HP but a flat tariff
--- measure of COP 
--- efficiency of the home (heatloss rates)
--- increase in kwh after HP installation
--- ATEs by DNO
-- half hourly analysis 
-
--->
-
-
 # Introduction
 
 Cosy is a Time of Use (TOU) Tariff specifically designed for heat pump users. The tariff includes two three-hour “Cosy” periods (morning and afternoon) with reduced unit rates, and a three-hour peak period with a higher unit rate. All other hours are billed at the customers’ typical “Flexible Octopus” unit rate. The goal of this analysis is to evaluate whether Cosy enables customers to optimize their heat pump usage by shifting their electricity consumption away from peak periods, which are most polluting for the grid, while also saving money.
+
 
 ```{r load-data}
 
 if(!file.exists("../data/scratch/aggregated_data.RDS")) {
   
   # agreement data
+  # run queries/Cosy - agreement data
   agreements <- fread("../data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
     filter(product_display_name == "Cosy Octopus") %>%
     arrange(hashed_mpan, agreement_valid_from) %>%
@@ -123,6 +110,9 @@ if(!file.exists("../data/scratch/aggregated_data.RDS")) {
       .groups = 'drop'
     )
   
+  # files are created using 
+  # queries/cosy - cosy electricity readings
+  # queries/cosy - cosy electricity reading part 2 which I ran for different years seperately
   aggregated_data <- rbind(fread("../data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26.csv"),
                            fread("../data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (1).csv"),
                            fread("../data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (2).csv")) %>%
@@ -177,6 +167,7 @@ if(!file.exists("../data/scratch/aggregated_data.RDS")) {
     arrange(hashed_mpan, account_id)       # Arrange for better visibility
   
   # add customers characteristics
+  # from queries/cosy - cosy details
   cosy_cosy_details_2024_06_25 <- fread("../data/input/cosy_-_cosy_details_2024_06_25.csv") %>%
     distinct()
   
@@ -186,6 +177,7 @@ if(!file.exists("../data/scratch/aggregated_data.RDS")) {
     inner_join(cosy_cosy_details_2024_06_25)
   
   # add weather
+  # queries/cosy analysis - weather
   weather <- fread("../data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
     rename_with(.cols = starts_with("weekly"), 
                 .fn = ~ sub("^weekly", "daily", .)) %>%
@@ -235,6 +227,8 @@ if(!file.exists("../data/scratch/aggregated_data.RDS")) {
 
 
 ```
+
+## Rate analysis 
 
 ```{r plotcosyrate}
 # Load the prices
@@ -591,37 +585,6 @@ ggsave("../graphs/Average_Share_of_Typical_Marginal_Price_by_Period.png", width 
 
 ```
 
-
-To achieve this, we analyzed the electricity and gas data for 5,196 Cosy customers using a Difference-in-Differences (DiD) estimator. This approach controls for weather, day, and customer fixed effects. In simpler terms, we used “later” Cosy adopters as a counterfactual for earlier Cosy adopters to understand the causal impact of Cosy adoption on consumption. To address the weakness of the two ways dixed effect DiD estimator hightlighted by the recent literature, we also estimate the Goodman Bacon decomposition and Callaway and Sant'Anna dynamic estimators.
-
-Our analysis covers extended pre- and post-adoption periods, not just the weeks immediately before and after adoption. Many customers in our sample have two winters of data on Cosy, allowing us to observe stable and persistent effects over time.
-
-We find that Cosy causes: 
-
-- Much higher electrity consumption in Morning Cosy period (three hours: 04:00 - 07:00, 12.6p/kWh): + 3.1 kWh (increase)
-Pre-Cosy adoption average is 2.3kWh, so this increase is a more than doubling effect.
-- Much higher electricy consumption in afternoon Cosy-period (three hours: 13:00 - 16:00, 12.6p/kWh): + 1.8 kWh (increase)
-Pre-Cosy adoption average is 2kWh, so this increase is almost doubling.
-- Much lower peak elec consumption (three hours: 16:00 - 19:00, 37.3p/kWh): -1.2 kWh (decrease)
-Pre-Cosy adoption average is 2.2kWh, so this decrease is halving their peak consumption.
-- Slightly lower electricity consumption during all other times (15 hours, 25.72p/kWh): 
--2.8 kWh (decrease)
-Pre-Cosy adoption average is 11.2kWh, so this decrease is still a substantial ~25% reduction. 
-
-These effects are yearly average - load shifting towards off peak time is twice as high during Winter while peak avoidance persist during non-winter months. 
-
-Back-of-envelope calculations (assuming customer was on Flexible Octopus before) indicate that the above effects sum to £0.50 per day savings, which is in a similar ballpack of annual savings as those OE have estimated. (We estimate ~£177 per year, OE estimates ~£220 per year.) OE assumes no change in total consumption, which may not be a safe assumption. 
-
-Indeed, all of the above estimates are in a similar direction and ballpack as OE’s analysis, which was based on earlier adopters and only examined short-term impacts. We believe our analysis is much more robust, but it’s comforting (in both directions) to see the high-level concordance. 
-
-As noted above, we find that the Cosy results are stable and persistent over at least a year, which is a new result. 
-
-The rest of the paper is structured as follow: First, we present summary statistics in Section \@ref(sec:sumstats), the timeline of Cosy adoptions, how many customers stayed on Cosy after adopting it and the likelihood to stay on a smart tariff. Then we show the main results of our difference in difference analysis and Callaway and Sant'Anna estimations in Section \@ref(sec:results) and finally, we summarise the main results in the conclusion section \@ref(sec:conclusion). 
-
-
-
-
-
 # Summary statistics {#sec:sumstats}
 
 
@@ -768,12 +731,6 @@ Customers that switched after adopting to Cosy seem more likely to adopt another
 Overall, prior to Cosy adoption, 88\% of adopters were on a non-smart tariff^[No Time of Use or Price Tracker]. After adopting Cosy, only 1.8\% revert back to a non-smart tariff.
 
 
-
-<!-- ## Electricity consumption pre-post Cosy adoption by time of the day -->
-
-<!-- Figure \@ref(fig:pre-post) illustrates the average electricity consumption before and after adopting Cosy for different periods of the day. The data shows that consumption during Cosy Morning and Cosy Afternoon more than doubles post-adoption. Additionally, consumption in other periods increases, while it decreases during peak times. -->
-
-<!-- However, it is important not to interpret this graph causally due to potential confounding factors. For instance, the overall electricity consumption among heat pump owners might be increasing over the period, and early adopters may have higher rates of electricity consumption. -->
 
 ## Availability of smart meter data
 
@@ -933,6 +890,7 @@ summarize_and_test <- function(data, var_name, weight_name) {
 }
 
 # Read and process each dataset
+# https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/middlesuperoutputareamidyearpopulationestimates
 library(readxl)
 population2022 <- read_excel("../data/input/sapemsoasyoatablefinal.xlsx", sheet = "Mid-2022 MSOA 2021", skip = 3)
 
@@ -943,25 +901,26 @@ cosy_hp_details <- fread("../data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
   group_by(postcode) %>%
   tally() %>%
   filter(!postcode == "")
-
+# https://www.data.gov.uk/dataset/c2235117-cbfd-480d-8fc7-b564bd0f4d58/output-area-2021-to-lsoas-to-msoas-to-lep-to-lad-dec-2022-best-fit-lookup-in-en-v2
 postcode_msoa <- fread("../data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
   left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
   mutate(n = ifelse(is.na(n), 0, 1)) %>%
   select(msoa21cd, n) %>%
   group_by(msoa21cd) %>%
   summarise(treated = sum(n))
-
+ # https://www.ons.gov.uk/peoplepopulationandcommunity/personalandhouseholdfinances/incomeandwealth/bulletins/smallareamodelbasedincomeestimates/financialyearending2020
 income <- readxl::read_excel("../data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct() 
 
 # Load and preprocess the property_prices data
+# https://www.ons.gov.uk/peoplepopulationandcommunity/housing/datasets/hpssadataset3meanhousepricebymsoaquarterlyrollingyear
 property_prices <- read_excel("../data/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls", 
                               sheet = "1a", skip = 4) %>%
   select(`MSOA code`, `Year ending Mar 2023`) %>%
   rename(msoa21cd = `MSOA code`, `Property price (£)` = `Year ending Mar 2023`)
 
-
+# customs dataset from https://www.ons.gov.uk/datasets/create
 hh_size <- fread("../data/input/custom-filtered-2024-07-03T10_58_30Z.csv") %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
   mutate(sum_obs = sum(Observation), weight = Observation / sum_obs) %>%
@@ -1102,13 +1061,14 @@ summarize_and_test <- function(data, var_name, weight_name) {
 
 # Read and process each dataset
 library(readxl)
-population2022 <- read_excel("../data/input/sapemsoasyoatablefinal.xlsx", sheet = "Mid-2022 MSOA 2021", skip = 3)
 library(dplyr)
 library(readxl)
 library(ggplot2)
 library(data.table)
 
 # Load and preprocess the cosy_hp_details data
+population2022 <- read_excel("../data/input/sapemsoasyoatablefinal.xlsx", sheet = "Mid-2022 MSOA 2021", skip = 3)
+
 cosy_hp_details <- fread("../data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
   inner_join(aggregated_data %>% select(hashed_mpan) %>% distinct(), by = "hashed_mpan") %>%
   select(hashed_mpan, postcode, property_value) %>%
