@@ -172,6 +172,7 @@ ggplot(cosy_saving5, aes(x = `property_value_category`, y = share_gain, fill = `
     legend.position = "none"  # Remove legend
   )
 
+# Figure A.37: Average Cosy Savings by Property Valu
 
 # Create the ggplot
 ggplot(cosy_saving5, aes(x = `property_value_category`, y = share_gain, fill = `property_value_category`)) +

@@ -46,7 +46,7 @@ random_domus_sample <- fread("../data/input/cosy_-_random_sample_details_2024_08
   filter(!is.na(property_value), !is.na(floor_area), !is.na(energy_efficiency), !is.na(estimated_annual_consumption))
 ```
 
-## Balance tables
+## Table A.16: External Validity by Housing Characteristics for Cosy and Heat Pump Adopters
 
 ``` {r}
 # Define the common numeric variables
@@ -262,7 +262,7 @@ stargazer(final_table_with_sd, type = "latex", summary = FALSE,
 
 ```
 
-
+### Table A.18: Balance Table for Cosy Early and Late Adopters
 
 ```{r}
 
@@ -368,6 +368,9 @@ stargazer(final_table_with_sd, type = "latex", summary = FALSE,
           out = "../tables/balance_table_cosy_adoption.tex")
 
 ```
+
+### Table A.17: Balance Table for Heat Pump Early and Late Adopters
+
 ```{r}
 
 # get consumption by period
