@@ -1,4 +1,5 @@
 /Users/louise/Documents/GitHub/cosy-analysis/.gitignore="7C5CFA71"
+/Users/louise/Documents/GitHub/cosy-analysis/README.md="A1EDCF7C"
 /Users/louise/Documents/GitHub/cosy-analysis/data/input/cosy - account numbers.csv="AC1A9B61"
 /Users/louise/Documents/GitHub/cosy-analysis/data/input/survey_ids.csv="21435C26"
 /Users/louise/Documents/GitHub/cosy-analysis/price plunge placebo events.R="BF1D06DF"
@@ -45,5 +46,6 @@
 /Users/louise/Documents/GitHub/cosy-analysis/tables/hp_install.tex="61D1E75A"
 /Users/louise/Documents/GitHub/cosy-analysis/tables/matching_did.tex="E353FE1E"
 /Users/louise/Documents/GitHub/cosy-analysis/tables/matching_hp.tex="7E1E39C6"
+/Users/louise/Documents/GitHub/price_plunge/scripts/power calculations.R="E08B9E34"
 /Users/louise/Documents/GitHub/price_plunge/scripts/price plunge placebo events.R="CB8DCA84"
 /Users/louise/Documents/GitHub/price_plunge/scripts/ukpn api.R="9D7ED5C2"
