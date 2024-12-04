@@ -5,20 +5,11 @@ date: "2024-06-04"
 output: html_document
 ---
 
-- get gas data for HP installation
-- add EV/ export checks on cosy analysis
-- change everything to half hourly average
-- add overall daily estimates 
-- create the main headlines graphs for electricity curve, HP installation, cosy adoption
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, include=FALSE, warning  = FALSE, fig.pos = "H", out.extra = "")
 
 # Load necessary libraries
-library(knitr)
-library(kableExtra)
-library(fixest)
 library(data.table)
 library(lubridate)
 library(dplyr)
@@ -28,46 +19,6 @@ library(tidyr)
 library(scales)  # For date formatting
 library(viridis)  # Load the viridis package for better color options
 library(stringr)
-library(did)
-library(readxl)
-library(stargazer)
-
-# set dictionary
-setFixest_dict(c(consumption_hh = "Consumption in kWh per half hour",
-                 total_consumption = "Weekly Energy Consumption in kWh", 
-                 daily_consumption = "Consumption in kWh per day",
-                 share_consumption = "Share of daily consumption",
-                 weekly_consumption = "Weekly Gas Consumption in kWh",
-                 is_hp_installed = "OnCosy",
-                 daily_avg_heating_degree = "HDD",
-                 avg_heating_degree = "HDD",
-                 date = "Day", 
-                 settlement_week = "Week",
-                 account_id = "Household", 
-                 corrected_consumption = "Monthly Gas Consumption in kWh",
-                 account_closed = "Account Closed",
-                 tariff_gsp_group_id = "GSP", 
-                 rate_period = "Rate period",
-                 is_variable = "Variable Tariff",
-                 energy_efficiency = "Energy Efficiency",
-                 estimated_annual_consumption = "EAC",
-                 eac_mwh = "EAC in mWh",
-                 is_hp_installed = "Is HP Installed",
-                 predicted_is_installed = "Is HP Installed",
-                 elec_consumption = "Weekly Electricity Consumption (kWh)",
-                 gas_consumption = "Weekly Gas Consumption (kWh)",
-                 month_date = "Month",
-                 is_winter = "Winter",
-                 previous_is_variable = "Prev Is Variable",
-                 epc_letter = "EPC",
-                 latest_survey_heat_loss = "Heatloss (W)",
-                 urban = "Urban",
-                 hp_survey_is_solar_present = "Has Solar PV",
-                 floor_area = "Floor area",
-                 property_value = "Property value",
-                 months_since_hp_rec = "Months Since HP Installation",
-                 ev_charging = "EV Charging",
-                 has_ev = "EV User"))
 
 hp_color <- "#AD87CA"
 not_hp_color <- "#2D354A"
@@ -75,6 +26,9 @@ not_hp_color <- "#2D354A"
 
 ```
 
+## Define most used functions
+
+### Add pre-treatment average statistics to tables
 
 ```{r define-functions}
 
@@ -176,26 +130,8 @@ fitstat_register("t_obs", function(x) {
 
 ```
 
+# Load data
 
-# Load data and summary statistics
-
-## Dataset used
-
-- cosy - hp users gas: weekly gas consumption for customers that have a HP installation booked or HP installed by OE
-- cosy - hp details: customers characteristics
-- cosy - ev detection query: ev detection for customers that have HP booked 
-- cosy - hp electricty readings: electricty data by periods for customers that have a HP installation booked or HP installed by OE
-- cosy - hp cost: quoted costs of install
-
-
-- cosy - cosy adopters gas readings: weekly gas consumption for customers that have adopted cosy
-- cosy - cosy electricity readings: electricity data by periods for customers that have adopted cosy
-- cosy - cosy details: customers characteristics
-- cosy - agreement data
-
-
-
-## Load data
 
 ```{r load-dataset}
 
@@ -255,64 +191,6 @@ hp_installed <- hp_installed %>%
 # summary statistics
 summary(hp_installed)
 
-# Check number of accounts
-hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% distinct() %>% dim()
-
-# Load weather data
-weather <- fread("../data/input/cosy_-_weather_weekly_2024_06_13.csv")
-
-# Load and preprocess gas consumption data
-# previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread("../data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
-  group_by(account_id) %>%
-  mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
-         treated = max(is_hp_installed),
-         min_settlement_week = min(settlement_week)) %>%
-  left_join(weather, by = c("gsp_group_id", "settlement_week" = "week_date")) %>%
-  distinct(account_id, settlement_week, .keep_all = TRUE)
-
-# Create a sequence of weeks
-min_date <- min(cosy_hp_install_gas_consumption$settlement_week)
-max_date <- max(cosy_hp_install_gas_consumption$settlement_week)
-all_weeks <- seq(min_date, max_date, by = "week")
-
-# Create a data frame with all combinations of account_id and settlement_week
-all_combinations <- expand.grid(
-  account_id = unique(cosy_hp_install_gas_consumption$account_id),
-  settlement_week = all_weeks
-)
-
-# Merge with original data
-merged_data <- all_combinations %>%
-  left_join(cosy_hp_install_gas_consumption %>% select(account_id, gsp_group_id, installed_at, min_settlement_week) %>% distinct()) %>%
-  left_join(cosy_hp_install_gas_consumption %>% select(account_id, settlement_week, weekly_consumption) %>% distinct()) %>%
-  filter(min_settlement_week < settlement_week) %>%
-  mutate(
-    account_closed = ifelse(is.na(weekly_consumption), 1, 0),
-    is_hp_installed = as.numeric(installed_at < settlement_week),
-    weekly_consumption = ifelse(is.na(weekly_consumption), 0, weekly_consumption)
-  ) %>%
-  left_join(weather, by = c("gsp_group_id", "settlement_week" = "week_date")) 
-
-# Define overall_weekly by merging with electricity data
-overall_weekly <- hp_installed %>%
-  filter(rate_period == "Overall") %>%
-  mutate(settlement_week = floor_date(date, "week") + 1,
-         is_hp_installed = as.numeric(installed_at <= settlement_week)) %>%
-  group_by(account_id, hashed_mpan, tariff_gsp_group_id, settlement_week, treated, installed_at, is_hp_installed) %>%
-  summarise(elec_consumption = sum(total_consumption)) %>%
-  rename(gsp_group_id = tariff_gsp_group_id) %>%
-  left_join(merged_data %>%
-              select(account_id, settlement_week, weekly_consumption) %>%
-              rename(gas_consumption = weekly_consumption)) %>%
-  left_join(weather %>% rename(settlement_week = week_date)) %>%
-  mutate(
-    gas_consumption = 52.25 * gas_consumption,
-    elec_consumption = 52.25 * elec_consumption,
-    total_consumption = gas_consumption + elec_consumption
-  ) 
-
-rm(all_combinations, cosy_hp_install_gas_consumption, merged_data, weather, all_weeks, max_date, min_date)
 ```
 
 ## Summary statistics {#sec:sumstats}
@@ -524,7 +402,7 @@ rm(hp_installed)
 
 
 ```
-
+### Table A.14: External Validity by Area for Heat Pump Installation
 
 ```{r pop-weighted-msoas}
 # Function to calculate weighted standard deviation
@@ -715,7 +593,7 @@ if (length(hline_ex_lines) >= 2) {
 writeLines(latex_table, "../tables/balance_table.tex")
 ```
 
-## Property value
+## Figure A.11: Impact of Heat Pump Installation by Property Value Decile
 
 ```{r}
 
@@ -2011,7 +1889,7 @@ writeLines(file_content, file_path)
 ```
 
 
-## EV detection 
+## Table A.3: HP Installation on Electricity Consumption Controlling for EV Ownership 
 
 ```{r ev-detection}
 
@@ -2088,6 +1966,9 @@ CleanPreAverage("../tables/hp_did_ev.tex")
 
 ```
 
+## Table A.4: HP Installation on Probability of Charging EV by Period
+
+
 ```{r charging-time}
 
 # Identify the period with the highest EV charging for each mpan and date
@@ -2134,7 +2015,37 @@ etable(m_charging1, m_charging2, m_charging3, m_charging4,
 
 # Read the generated LaTeX file
 file_path <- "../tables/hp_ev_charging.tex"
-CleanPreAverage("../tables/hp_ev_charging.tex")
+
+# Read the generated LaTeX file
+file_content <- readLines(file_path)
+
+# Find the lines with the pre-treatment average and remove them
+if (length(grep("Charging EV", file_content))==1) {F
+  pre_avg_line_index <- grep("Charging EV", file_content)
+} else {
+  pre_avg_line_index <- grep("Charging EV", file_content)[2]
+}
+
+# Find the lines with the pre-treatment average and remove them
+pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
+file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
+
+# Find the position just after the coefficients
+coeff_end_index <- grep("Is HP Installed", file_content)[length(grep("Is HP Installed", file_content))] + 2
+
+# Insert the pre-treatment average row after the coefficients
+file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
+file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
+
+# Add a \midrule after the pre-treatment average
+file_content <- append(file_content, "\\midrule", after = coeff_end_index + length(pre_avg_lines)+1)
+
+# Modify the label for "Size of the 'effective' sample" to "Number of Households"
+sample_line <- grep("Size of the 'effective' sample", file_content)
+file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
+
+# Write the modified content back to the LaTeX file
+writeLines(file_content, file_path)
 
 ```
 
@@ -2316,7 +2227,7 @@ if (!file.exists("../tables/hp_did_seasons.tex")) {
 ```
 
 
-### Temperature analysis 
+### Figure 6: Impact of Heat Pump Installation by Outside Temperature (and Figure A.2 to A.5)
 
 ```{r temperature-analysis, eval=TRUE}
 rm(m1, m1c, m_solar, ev_charging, ev_users, ev_charging_agg)
@@ -2389,7 +2300,7 @@ for (i in 1:5) {
 
 ```
 
-## EPC 
+## Figure A.6: Impact of Heat Pump Installation by EPC Rating 
 
 ```{r epc-analysis, eval=TRUE}
 rm(tempreg)
@@ -2493,7 +2404,7 @@ for (i in 1:5) {
 rm(m2a)
 ```
 
-## Heat Sources
+## Figure A.10: Impact of Heat Pump Installation by Previous Heat Source
 
 ```{r hs-analysis, eval=TRUE}
 
@@ -2570,7 +2481,7 @@ for (i in 1:5) {
 rm(m_sources)
 ```
 
-## Income
+## Figure 7: Impact of Heat Pump Installation by MSOA Income
 
 ```{r income}
 # Load and preprocess the cosy_hp_details data
@@ -2733,18 +2644,18 @@ breaks <-
 # Create pretty labels for the categories
 labels <- sapply(1:(length(breaks)-1), function(i) paste0("£", round(breaks[i]), "k-", round(breaks[i+1]), "k"))
 labels[10] <- "£742k+"
-  
+
 hp_installed <- hp_installed %>%
   mutate(property_value_category = cut(property_value/1000, 
-                               breaks = breaks, 
-                               include.lowest = TRUE,
-                               labels = labels))
+                                       breaks = breaks, 
+                                       include.lowest = TRUE,
+                                       labels = labels))
 # property_value check
 m_property_value <- feols(consumption_hh ~ i(is_hp_installed, property_value_category, ref =0) 
-                  | date +  account_id + daily_avg_heating_degree,
-                  data = hp_installed,
-                  split = ~ rate_period,
-                  cluster = ~account_id)
+                          | date +  account_id + daily_avg_heating_degree,
+                          data = hp_installed,
+                          split = ~ rate_period,
+                          cluster = ~account_id)
 
 for (i in 1:5) {
   
@@ -2793,7 +2704,9 @@ for (i in 1:5) {
 
 ```
 
-## Heatloss 
+## Figure A.8: Impact of Heat Pump Installation by Heat Loss Decile
+
+
 ```{r heatloss-analysis, eval=TRUE}
 
 hp_installed <- hp_installed %>%
@@ -2866,7 +2779,8 @@ for (i in 1:5) {
 ```
 
 
-### Regions
+### Figure A.9: Impact of Heat Pump Installation on Half-Hourly Electricity Consumption by
+Region
 
 
 ```{r regions, eval=FALSE}
@@ -2924,8 +2838,8 @@ ggsave("../graphs/hp_region_combined.png", device = "png", width = 16, height = 
 
 
 ```
-### Floor area
 
+### Figure A.7: Impact of Heat Pump Installation by Floor Area
 
 ```{r floor-area, eval=FALSE}
 
@@ -3065,7 +2979,7 @@ for (i in 1:4) {
 
 ```
 
-### Solar PV 
+### Table A.5: HP Installation and Solar PV on Electricity Consumption 
 
 ```{r solar}
 
@@ -3183,7 +3097,7 @@ writeLines(file_content, "../tables/hp_did_solar.tex")
 
 ## DID checks
 
-### Panel structure 
+## Figure A.1: Smart Meter Data Availability for Heat Pump Customers
 
 ```{r panelview, eval=FALSE}
 
@@ -3191,13 +3105,53 @@ library(panelView)
 
 plot_panel <- panelview(consumption_hh ~ is_hp_installed + daily_avg_heating_degree, 
                         data = hp_installed %>% filter(rate_period=="Overall") %>% select(consumption_hh, account_id, date, is_hp_installed, daily_avg_heating_degree) %>% distinct(), index = c("account_id","date"), 
-                        xlab = "Time", ylab = "MPAN", by.timing = TRUE, pre.post = TRUE, gridOff = TRUE, axis.lab.gap = c(100),
+                        xlab = "Time", 
+                        ylab = "MPAN", 
+                        by.timing = TRUE, 
+                        pre.post = TRUE, 
+                        gridOff = TRUE, 
+                        axis.lab.gap = c(100),
                         main = "Smart Meter Data Availability",
-                        background = NULL,
-                        legend.labs = c("Never Treated (Installation in Future)", "Before HP Installation", "After HP Installation", "No smart meter data"), collapse.history = "TRUE")
-ggsave("../graphs/hp_data_availability.png")
+                        background = "white",
+                        color = c("grey", not_hp_color, hp_color, "white"),
+                        legend.labs = c("Never Treated (Installation in Future)", 
+                                        "Before HP Installation", "After HP Installation", 
+                                        "No smart meter data"), collapse.history = "TRUE")
+
+ggsave("../graphs/hp_data_availability.png", 
+       width = 16, height = 8, units = "cm")
 
 ```
+
+
+
+```{r panelviewgas, eval=FALSE}
+
+library(panelView)
+
+cosy_hp_install_gas_consumption <- fread("../data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
+  group_by(account_id) %>%
+  mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
+         treated = max(is_hp_installed),
+         min_settlement_week = min(settlement_week)) %>%
+  distinct(account_id, settlement_week, .keep_all = TRUE)
+
+
+plot_panel <- panelview(weekly_consumption ~ is_hp_installed, 
+                        data = cosy_hp_install_gas_consumption, index = c("account_id","settlement_week"), 
+                        xlab = "Time", ylab = "MPAN", by.timing = TRUE, pre.post = TRUE, gridOff = TRUE,
+                        axis.lab.gap = c(40),
+                        main = "Gas Data Availability",
+                        background = "white",
+                        color = c("grey", not_hp_color, hp_color, "white"),
+                        legend.labs = c("Never Treated (Installation in Future)", 
+                                        "Before HP Installation", "After HP Installation", 
+                                        "No smart meter data"), collapse.history = "TRUE")
+ggsave("../graphs/hp_gas_data_availability.png", 
+       width = 16, height = 8, units = "cm")
+
+```
+
 
 ### CS parallele trends checks
 
@@ -3340,7 +3294,8 @@ ggsave("../graphs/hp_sensitivity_results.png")
 
 ```
 
-## Event study
+## Figure A.13: Event Study - Heat Pump Installation on Daily Average of Customers’
+Half-Hourly Electricity Consumption
 
 ```{r event-study-plot}
 # create df

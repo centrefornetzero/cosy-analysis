@@ -100,7 +100,8 @@ match_summary
 plot(match_obj, type = "jitter", interactive = FALSE)
 plot(summary(match_obj), abs = FALSE)
 
-# Extract balance for all data
+# Table A.22: Summary of Balance for All Data (Cosy)
+
 # Replace underscores with spaces and capitalize the first letter of each word
 rownames(match_summary$sum.all) <- gsub("_", " ", rownames(match_summary$sum.all))
 rownames(match_summary$sum.all) <- tools::toTitleCase(rownames(match_summary$sum.all))
@@ -115,7 +116,8 @@ stargazer(match_summary$sum.all[,-dim(match_summary$sum.all)[2]],
           out = "../tables/balance_cosy_prematching.tex")
 
 
-# Extract balance for matched data
+# Table A.23: Summary of Balance for Matched Data (Cosy)
+
 # Replace underscores with spaces and capitalize the first letter of each word
 rownames(match_summary$sum.matched) <- gsub("_", " ", rownames(match_summary$sum.matched))
 rownames(match_summary$sum.matched) <- tools::toTitleCase(rownames(match_summary$sum.matched))
@@ -246,6 +248,9 @@ CleanPreAverage <- function(file_path) {
   writeLines(file_content, file_path)
 }
 
+
+
+# Table A.24: TWFE using Matching Weights
 etable(m1_matched, tex=TRUE, title = "TWFE using Matching Weights",
        headers = list(list("Matching" = 5),
                       list(rep(as.character(sort(unique(aggregated_data$rate_period))), times =1))), 
@@ -279,7 +284,9 @@ match_summary
 plot(match_obj2, type = "jitter", interactive = FALSE)
 plot(summary(match_obj2), abs = FALSE)
 
-# Extract balance for all data
+# Table A.19: Summary of Balance for All Data (Heat Pump)
+
+
 # Replace underscores with spaces and capitalize the first letter of each word
 rownames(match_summary$sum.all) <- gsub("_", " ", rownames(match_summary$sum.all))
 rownames(match_summary$sum.all) <- tools::toTitleCase(rownames(match_summary$sum.all))
@@ -294,7 +301,9 @@ stargazer(match_summary$sum.all[,-dim(match_summary$sum.all)[2]],
           out = "../tables/balance_hp_prematching.tex")
 
 
-# Extract balance for matched data
+# Table A.20: Summary of Balance for Matched Data (Heat Pump
+
+
 # Replace underscores with spaces and capitalize the first letter of each word
 rownames(match_summary$sum.matched) <- gsub("_", " ", rownames(match_summary$sum.matched))
 rownames(match_summary$sum.matched) <- tools::toTitleCase(rownames(match_summary$sum.matched))
@@ -547,6 +556,7 @@ m3 <- feols(total_consumption ~ i(is_hp_installed) | avg_heating_degree + accoun
             data = overall_weekly %>% ungroup() %>% filter(account_id %in% ids$account_ids) %>% inner_join(matched_data2 %>% distinct(account_id, weights)), 
             cluster = ~account_id)
 
+# Table A.21: TWFE using Matching Weights (Heat Pump)
 
 etable(m1,m2,m3, tex=TRUE, title = "TWFE using Matching Weights (Heatpump)",
        headers = list("Electricity", "Gas", "Total"), 
