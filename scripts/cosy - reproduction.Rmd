@@ -228,7 +228,7 @@ if(!file.exists("../data/scratch/aggregated_data.RDS")) {
 
 ```
 
-## Rate analysis 
+## Figure 2: Cosy Rate by Period
 
 ```{r plotcosyrate}
 # Load the prices
@@ -459,6 +459,9 @@ ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group))
 
 ```
 
+### Figure A.16: Rates by Rate Period and GSP Group as of 01 June 2024
+
+
 ```{r rategsp}
 # Create rate_period indicator
 rates <- rates %>%
@@ -504,6 +507,9 @@ ggsave("../graphs/Rates_by_Rate_Period_and_GSP_Group.png", width = 10, height = 
 
 ```
 
+### Figure A.17: Rates Over Time
+
+
 ```{r rate-by-periods}
 
 # Get the global min and max unit_rate
@@ -539,6 +545,11 @@ ggplot(rates_long, aes(x = valid_from, y = unit_rate, color = tariff_gsp_group_n
 
 ggsave("../graphs/Rate_Changes_by_Period.png", width = 12, height = 8, dpi = 300)
 
+```
+
+### Figure A.18: Rates as Share of Typical Marginal Price Over Time
+
+```{r margprice}
 # Aggregate the data by rate_period and valid_from to get the average for all GSP groups
 rates_avg <- rates %>%
   group_by(rate_period, valid_from) %>%
@@ -735,17 +746,24 @@ Overall, prior to Cosy adoption, 88\% of adopters were on a non-smart tariff^[No
 ## Availability of smart meter data
 
 
+### Figure A.19: Smart Meter Data Availability for Cosy Adopters
+
+
 ```{r panelview, eval= FALSE}
 
 library(panelView)
 
 plot_panel <- panelview(consumption_hh ~ cosy_contract_active + daily_avg_heating_degree, 
                         data = aggregated_data %>% filter(rate_period=="Overall", !is.na(date), !is.na(hashed_mpan)) %>% select(consumption_hh, hashed_mpan, date, cosy_contract_active, daily_avg_heating_degree) %>% distinct(), index = c("hashed_mpan","date"), 
-                        xlab = "Time", ylab = "hashed_mpan", by.timing = TRUE, pre.post = TRUE, gridOff = TRUE, axis.lab.gap = c(100),
+                        xlab = "Time", ylab = "hashed_mpan", by.timing = TRUE, 
+                        pre.post = TRUE, gridOff = TRUE, axis.lab.gap = c(100),
                         main = "Smart Meter Data Availability",
-                        background = NULL,
-                        legend.labs = c("Before Cosy", "After Cosy", "No smart meter data"), collapse.history = "TRUE")
-ggsave("../graphs/data_availability.png")
+                         background = "white",
+                        color = c(flexible_color, cosy_color, "white"),
+                        legend.labs = c("Before Cosy", "After Cosy", "No smart meter data"), 
+                        collapse.history = "TRUE")
+ggsave("../graphs/data_availability.png", 
+       width = 16, height = 8, units = "cm")
 
 ```
 
@@ -832,7 +850,7 @@ ggsave("../graphs/early_versus_late.png")
 ```
 
 
-## Cosy areas
+## Table A.15: External Validity by Area for Cosy Adopters
 
 
 ```{r pop-weighted-msoas1, eval= FALSE}
@@ -908,7 +926,7 @@ postcode_msoa <- fread("../data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv
   select(msoa21cd, n) %>%
   group_by(msoa21cd) %>%
   summarise(treated = sum(n))
- # https://www.ons.gov.uk/peoplepopulationandcommunity/personalandhouseholdfinances/incomeandwealth/bulletins/smallareamodelbasedincomeestimates/financialyearending2020
+# https://www.ons.gov.uk/peoplepopulationandcommunity/personalandhouseholdfinances/incomeandwealth/bulletins/smallareamodelbasedincomeestimates/financialyearending2020
 income <- readxl::read_excel("../data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct() 
@@ -2252,7 +2270,7 @@ knitr::include_graphics("../graphs/consumption_did.png")
 knitr::include_graphics("../graphs/hourly_consumption.png")
 ```
 
-### EV detection checks
+### Table A.9: Cosy Adoption on Electricity Consumption Controlling for EV Charging
 
 ```{r ev}
 # ev half hours 
@@ -2321,6 +2339,7 @@ CleanPreAverage("../tables/did_ev.tex")
 ```
 
 
+## Table 3: Cosy Adoption on Probability of Charging EV by Period
 
 ```{r}
 
@@ -2367,14 +2386,53 @@ etable(m_charging1, m_charging2, m_charging3, m_charging4,
                 Peak_Rate = "Charging EV", 
                 Other = "Charging EV"))
 
-CleanPreAverage("../tables/ev_charging.tex")
+file_path <- "../tables/ev_charging.tex"
+
+# Read the generated LaTeX file
+file_content <- readLines(file_path)
+
+# Find the lines with the pre-treatment average and remove them
+if (length(grep("Charging EV", file_content))==1) {
+  pre_avg_line_index <- grep("Charging EV", file_content)
+} else {
+  pre_avg_line_index <- grep("Charging EV", file_content)[2]
+}
+
+pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
+file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
+
+# Find the position just after the coefficients
+coeff_end_index <- grep("Fixed-effects", file_content) -2
+
+# Insert the pre-treatment average row after the coefficients
+file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
+file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
+
+# Add a \midrule after the pre-treatment average
+file_content <- append(file_content, "\\midrule", after = coeff_end_index)
+
+# Modify the label for "Size of the 'effective' sample" to "Number of Households"
+sample_line <- grep("Size of the 'effective' sample", file_content)
+file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
+
+# Modify the name of the dependent in pre-treatment averages
+var_line <- grep("Half Hourly Consumption", file_content)
+file_content[sample_line] <- gsub("Half Hourly Consumption", "Charging EV", file_content[var_line])
+
+# Add note
+note <- "\\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} We show the results of four OLS models where the dependent variable is whether a charging event occurred in the period of interest – morning \\textit{Cosy} 4am-7am (column 1), afternoon \\textit{Cosy} 1pm-4pm (column 2), peak 4pm-7pm (column 3), and all other hours of the day (column 4). The sample is 127,789 charging events among 1,743 \\textit{Cosy} adopters for whom we detect evidence of EV charging. Where a charging events stretches across multiple periods, we attribute it to the period that comprises the \\textit{majority} of the event (in minutes). We see that among these EV owning \\textit{Cosy} adopters, \\textit{Cosy} adoption is associated with more charging the off-peak period and less in the peak and other periods.}"
+
+file_content <- append(file_content, note, after = grep("\\centering", file_content)-1)
+
+# Write the modified content back to the LaTeX file
+writeLines(file_content, file_path)
 
 
 
 ```
 
 
-### Leavers
+### Table A.10: Impact of Cosy for Leavers
 
 
 ```{r }
@@ -2491,7 +2549,7 @@ ggsave(filename= "../graphs/leavers_ev.png",width = 10, height = 8, dpi = 300)
 ```
 
 
-### smart tariff onboarding survey
+### Table A.11: Impact of Cosy by LCTs Ownership
 
 ```{r smartsurvey}
 
@@ -3142,7 +3200,7 @@ The heterogeneity analysis shows that Cosy adoption leads to a significant reduc
 In this section, we show the interaction between EAC and adopting Cosy on total consumption and share of daily consumption for each period. We control for day and customers fixed effect, meaning that the coefficients plotted only represent the additional impact of belonging to one of the EAC decile on electricity consumption after adopting Cosy ~ not the direct relationship between EAC and energy consumption. 
 
 We find that while higher decile EACs shift more electricity from peak time to morning and afternoon Cosy periods, the relationship with the relative share of electricity consumption at peak time is more complexe: it is increasing for the first decile and decrease for the last ones. It probably represents a complexe relationship between EAC and unobservable factors: presence of other LCTs, income.  
-
+### Table A.12: Cosy Adoption by Previous Tariff Type
 
 ```{r heterogeneity-analysis}
 
@@ -3251,6 +3309,9 @@ file_content <- append(file_content, "\\midrule", after = coeff_end_index+3)
 writeLines(file_content, "../tables/did_prevar.tex")  
 
 ```
+
+### Figure A.29: Impact of Cosy Adoption by EAC on Consumption and Figure A.30: Impact of Cosy Adoption by EAC on Share of Consumption
+
 
 ```{r eac, eval=FALSE}
 rm(m2a)
@@ -3506,7 +3567,7 @@ knitr::include_graphics("../graphs/eac_share_peak_rate.png")
 knitr::include_graphics("../graphs/eac_share_other.png")
 ```
 
-### Energy efficiency
+### Figure A.28: Impact of Cosy Adoption by EPC Score on Consumption
 
 We perform the same heterogeneity analysis on EPC letter. We plot the coefficients on the interaction between EPC letter and adopting Cosy. As before, we hightlight that these coefficients do not include the direct impact of better EPC on energy consumption. We do not find strong differences in ability to switch energy consumption away from peak to Cosy periods by EPC (houses with a lower EPC rating seem to be able to shift less in the morning and peak, but the differences are not statistically significant). As a word of caution, EPC might not reflect well heatloss, most houses in our datasets have a EPC rating of D or above and people that have adopted Cosy might know their ability to shift prior to adoption. 
 
@@ -3649,7 +3710,7 @@ knitr::include_graphics("../graphs/epc_peak_rate.png")
 knitr::include_graphics("../graphs/epc_other.png")
 ```
 
-### Heatloss
+### Figure A.33: Impact of Cosy Adoption by Heat Loss on Consumption and Figure A.34: Impact of Cosy Adoption by Heat Loss on Share of Consumption
 
 In order to look more closely whether or not houses with poorer insulation can provide flexibility, we use a subset of customers for which Octopus Energy has calculated their heatloss rate.
 
@@ -3864,7 +3925,7 @@ knitr::include_graphics("../graphs/heatloss_peak_rate.png")
 knitr::include_graphics("../graphs/heatloss_other.png")
 ```
 
-### Floor area
+### Figure A.31: Impact of Cosy Adoption by Floor Area on Consumption and Figure A.32: Impact of Cosy Adoption by Floor Area on Share of Consumptio
 
 
 ```{r floor-area}
@@ -4326,7 +4387,7 @@ cosy_saving <- aggregated_data %>%
 ```
 
 
-### Regions
+### Figure A.36: Impact of Cosy by Regio
 
 Finally, we plot the interaction between customers' regions and adopting Cosy. In this regressions, we control for days and customers fixed effects, and isolate the impact of adopting Cosy. We compare all regional differences to our omitted base region, East Midlands. 
 We do not find any regional difference as shown in Table \@ref(tab:regionaldid).
@@ -4408,7 +4469,7 @@ ggsave("../graphs/region_combined.png", device = "png", width = 16, height = 12,
 \input{"../tables/did_region.tex"}
 \end{landscape}
 
-### Income
+### Figure A.35: Impact of Cosy Adoption by MSOA Income on Consumption
 
 ```{r income-msoa}
 # Load and preprocess the cosy_hp_details data
@@ -4645,7 +4706,8 @@ We show in Table \@ref(tab:prevvar) that customers that switched from a variable
 
 
 
-### HP Installation
+### Figure A.21: Main Results Coefficients With and Without Controlling for Heat Pump
+Installation
 
 ```{r hpinstallation}
 
@@ -5900,7 +5962,8 @@ if (!file.exists("../tables/did_HP_install.tex")) {
 \input{"../tables/did_hp_install.tex"}
 \end{landscape}
 
-## Event study {-}
+##  Figure A.39 to A.43 Event Study
+
 
 We run the following model by period for all customers that have adopted Cosy in the past year: 
 
