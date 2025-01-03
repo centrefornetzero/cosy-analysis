@@ -7,7 +7,7 @@ output: html_document
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, include=FALSE, warning  = FALSE, fig.pos = "H", out.extra = "")
+knitr::opts_chunk$set(echo = FALSE, include=TRUE, warning  = FALSE, fig.pos = "H", out.extra = "")
 
 # Load necessary libraries
 library(data.table)
@@ -1345,7 +1345,7 @@ for (i in 1:5) {
 Region
 
 
-```{r regions, eval=FALSE}
+```{r regions, eval=TRUE}
 
 m_region <- feols(consumption_hh ~ i(is_hp_installed, region, ref =0) | 
                     account_id + daily_avg_heating_degree + date,
@@ -1403,7 +1403,7 @@ ggsave("../graphs/hp_region_combined.png", device = "png", width = 16, height = 
 
 ### Figure A.7: Impact of Heat Pump Installation by Floor Area
 
-```{r floor-area, eval=FALSE}
+```{r floor-area, eval=TRUE}
 
 # Create unique breaks for total_floor_area
 breaks <- unique(quantile(hp_installed[!is.na(hp_installed$total_floor_area),]$total_floor_area, 
@@ -1661,7 +1661,7 @@ writeLines(file_content, "../tables/hp_did_solar.tex")
 
 ## Figure A.1: Smart Meter Data Availability for Heat Pump Customers
 
-```{r panelview, eval=FALSE}
+```{r panelview, eval=TRUE}
 
 library(panelView)
 
@@ -1687,7 +1687,7 @@ ggsave("../graphs/hp_data_availability.png",
 
 
 
-```{r panelviewgas, eval=FALSE}
+```{r panelviewgas, eval=TRUE}
 
 library(panelView)
 

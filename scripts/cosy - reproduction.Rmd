@@ -1973,7 +1973,7 @@ gc()
 
 ### Table A.12: Cosy Adoption by Previous Tariff Type
 
-```{r heterogeneity-analysis}
+```{r prev-tariff-tex}
 
 # Register the pre-treatment average fit statistic
 fitstat_register("pre_avg_tou", function(x) {
@@ -2316,6 +2316,15 @@ m2a <- feols(consumption_hh ~ i(cosy_contract_active, epc_letter, ref=0)  |
              data = aggregated_data, 
              split = ~ rate_period,
              cluster = ~account_id)
+
+# share
+m1_share <- feols(share_consumption ~ i(cosy_contract_active) | daily_avg_heating_degree + account_id + date, 
+                  data = aggregated_data %>% 
+                    filter(!is.na(epc_letter), !rate_period=="Overall") %>%
+                    group_by(account_id, date) %>%
+                    mutate(share_consumption = total_consumption/sum(total_consumption)), 
+                  cluster = ~account_id, 
+                  split = ~ rate_period)
 
 # Define colors to match the Energy Efficiency Rating chart
 rating_colors <- c(
@@ -2664,6 +2673,8 @@ rm(list = setdiff(all_objects, keep_objects))
 
 ```{r floor-area}
 
+gc()
+
 # Create unique breaks for total_floor_area
 breaks <- unique(quantile(aggregated_data[!is.na(aggregated_data$total_floor_area),]$total_floor_area, probs = seq(0, 1, by = 0.1)))
 
@@ -2902,6 +2913,8 @@ ggsave("../graphs/floor_area_combined.png", device = "png", width = 16, height =
 ### Property values
 
 ```{r property-value}
+
+gc()
 
 # Create unique breaks for property_value
 breaks <- unique(quantile(aggregated_data[!is.na(aggregated_data$property_value),]$property_value, 
@@ -3413,7 +3426,7 @@ ggsave("../graphs/income_share_combined.png", device = "png", width = 16, height
 
 ### Table A.12: Cosy Adoption by Previous Tariff Type
 
-```{r heterogeneity-analysis}
+```{r prev-tariff}
 
 # Register the pre-treatment average fit statistic
 fitstat_register("pre_avg_tou", function(x) {
