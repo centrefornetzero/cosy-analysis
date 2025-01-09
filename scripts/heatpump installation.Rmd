@@ -15,22 +15,37 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, include=FALSE, warning  = FALSE, fig.pos = "H", out.extra = "")
 
-# Load necessary libraries
-library(knitr)
-library(kableExtra)
-library(fixest)
-library(data.table)
-library(lubridate)
-library(dplyr)
-library(ggplot2)
-library(RColorBrewer)
-library(tidyr)
-library(scales)  # For date formatting
-library(viridis)  # Load the viridis package for better color options
-library(stringr)
-library(did)
-library(readxl)
-library(stargazer)
+# Run on a subsample of the data for faster processing
+random_subsample <- FALSE
+
+# Function to check if a package is installed, and if not, install it
+install_if_needed <- function(package) {
+  if (!require(package, character.only = TRUE)) {
+    install.packages(package, dependencies = TRUE)
+    library(package, character.only = TRUE)
+  }
+}
+
+# List of packages to load
+packages <- c(
+  "knitr", "kableExtra", "did", "fixest", "data.table", "lubridate", 
+  "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", 
+  "forcats", "viridis",  "stringr", "stargazer", "panelView", "readxl", "HonestDiD"
+)
+
+# Load (and install if needed) each package
+lapply(packages, install_if_needed)
+
+# If HonestDid cannot be installed from CRAN, install it from GitHub
+# https://github.com/asheshrambachan/HonestDiD
+
+# Create folders without warning message
+dir.create("../graphs", showWarnings = FALSE)
+dir.create("../data", showWarnings = FALSE)
+dir.create("../data/scratch", showWarnings = FALSE)
+dir.create("../data/output", showWarnings = FALSE)
+dir.create("../data/input", showWarnings = FALSE)
+dir.create("../tables", showWarnings = FALSE)
 
 # set dictionary
 setFixest_dict(c(consumption_hh = "Consumption in kWh per half hour",
@@ -313,6 +328,15 @@ overall_weekly <- hp_installed %>%
   ) 
 
 rm(all_combinations, cosy_hp_install_gas_consumption, merged_data, weather, all_weeks, max_date, min_date)
+
+# run on a subsample for faster processing
+if (random_subsample) {
+  set.seed(123)
+  sampled_accounts <- sample(unique(hp_installed$account_id), 1000)
+  hp_installed <- hp_installed %>% 
+    filter(account_id %in% sampled_accounts)
+  gc()
+}
 ```
 
 ## Summary statistics {#sec:sumstats}
@@ -453,74 +477,6 @@ stargazer(hp_cost, type = "latex", title = "HP Costs Summary Statistics", digits
 print(summary_stats)
 
 ```
-
-
-
-```{r stripdown1}
-
-# get consumption by period
-hp_installed <- fread("../data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
-  group_by(account_id, settlement_date) %>%
-  summarise(total_consumption = sum(total_read_value)) %>%
-  mutate(consumption_hh = total_consumption / 48) %>%
-  inner_join(fread("../data/input/cosy_-_hp_details_2024_06_25.csv") %>%
-               distinct(account_id, .keep_all = TRUE),
-             by=c("account_id")) %>%
-  mutate(date = as.Date(settlement_date),
-         is_hp_installed = as.numeric(installed_at <= date))%>%
-  group_by(account_id) %>%
-  mutate(treated = max(is_hp_installed))  # identify treated versus not yet treated
-
-# Check number of accounts
-hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% distinct() %>% dim()
-
-# Load and preprocess gas consumption data
-# previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread("../data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
-  group_by(account_id) %>%
-  mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
-         treated = max(is_hp_installed),
-         min_settlement_week = min(settlement_week)) %>%
-  distinct(account_id, settlement_week, .keep_all = TRUE)
-
-# Create a sequence of weeks
-min_date <- min(cosy_hp_install_gas_consumption$settlement_week)
-max_date <- max(cosy_hp_install_gas_consumption$settlement_week)
-all_weeks <- seq(min_date, max_date, by = "week")
-
-# Create a data frame with all combinations of account_id and settlement_week
-all_combinations <- expand.grid(
-  account_id = unique(cosy_hp_install_gas_consumption$account_id),
-  settlement_week = all_weeks
-)
-
-# Merge with original data
-merged_data <- all_combinations %>%
-  left_join(cosy_hp_install_gas_consumption %>% 
-              distinct(account_id, settlement_week, weekly_consumption, 
-                       min_settlement_week, installed_at)) %>%
-  filter(min_settlement_week < settlement_week) %>%
-  mutate(
-    is_hp_installed = as.numeric(installed_at < settlement_week),
-    weekly_consumption = ifelse(is.na(weekly_consumption), 0, weekly_consumption)
-  ) 
-
-# Define overall_weekly by merging with electricity data
-overall_weekly <- hp_installed %>%
-  mutate(settlement_week = floor_date(date, "week") + 1,
-         is_hp_installed = as.numeric(installed_at <= settlement_week)) %>%
-  group_by(account_id, hashed_mpan, tariff_gsp_group_id, settlement_week, treated, installed_at, is_hp_installed) %>%
-  summarise(elec_consumption = sum(total_consumption)) %>%
-  left_join(merged_data %>%
-              select(account_id, settlement_week, weekly_consumption) %>%
-              rename(gas_consumption = weekly_consumption)) %>%
-  mutate(
-    gas_consumption = 52.25 * gas_consumption,
-    elec_consumption = 52.25 * elec_consumption,
-    total_consumption = gas_consumption + elec_consumption
-  ) 
-
-rm(hp_installed)
 
 
 ```
@@ -2733,18 +2689,18 @@ breaks <-
 # Create pretty labels for the categories
 labels <- sapply(1:(length(breaks)-1), function(i) paste0("£", round(breaks[i]), "k-", round(breaks[i+1]), "k"))
 labels[10] <- "£742k+"
-  
+
 hp_installed <- hp_installed %>%
   mutate(property_value_category = cut(property_value/1000, 
-                               breaks = breaks, 
-                               include.lowest = TRUE,
-                               labels = labels))
+                                       breaks = breaks, 
+                                       include.lowest = TRUE,
+                                       labels = labels))
 # property_value check
 m_property_value <- feols(consumption_hh ~ i(is_hp_installed, property_value_category, ref =0) 
-                  | date +  account_id + daily_avg_heating_degree,
-                  data = hp_installed,
-                  split = ~ rate_period,
-                  cluster = ~account_id)
+                          | date +  account_id + daily_avg_heating_degree,
+                          data = hp_installed,
+                          split = ~ rate_period,
+                          cluster = ~account_id)
 
 for (i in 1:5) {
   
