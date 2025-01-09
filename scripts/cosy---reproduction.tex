@@ -1,0 +1,175 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{5}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{lscape}
+\usepackage{mathtools}
+\usepackage{amsmath}
+\newcommand{\blandscape}{\begin{landscape}}
+\newcommand{\elandscape}{\end{landscape}}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage{makecell}
+\usepackage{xcolor}
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Cosy analysis},
+  pdfauthor={Louise Bernard},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Cosy analysis}
+\author{Louise Bernard}
+\date{2025-01-09}
+
+\begin{document}
+\maketitle
+
+{
+\setcounter{tocdepth}{2}
+\tableofcontents
+}
+\section{Data Preparation}\label{data-preparation}
+
+\subsection{Merging consumption and customers info datasets}\label{merging-consumption-and-customers-info-datasets}
+
+\subsection{Rates Graphs}\label{rates-graphs}
+
+\subsubsection{Figure 2: Cosy Rate by Period}\label{figure-2-cosy-rate-by-period}
+
+\subsubsection{Figure A.16: Rates by Rate Period and GSP Group as of 01 June 2024}\label{figure-a.16-rates-by-rate-period-and-gsp-group-as-of-01-june-2024}
+
+\subsubsection{Figure A.17: Rates Over Time}\label{figure-a.17-rates-over-time}
+
+\subsubsection{Figure A.18: Rates as Share of Typical Marginal Price Over Time}\label{figure-a.18-rates-as-share-of-typical-marginal-price-over-time}
+
+\subsection{Summary Statistics Tables and Graphs}\label{sec:sumstats}
+
+\subsubsection{Figure 3: Weekly Adoption of the Cosy tariff}\label{figure-3-weekly-adoption-of-the-cosy-tariff}
+
+\subsection{Availability of smart meter data}\label{availability-of-smart-meter-data}
+
+\subsubsection{Figure A.19: Smart Meter Data Availability for Cosy Adopters}\label{figure-a.19-smart-meter-data-availability-for-cosy-adopters}
+
+\subsection{External Validity Tables}\label{external-validity-tables}
+
+\section{Empirical Analysis}\label{sec:results}
+
+\subsection{TWFE Heterogeneity Analysis}\label{twfe-heterogeneity-analysis}
+
+\subsubsection{Table A.9: Cosy Adoption on Electricity Consumption Controlling for EV Charging}\label{table-a.9-cosy-adoption-on-electricity-consumption-controlling-for-ev-charging}
+
+\subsubsection{Table 3: Cosy Adoption on Probability of Charging EV by Period}\label{table-3-cosy-adoption-on-probability-of-charging-ev-by-period}
+
+\subsubsection{Table A.10: Impact of Cosy for Leavers}\label{table-a.10-impact-of-cosy-for-leavers}
+
+\subsubsection{Table A.11: Impact of Cosy by LCTs Ownership}\label{table-a.11-impact-of-cosy-by-lcts-ownership}
+
+\subsubsection{Pre-trends checks}\label{pre-trends-checks}
+
+\subsubsection{Figure 11: Impact of Cosy by Outside Temperature}\label{figure-11-impact-of-cosy-by-outside-temperature}
+
+\subsection{Moderators}\label{moderators}
+
+\subsubsection{Table A.12: Cosy Adoption by Previous Tariff Type}\label{table-a.12-cosy-adoption-by-previous-tariff-type}
+
+\subsubsection{Figure A.29: Impact of Cosy Adoption by EAC on Consumption and Figure A.30: Impact of Cosy Adoption by EAC on Share of Consumption}\label{figure-a.29-impact-of-cosy-adoption-by-eac-on-consumption-and-figure-a.30-impact-of-cosy-adoption-by-eac-on-share-of-consumption}
+
+\subsubsection{Figure A.28: Impact of Cosy Adoption by EPC Score on Consumption}\label{figure-a.28-impact-of-cosy-adoption-by-epc-score-on-consumption}
+
+\subsubsection{Figure A.33: Impact of Cosy Adoption by Heat Loss on Consumption and Figure A.34: Impact of Cosy Adoption by Heat Loss on Share of Consumption}\label{figure-a.33-impact-of-cosy-adoption-by-heat-loss-on-consumption-and-figure-a.34-impact-of-cosy-adoption-by-heat-loss-on-share-of-consumption}
+
+\subsubsection{Figure A.31: Impact of Cosy Adoption by Floor Area on Consumption and Figure A.32: Impact of Cosy Adoption by Floor Area on Share of Consumptio}\label{figure-a.31-impact-of-cosy-adoption-by-floor-area-on-consumption-and-figure-a.32-impact-of-cosy-adoption-by-floor-area-on-share-of-consumptio}
+
+\subsubsection{Property values}\label{property-values}
+
+\subsubsection{Figure A.36: Impact of Cosy by Region}\label{figure-a.36-impact-of-cosy-by-region}
+
+\subsubsection{Figure A.35: Impact of Cosy Adoption by MSOA Income on Consumption}\label{figure-a.35-impact-of-cosy-adoption-by-msoa-income-on-consumption}
+
+\subsubsection{Table A.12: Cosy Adoption by Previous Tariff Type}\label{table-a.12-cosy-adoption-by-previous-tariff-type-1}
+
+\subsubsection{Figure A.21: Main Results Coefficients With and Without Controlling for Heat Pump}\label{figure-a.21-main-results-coefficients-with-and-without-controlling-for-heat-pump}
+
+Installation
+
+\end{document}
