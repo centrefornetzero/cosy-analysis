@@ -1974,6 +1974,112 @@ rm(m_heatloss, coefs, coefs_total, m2a, tempreg)
 gc()
 ```
 
+### Installer FE [not included in the paper]
+
+```{r installer-fe}
+
+
+# Unique periods 
+periods <- unique(aggregated_data$rate_period)
+
+# Installer FE
+installers <- fread("../data/input/cosy_-_hp_engineers_2025_03_17.csv")
+
+
+# Run the regression model
+tempreg <- feols(consumption_hh ~ i(cosy_contract_active, hp_engineer, ref=0) |
+                    daily_avg_heating_degree + account_id + date,
+                 data = aggregated_data %>% inner_join(installers %>%
+                                                         filter(!is.na(hp_engineer))),
+                 split = ~ rate_period,
+                 cluster = ~account_id)
+
+# Loop through each model in tempreg to create plots
+for (i in 1:length(tempreg)) {
+  
+  # Find model
+  val <- tempreg[[i]]$model_info$sample$value
+  j <- which(sapply(1:length(m1), function(j) m1[[j]]$model_info$sample$value) == val)
+  
+  # Extract coefficients and standard errors
+  coefs <- coeftable(tempreg[[i]]) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    as_tibble() %>%
+    separate(term, into = c("cosy_contract_active", "remove1", "daily_avg_air_temperature_celsius", "remove2"), sep = "::") %>%
+    mutate(daily_avg_air_temperature_celsius = as.numeric(daily_avg_air_temperature_celsius),
+           lower_ci = Estimate - 1.96 * `Std..Error`,
+           upper_ci = Estimate + 1.96 * `Std..Error`
+    ) %>%
+    mutate(`/% ATE` = Estimate / abs(m1[[j]]$coefficients) * 100,     
+           lower_ci_ATE = `/% ATE` - 1.96 * (`Std..Error` / abs(m1[[j]]$coefficients) * 100),
+           upper_ci_ATE = `/% ATE` + 1.96 * (`Std..Error` / abs(m1[[j]]$coefficients) * 100)
+    )
+  
+  # Create the ggplot
+  ggplot(coefs, aes(x = daily_avg_air_temperature_celsius, y = Estimate)) +
+    geom_point(color = cosy_color) +  # Use your desired color
+    geom_line(color = cosy_color) +   # Use your desired color
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6, color = cosy_color) +  # Use your desired color
+    geom_hline(yintercept = m1[[j]]$coefficients, linetype = "dashed", alpha = 0.6, color = cosy_color) +  # Add horizontal line at 100% ATE
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
+    scale_y_continuous(
+      name = "Estimate (kWh)", 
+      sec.axis = sec_axis(~ ./m1[[j]]$coefficients, name = "% of ATE", labels = scales::percent_format())
+    ) +
+    labs(
+      x = "Average Temperature in Degrees",
+    ) +
+    theme_minimal()
+  
+  # Print the plot
+  ggsave(paste0("../graphs/cosy_temperature_", tolower(gsub(" ", "_", val)), ".png"),
+         width = 16, height = 8, units = "cm")
+}
+
+
+# Remove the overall model if it exists
+all_coefs <- coeftable(tempreg) %>%
+  inner_join(coeftable(m1) %>% select(sample, Estimate) %>% rename(average = Estimate)) %>%
+  data.frame() %>%
+  filter(sample != "Overall") %>%
+  separate(coefficient, into = c("cosy_contract_active", "remove1", "daily_avg_air_temperature_celsius", "remove2"), sep = "::") %>%
+  mutate(daily_avg_air_temperature_celsius = as.numeric(daily_avg_air_temperature_celsius),
+         lower_ci = Estimate - 1.96 * `Std..Error`,
+         upper_ci = Estimate + 1.96 * `Std..Error`
+  ) %>%
+  mutate(`/% ATE` = Estimate / abs(average) * 100,     
+         lower_ci_ATE = `/% ATE` - 1.96 * (`Std..Error` / average * 100),
+         upper_ci_ATE = `/% ATE` + 1.96 * (`Std..Error` / average * 100)
+  ) %>%
+  mutate(sample = factor(sample, levels = c("Morning Cosy",
+                                            "Afternoon Cosy",
+                                            "Peak Rate",
+                                            "Other", 
+                                            "Overall")))
+
+# Create the ggplot
+ggplot(all_coefs, aes(x = daily_avg_air_temperature_celsius, y = Estimate)) +
+  geom_point(color = cosy_color) +  # Use your desired color
+  geom_line(color = cosy_color) +   # Use your desired color
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6, color = cosy_color) +  # Use your desired color
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
+  geom_hline(aes(yintercept = average), linetype = "dashed", alpha = 0.6, color = cosy_color) +  # Add horizontal line for the average
+  scale_y_continuous(
+    name = "Estimate (kWh)"  ) +
+  labs(
+    x = "Average Temperature in Degrees (°C)",
+  ) +
+  theme_minimal() +
+  facet_wrap(~sample)
+
+# Print the plot
+ggsave("../graphs/cosy_temperature_all.png", width = 16, height = 8, units = "cm")
+
+rm(m_heatloss, coefs, coefs_total, m2a, tempreg)
+gc()
+```
+
 ## Moderators
 
 ### Table A.12: Cosy Adoption by Previous Tariff Type
