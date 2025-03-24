@@ -22,10 +22,11 @@ install_if_needed <- function(package) {
 
 # List of packages to load
 packages <- c(
-  "knitr", "kableExtra", "did", "fixest", "data.table", "lubridate", 
-  "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", 
+  "knitr", "kableExtra", "did", "fixest", "lfe", "data.table", "lubridate", 
+  "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", "tibble",
   "forcats", "viridis",  "stringr", "stargazer", "panelView", "readxl", "HonestDiD"
 )
+
 
 # Load (and install if needed) each package
 lapply(packages, install_if_needed)
@@ -890,11 +891,181 @@ for (i in 1:5) {
 
 ## Installer FE [Not included in the paper]
 
+
+
+
+```{r variance-decomposition}
+# =======================
+# 1. Data Preparation & Regression
+# =======================
+
+# Prepare data: filter, join, engineer features
+df <- hp_installed %>%
+  filter(treated == 1, rate_period == "Overall") %>%
+  distinct(account_id, deal_created_at) %>%
+  inner_join(installers) %>%
+  filter(hp_engineer != "") %>%
+  group_by(hp_engineer) %>%
+  tally() %>%
+  filter(n > 1) %>%
+  rename(num_install = n) %>%
+  inner_join(installers) %>%
+  inner_join(hp_installed) %>%
+  filter(treated == 1, rate_period == "Overall") %>%
+  mutate(temperature = round(daily_avg_heating_degree))
+
+# Main model: includes interaction and fixed effects
+reg <- feols(
+  consumption_hh ~ i(is_hp_installed, ref = 0) +
+    i(is_hp_installed, hp_engineer, ref = 0, ref2 = "Steven Wiltshire") |
+    account_id + date + temperature,
+  cluster = ~account_id,
+  data = df
+)
+
+etable(reg)
+```
+
+```{r variance-decomposition-2}
+
+# manual decomposition of variance for FE
+fes <- fixef(reg)
+fe_account <- fes$account_id[as.character(df$account_id)]
+fe_date <- fes$date[as.character(df$date)]
+fe_temp <- fes$temperature[as.character(df$temperature)]
+
+# decomposition of treatment effects
+X <- model.matrix(reg)
+interaction_cols <- grep("hp_engineer", colnames(X), value = TRUE)
+interaction_pred <- as.numeric(X[, interaction_cols] %*% coef(reg)[interaction_cols])
+ate_col <- grep("is_hp_installed::1$", colnames(X), value = TRUE)
+ate_pred <- as.numeric(X[, ate_col] * coef(reg)[ate_col])
+
+# total var of outcomes
+var_total <- var(df$consumption_hh, na.rm = TRUE)
+
+var_decomp <- data.frame(
+  Component = c("Account FE", "Date FE", "HDD FE", "ATE", "Engineer Interaction"),
+  Share = c(
+    var(fe_account, na.rm = TRUE),
+    var(fe_date, na.rm = TRUE),
+    var(fe_temp, na.rm = TRUE),
+    var(ate_pred, na.rm = TRUE),
+    var(interaction_pred, na.rm = TRUE)
+  ) / var_total
+)
+
+stargazer(var_decomp, 
+          summary = FALSE, 
+          label = "variance-decomp",
+          out = "../tables/variance_decomp.tex",  
+          title = "Decomposition of Variance in Consumption Outcomes",
+          type = "latex")
+```
+
+```{r variance-decomposition-3}
+
+# 3. Bias-Corrected FE Covariance (felm)
+
+df2 <- df %>%
+  inner_join(data.frame(date = as.Date(names(fes$date)), time_fe = fes$date)) %>%
+  inner_join(data.frame(temperature = as.numeric(names(fes$temperature)), temp_fe = fes$temperature))
+
+df2$consumption_hh_resid <- df2$consumption_hh - df2$time_fe - df2$temp_fe
+
+reg_sub <- felm(
+  consumption_hh_resid ~ is_hp_installed + is_hp_installed:hp_engineer | account_id,
+  data = df2,
+  cmethod = "reghdfe"
+)
+
+fe_sub <- getfe(reg_sub, se = TRUE)
+covar <- fevcov(reg_sub, fe_sub)
+covar_biased <- covar + attr(covar, "bias")
+total_var <- var(df2$consumption_hh_resid, na.rm = TRUE)
+
+interaction_cols <- grep("^is_hp_installed:hp_engineer", colnames(model.matrix(reg_sub)))
+interact_pred <- model.matrix(reg_sub)[, interaction_cols] %*% coef(reg_sub)[interaction_cols]
+main_pred <- model.matrix(reg_sub)[, "is_hp_installed"] * coef(reg_sub)["is_hp_installed"]
+
+var_table <- data.frame(
+  Component = c("Account FE", "Main Treatment Effect", "Treatment × Engineer"),
+  Variance_Share = c(diag(covar / total_var), var(main_pred) / total_var, var(interact_pred) / total_var)
+)
+
+stargazer(var_table, 
+          summary = FALSE, 
+          label = "bias-coorected-variance-decomp",
+          out = "../tables/bias_corrected_decomp.tex",  
+          title = "Decomposition of Variance in Consumption Outcomes",
+          type = "latex")
+```
+
+```{r variance-decomposition-4}
+# 4. Covariance: Account FE × Interaction Effect
+account_fe_vec <- fe_sub[fe_sub$fe == "account_id", c("idx", "effect")]
+colnames(account_fe_vec) <- c("account_id", "account_fe")
+account_fe_vec$account_id <- as.character(account_fe_vec$account_id)
+df2$account_id <- as.character(df2$account_id)
+df2 <- merge(df2, account_fe_vec, by = "account_id")
+
+df2$interaction_pred <- interact_pred
+cov_account_interaction <- cov(df2$account_fe, df2$interaction_pred, use = "complete.obs")
+cor_account_interaction <- cor(df2$account_fe, df2$interaction_pred, use = "complete.obs")
+
+cat("Covariance:", cov_account_interaction, "\n")
+cat("Correlation:", cor_account_interaction, "\n")
+```
+
+```{r variance-decomposition-5}
+# 5. Plot: Engineer FE vs Avg Household FE
+
+engineer_house_fe <- df2 %>%
+  group_by(hp_engineer) %>%
+  summarise(avg_account_fe = mean(account_fe.y, na.rm = TRUE))
+
+interaction_coefs <- coef(summary(reg_sub)) %>%
+  as.data.frame() %>%
+  rownames_to_column("term") %>%
+  filter(grepl("^is_hp_installed:hp_engineer", term)) %>%
+  mutate(hp_engineer = gsub("is_hp_installed:hp_engineer", "", term),
+         hp_engineer = gsub("[()]", "", hp_engineer))
+
+plot_data <- left_join(engineer_house_fe, interaction_coefs, by = "hp_engineer")
+
+ggplot(plot_data, aes(x = avg_account_fe, y = Estimate)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "black") +
+  labs(
+    x = "Average Account Fixed Effect",
+    y = "Engineer-Specific Treatment Effect"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+ggsave("../graphs/engineer_vs_household_fe.png", width = 8, height = 6)
+
+
+# coeftable
+coefs <- coeftable(reg) %>%
+  data.frame() %>%
+  tibble::rownames_to_column("term") %>%
+  as_tibble() %>%
+  separate(term, into = c("is_hp_installed", "remove1", "remove2", "remove3", "remove44" , "hp_engineer"), sep = ":") %>%
+  mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
+         upper_ci = Estimate + 1.96 * `Std..Error`
+  ) %>% filter(!is.na(remove3))
+
+
+
+
+```
+
 ```{r installer-fe, eval=TRUE}
 rm(m1, m1c, m_solar, ev_charging, ev_users, ev_charging_agg)
 
 # Installer FE
-installers <- fread("../data/input/cosy_-_hp_engineers_2025_03_17.csv")
+installers <- fread("../data/input/cosy_-_hp_engineers_2025_03_17.csv") 
 
 # Unique periods 
 periods <- unique(hp_installed$rate_period)
@@ -902,22 +1073,21 @@ periods <- unique(hp_installed$rate_period)
 # Run the regression model
 m1 <- feols(consumption_hh ~ i(is_hp_installed, ref=0) |
               account_id + daily_avg_heating_degree  + date,
-            data = hp_installed %>% filter(treated==1) %>%
-              inner_join(installers),
+            data = hp_installed %>% filter(rate_period == "Overall"),
             cluster = ~account_id) 
 
 # Run the regression model
 tempreg <- feols(consumption_hh ~ i(is_hp_installed, hp_engineer, ref=0) |
-                   account_id + daily_avg_heating_degree  + date,
-                 data = hp_installed %>% filter(treated==1) %>%
-                   inner_join(installers),
+                   account_id + round(daily_avg_heating_degree)  + date,
+                 data = df,
                  cluster = ~account_id) 
 
 coefs <- coeftable(tempreg) %>%
   data.frame() %>%
   tibble::rownames_to_column("term") %>%
   as_tibble() %>%
-  separate(term, into = c("is_hp_installed", "remove1", "remove2", "remove3", "remove44" , "hp_engineer"), sep = ":") %>%
+  separate(term, into = c("is_hp_installed", "remove1", "remove2", "remove3", "remove4" , "hp_engineer"), sep = ":") %>%
+  filter(!is.na(hp_engineer)) %>%
   mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
          upper_ci = Estimate + 1.96 * `Std..Error`
   ) %>%
@@ -951,6 +1121,9 @@ ggplot(coefs, aes(x = hp_engineer, y = Estimate * yearly_factor)) +  # Scale Est
   theme_minimal() +
   theme(axis.text.x = element_blank())
 
+summary(coefs$Estimate)
+quantile(coefs$Estimate, 0.75)/quantile(coefs$Estimate, 0.25)
+
 # Print the plot
 ggsave(paste0("../graphs/hp_engineer.png"),
        width = 16, height = 8, units = "cm")
@@ -958,238 +1131,6 @@ ggsave(paste0("../graphs/hp_engineer.png"),
 
 ```
 
-
-```{r var-decomp}
-
-# Find connected sets
-df <- hp_installed %>% 
-  filter(treated==1, rate_period=="Overall") %>%
-  distinct(account_id, deal_created_at) %>%
-  inner_join(installers) %>%
-  filter(!hp_engineer == "") %>%
-  group_by(hp_engineer) %>%
-  tally() %>%
-  filter(n>1) %>%
-  rename(num_install = n) %>%
-  inner_join(installers) %>%
-  inner_join(hp_installed) %>% 
-  filter(treated==1, rate_period=="Overall")
-
-#### Estimate fixed effects ####
-df <- df %>% mutate(temperature = round(daily_avg_heating_degree))
-reg <- feols(consumption_hh ~ i(is_hp_installed, ref=0) +
-               i(is_hp_installed, hp_engineer, ref=0, ref2="Steven Wiltshire") |
-                   account_id  + date + temperature,
-                 data = df,
-                 cluster = ~account_id) 
-etable(reg)
-
-# Extract fixed effects
-fes <- fixef(reg)
-
-# Extract FE predictions
-fe_account <- fes$account_id[as.character(df$account_id)]
-fe_date <- fes$date[as.character(df$date)]
-fe_hdd <- fes$temperature[as.character((df$temperature))]
-
-# Extract interaction term matrix
-X <- model.matrix(reg)
-interaction_cols <- grep("\\hp_engineer", colnames(X), value = TRUE)
-interaction_matrix <- X[, interaction_cols, drop = FALSE]
-interaction_coefs <- coef(reg)[interaction_cols]
-interaction_pred <- as.numeric(interaction_matrix %*% interaction_coefs)
-
-# --- ATE Term ---
-ate_col <- grep("is_hp_installed::1$", colnames(X), value = TRUE)
-ate_matrix <- X[, ate_col, drop = FALSE]
-ate_coef <- coef(reg)[ate_col]
-ate_pred <- as.numeric(ate_matrix * ate_coef)
-
-# Total variance in outcome
-var_total <- var(df$consumption_hh, na.rm = TRUE)
-
-# Component variances
-var_account <- var(fe_account, na.rm = TRUE)
-var_date <- var(fe_date, na.rm = TRUE)
-var_temperature <- var(fe_hdd, na.rm = TRUE)
-var_interaction <- var(interaction_pred, na.rm = TRUE)
-var_ate <- var(ate_pred, na.rm = TRUE)
-
-# Shares
-share_ate <- var_ate / var_total
-share_account <- var_account / var_total
-share_date <- var_date / var_total
-share_interaction <- var_interaction / var_total
-share_temperarure <- var_temperature / var_total
-
-# Create results table
-var_decomp <- data.frame(
-  Component = c("Account FE", "Date FE", "HDD FE",
-                "ATE of Installation", 
-                "Engineer-Specific Effect"),
-  Share = c(share_account, share_date, share_temperarure, share_ate, share_interaction)
-)
-
-print(var_decomp)
-```
-
-```{r bias-correction}
-#### Variance-covariance decomposition ####
-
-library(lfe)
-
-# Merge in time fixed effects if needed (skip if you're not residualizing)
-# Assuming you extracted date fixed effects from a separate model
-# fes$date is a named vector of date fixed effects
-df2 <- df %>%
-  inner_join(data.frame(date = as.Date(names(fes$date)), time_fe = fes$date))%>%
-  inner_join(data.frame(temperature = as.numeric(names(fes$temperature)), 
-                        temp_fe = fes$temperature))
-
-# Residualize outcome by subtracting time fixed effects
-df2$consumption_hh_time <- df2$consumption_hh - df2$time_fe - df2$temp_fe
-
-# Estimate fixed effects model with treatment + interaction
-reg_sub <- felm(
-  consumption_hh_time ~ is_hp_installed +
-    is_hp_installed:hp_engineer | 
-    account_id,  # already removed date FE via residualization
-  data = df2,
-  cmethod = "reghdfe"
-)
-
-# 4. Extract FE covariance matrix
-fe_sub <- getfe(reg_sub, se = TRUE)
-covar <- fevcov(reg_sub, fe_sub)
-covar_biased <- covar + attr(covar, "bias")
-attr(covar_biased, "bias") <- NULL
-
-# 5. Variance of the residualized outcome
-total_var <- var(df2$consumption_hh_time, na.rm = TRUE)
-
-# 6. Extract model matrix and coefficients
-X <- model.matrix(reg_sub)
-coefs <- coef(reg_sub)
-
-# 7. Compute predicted values for:
-#    - is_hp_installed main effect
-#    - interaction term (is_hp_installed × hp_engineer)
-
-# Main treatment effect (is_hp_installed)
-main_cols <- grep("^is_hp_installed$", colnames(X))
-main_pred <- X[, main_cols, drop = FALSE] %*% coefs[main_cols]
-
-# Interaction terms (is_hp_installed:hp_engineer)
-main_pred <- grep("^is_hp_installed:hp_engineer", colnames(X))
-interact_pred <- X[, interact_cols, drop = FALSE] %*% coefs[interact_cols]
-
-# 8. Variances
-var_main <- var(as.numeric(main_pred), na.rm = TRUE)
-var_interact <- var(as.numeric(interact_pred), na.rm = TRUE)
-
-# 9. Variance shares
-share_main <- var_main / total_var
-share_interact <- var_interact / total_var
-
-# 10. Combine with FE variance shares
-var_share_fe <- covar / total_var
-attr(var_share_fe, "bias") <- NULL
-
-# Combine all into a summary data frame
-var_decomp <- data.frame(
-  Component = c("Account FE", "Main Treatment Effect", "Treatment × Engineer"),
-  Variance_Share = c(diag(var_share_fe), share_main, share_interact)
-)
-
-# Print results
-print(summary(reg_sub))
-
-cat("\n===== Total Variance =====\n")
-print(total_var)
-
-cat("\n===== Bias-Corrected Covariance Matrix =====\n")
-print(covar)
-
-cat("\n===== Variance Share (including treatment terms) =====\n")
-print(var_decomp)
-```
-
-```{r account-interaction-covariance}
-
-# 1. Extract account fixed effects
-fes <- getfe(reg_sub, se = TRUE)
-account_fe_vec <- fes[fes$fe == "account_id", c("idx", "effect")]
-colnames(account_fe_vec) <- c("account_id", "account_fe")
-
-# Convert account_id to the same type as in df2 (likely character)
-account_fe_vec$account_id <- as.character(account_fe_vec$account_id)
-df2$account_id <- as.character(df2$account_id)
-
-# Merge account fixed effects back into the main data
-df2 <- merge(df2, account_fe_vec, by = "account_id")
-
-# 2. Recalculate interaction predicted values (if not already)
-X <- model.matrix(reg_sub)
-coefs <- coef(reg_sub)
-
-interact_cols <- grep("^is_hp_installed:hp_engineer", colnames(X))
-interact_pred <- as.numeric(X[, interact_cols, drop = FALSE] %*% coefs[interact_cols])
-
-df2$interaction_pred <- interact_pred
-
-# 3. Compute the covariance
-cov_account_interaction <- cov(df2$account_fe, df2$interaction_pred, use = "complete.obs")
-
-# 4. Optionally: standardize to correlation
-cor_account_interaction <- cor(df2$account_fe, df2$interaction_pred, use = "complete.obs")
-
-# Print the result
-cat("\n===== Covariance (Account FE × Interaction Term) =====\n")
-print(cov_account_interaction)
-
-cat("\n===== Correlation (Account FE × Interaction Term) =====\n")
-print(cor_account_interaction)
-
-```
-
-```{r plots-install-fe}
-
-library(dplyr)
-library(ggplot2)
-
-
-# # 2. Merge account FE back to df
-# df2$account_id <- as.character(df2$account_id)
-# df2 <- merge(df2, account_fe, by = "account_id")
-
-# 4. Compute average account FE per engineer (only among treated)
-engineer_house_fe <- df2 %>%
-  group_by(hp_engineer) %>%
-  summarise(avg_account_fe = mean(account_fe, na.rm = TRUE))
-
-# 5. Extract interaction term coefficients
-interaction_coefs <- coef(summary(reg_sub)) %>%
-  as.data.frame() %>%
-  tibble::rownames_to_column("term") %>%
-  filter(grepl("^is_hp_installed:hp_engineer", term)) %>%
-  mutate(hp_engineer = gsub("is_hp_installed:hp_engineer", "", term),
-         hp_engineer = gsub("^\\(", "", gsub("\\)$", "", hp_engineer)))
-
-# 6. Merge average account FE and interaction effect
-plot_data <- left_join(engineer_house_fe, interaction_coefs, by = "hp_engineer")
-
-# 7. Plot
-ggplot(plot_data, aes(x = avg_account_fe, y = Estimate), color = hp_engineer) +
-  geom_point() +
-  geom_smooth(method = "lm", se = TRUE, color = "steelblue") +
-  labs(
-    x = "Average Account Fixed Effect",
-    y = "Engineer-Specific Treatment Effect",
-    title = "Relationship Between Household FE and Engineer Treatment Effects"
-  ) +
-  theme_minimal()
-
-```
 
 
 ## Figure A.6: Impact of Heat Pump Installation by EPC Rating 
