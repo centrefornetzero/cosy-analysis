@@ -891,13 +891,19 @@ for (i in 1:5) {
 
 ## Installer FE [Not included in the paper]
 
-
-
-
 ```{r variance-decomposition}
 # =======================
 # 1. Data Preparation & Regression
 # =======================
+
+# Installer FE
+installers <- fread("../data/input/cosy_-_hp_engineers_2025_03_17.csv") %>%
+  filter(account_id %in% hp_installed[hp_installed$treated==1,]$account_id) %>%
+  filter(hp_engineer != "") %>%
+  group_by(hp_engineer) %>%
+  mutate(n = n()) %>%
+  filter(n > 1) %>%
+  select(-n)
 
 # Prepare data: filter, join, engineer features
 df <- hp_installed %>%
@@ -924,6 +930,49 @@ reg <- feols(
 )
 
 etable(reg)
+```
+
+```{r out-of-sample-predictions}
+# stratified randomisation
+set.seed(123)
+installers$insample <- randomizr::strata_rs(strata = installers$hp_engineer, 
+                                       prob = 0.5)
+
+# Regression in sample
+m_insample <- feols(
+  consumption_hh ~ i(is_hp_installed, ref = 0) +
+    i(is_hp_installed, hp_engineer, ref = 0, ref2 = "Steven Wiltshire") |
+    account_id + date + temperature,
+  cluster = ~account_id,
+  data = df %>% filter(hp_engineer %in% installers[installers$insample == 1,]$hp_engineer)
+)
+
+# Predict out of sample
+df$consumption_hh_pred <- predict(m_insample, 
+                                  newdata = df)
+
+# Plot data
+plot_data <- df %>%
+  inner_join(installers) %>%
+  mutate(insample_label = ifelse(insample == 1, "In-sample", "Out-of-sample")) 
+
+ggplot(plot_data, aes(x = consumption_hh_pred, 
+                      y = consumption_hh, 
+                      color = factor(insample_label),
+                      group = factor(insample_label))) +
+  geom_point(alpha = 0.3) +
+  scale_color_manual(values = c("In-sample" = hp_color, 
+                                "Out-of-sample" = "grey")) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    x = "Predicted Consumption (kWh)",
+    y = "Actual Consumption (kWh)",
+    color = "Group",
+    title = "Predicted vs. Actual Consumption",
+    subtitle = "Linear fit for in-sample and out-of-sample households"
+  ) +
+  theme_minimal()
+
 ```
 
 ```{r variance-decomposition-2}
