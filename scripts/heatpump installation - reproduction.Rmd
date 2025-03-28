@@ -322,6 +322,24 @@ ggplot() +
 ggsave("../graphs/combined_weekly_installations_deals.png", width = 15, height = 10, units = "cm", dpi = 300)
 ```
 
+```{r installplot}
+
+hp_installed %>%
+  distinct(account_id, installed_at) %>%
+  mutate(month_installation = month(installed_at, label = TRUE)) %>%
+  count(month_installation) %>%
+  ggplot(aes(x = month_installation, y = n)) +
+  geom_col(fill = hp_color) +
+  labs(
+    x = "Month of Installation",
+    y = "Number of Installations"
+  ) +
+  theme_minimal()
+
+ggsave("../graphs/monthly_installation.png", width = 12, height = 8, dpi = 300)
+
+
+```
 
 ### Table A.14: External Validity by Area for Heat Pump Installation
 
@@ -942,7 +960,7 @@ installers$insample <- randomizr::strata_rs(strata = installers$hp_engineer,
 m_insample <- feols(
   consumption_hh ~ i(is_hp_installed, ref = 0) +
     i(is_hp_installed, hp_engineer, ref = 0, ref2 = "Steven Wiltshire") |
-    account_id + date + temperature,
+    date + temperature,
   cluster = ~account_id,
   data = df %>% filter(hp_engineer %in% installers[installers$insample == 1,]$hp_engineer)
 )
@@ -950,6 +968,14 @@ m_insample <- feols(
 # Predict out of sample
 df$consumption_hh_pred <- predict(m_insample, 
                                   newdata = df)
+
+# Out of sample regression
+m_outsample <- feols(
+  consumption_hh ~ consumption_hh_pred |
+     account_id,
+  cluster = ~account_id,
+  data = df %>% filter(hp_engineer %in% installers[installers$insample == 0,]$hp_engineer)
+)
 
 # Plot data
 plot_data <- df %>%
@@ -970,6 +996,22 @@ ggplot(plot_data, aes(x = consumption_hh_pred,
     color = "Group",
     title = "Predicted vs. Actual Consumption",
     subtitle = "Linear fit for in-sample and out-of-sample households"
+  ) +
+  theme_minimal()
+
+# plot engineer FE
+ggplot(df, 
+       aes(x = consumption_hh_pred, y = consumption_hh, 
+           color = factor(insample_label))) +
+  geom_point(alpha = 0.3) +
+  scale_color_manual(values = c("In-sample" = hp_color, 
+                                "Out-of-sample" = "grey")) +
+  labs(
+    x = "Engineer",
+    y = "Consumption (kWh)",
+    color = "Group",
+    title = "Engineer-Specific Consumption",
+    subtitle = "In-sample and out-of-sample households"
   ) +
   theme_minimal()
 
