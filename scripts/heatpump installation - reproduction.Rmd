@@ -1042,28 +1042,89 @@ ggsave(paste0("../graphs/hp_temperature_gas_elec.png"),
 # Calculate the average value for the dashed line
 avg_cop <- abs(m1$`lhs: gas_consumption`$coefficients / m1$`lhs: elec_consumption`$coefficients)
 
-# Plot
-ggplot(coefs_wider %>% filter(as.numeric(daily_avg_air_temperature_celsius) < 15), 
-       aes(x = daily_avg_air_temperature_celsius, y = quasi_cop)) +
+
+library(fixest)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(progress)
+
+set.seed(123)  # for reproducibility
+B <- 500  # number of bootstrap samples
+temperature_levels <- levels(overall_daily$temp_degree)
+results <- vector("list", B)
+pb <- progress_bar$new(total = B, format = "Bootstrapping [:bar] :percent ETA: :eta")
+
+for (b in 1:B) {
+  pb$tick()
+  
+  # Resample account_ids with replacement
+  sampled_ids <- sample(unique(overall_daily$account_id), replace = TRUE)
+  
+  # Rebuild bootstrapped sample
+  boot_data <- overall_daily %>%
+    filter(treated == 1) %>%
+    semi_join(data.frame(account_id = sampled_ids), by = "account_id")
+  
+  # Refit model
+  boot_model <- tryCatch({
+    feols(c(elec_consumption, gas_consumption) ~ 
+            i(is_hp_installed, temp_degree, ref = 0) |
+            account_id + temp_degree + date,
+          data = boot_data, cluster = ~account_id)
+  }, error = function(e) return(NULL))
+  
+  # If failed, skip
+  if (is.null(boot_model)) next
+  
+  # Extract estimates
+  boot_coefs <- coeftable(boot_model) %>%
+    data.frame() %>%
+  separate(coefficient, 
+           into = c("is_hp_installed", "remove1", "temp", "remove2"), sep = "::") %>%
+    select(lhs, Estimate, temp) %>%
+    pivot_wider(names_from = lhs, values_from = Estimate) %>%
+    mutate(quasi_cop = abs(gas_consumption / elec_consumption)) %>%
+    select(temp, quasi_cop)
+  
+  results[[b]] <- boot_coefs
+}
+
+# Combine bootstrap results
+cop_boot <- bind_rows(results, .id = "bootstrap") %>%
+  mutate(temp = factor(temp, levels = temperature_levels)) %>%
+  group_by(temp) %>%
+  summarise(
+    lower = quantile(quasi_cop, 0.025, na.rm = TRUE),
+    upper = quantile(quasi_cop, 0.975, na.rm = TRUE),
+    median = median(quasi_cop, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+ggplot(cop_boot %>% filter(as.numeric(temp) < 15), 
+       aes(x = temp, y = median)) +
   geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = "black", alpha=0.6) +
   geom_hline(yintercept = avg_cop, linetype = "dashed", color = hp_color) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
   annotate("text", 
            x = 2.5,
-           y = avg_cop + 0.25,
+           y = avg_cop + 0.4,
            label = paste0("italic('Sample average ≈", round(avg_cop, 2), "')"),
            parse = TRUE,
            color = hp_color,
            size = 4) +
   labs(
     x = "Average Temperature in Degrees (°C)",
-    y = "Quasi COP"
+    y = "Quasi COP (Bootstrap CI)"
   ) +
   theme_minimal()
+
 
 # Print the plot
 ggsave(paste0("../graphs/quasi_cop.png"),
        width = 16, height = 8, units = "cm")
+
 
 ```
 
