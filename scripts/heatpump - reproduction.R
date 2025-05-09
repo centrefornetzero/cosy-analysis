@@ -1,13 +1,11 @@
----
-title: "Heatpump analysis"
-author: "Louise Bernard"
-date: "2024-06-04"
-output: html_document
----
+# ===============================================
+# HEATPUMP Reproduction Script
+# ===============================================
+# This script sets up the environment, loads data,
+# runs the main analysis and produces outputs for
+# the HEATPUMP project.
+# ===============================================
 
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, include=TRUE, warning  = FALSE, fig.pos = "H", out.extra = "")
 
 # Run on a subsample of the data for faster processing
 random_subsample <- FALSE
@@ -19,6 +17,13 @@ install_if_needed <- function(package) {
     library(package, character.only = TRUE)
   }
 }
+
+library(fixest)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(progress)
+
 
 # List of packages to load
 packages <- c(
@@ -32,12 +37,12 @@ packages <- c(
 lapply(packages, install_if_needed)
 
 # Create folders without warning message
-dir.create("../graphs", showWarnings = FALSE)
-dir.create("../data", showWarnings = FALSE)
-dir.create("../data/scratch", showWarnings = FALSE)
-dir.create("../data/output", showWarnings = FALSE)
-dir.create("../data/input", showWarnings = FALSE)
-dir.create("../tables", showWarnings = FALSE)
+dir.create("graphs", showWarnings = FALSE)
+dir.create("data", showWarnings = FALSE)
+dir.create("data/scratch", showWarnings = FALSE)
+dir.create("data/output", showWarnings = FALSE)
+dir.create("data/input", showWarnings = FALSE)
+dir.create("tables", showWarnings = FALSE)
 
 # Set graphics colours
 hp_color <- "#AD87CA"
@@ -50,6 +55,7 @@ setFixest_dict(c(consumption_hh = "Consumption in kWh per half hour",
                  share_consumption = "Share of daily consumption",
                  weekly_consumption = "Weekly Gas Consumption in kWh",
                  is_hp_installed = "OnCosy",
+                 hdd = "HDD",
                  daily_avg_heating_degree = "HDD",
                  avg_heating_degree = "HDD",
                  date = "Day", 
@@ -79,14 +85,11 @@ setFixest_dict(c(consumption_hh = "Consumption in kWh per half hour",
                  months_since_hp_rec = "Months Since HP Installation",
                  ev_charging = "EV Charging",
                  has_ev = "EV User"))
-```
+
 
 ## Define most used functions
 
 ### Add pre-treatment average statistics to tables
-
-```{r define-functions}
-
 CleanPreAverage <- function(file_path) {
   
   # Read the generated LaTeX file
@@ -167,9 +170,6 @@ fitstat_register("pre_avg", function(x) {
   return(formatted_pre_avg)
 }, "Yearly Consumption")
 
-
-
-
 # Add number of time periods
 fitstat_register("t_obs", function(x) {
   
@@ -183,14 +183,11 @@ fitstat_register("t_obs", function(x) {
 }, "Number of Time Periods")
 
 
-```
-
 # Load data
 
 
-```{r load-dataset}
 # get consumption by period
-hp_installed_period <- fread("../data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
+hp_installed_period <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
   rename(total_consumption=total_read_value,
          date = settlement_date) %>%
   mutate(consumption_hh = ifelse(rate_period == "Other", 
@@ -207,10 +204,10 @@ hp_installed_daily <- hp_installed_period %>%
 # merge together to make regressions easier
 hp_installed <- full_join(hp_installed_period,
                           hp_installed_daily) %>%
-  inner_join(fread("../data/input/cosy_-_hp_details_2024_06_25.csv"), by=c("account_id","hashed_mpan"))
+  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv"), by=c("account_id","hashed_mpan"))
 
 # add daily weather data
-weather <- fread("../data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
+weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
   rename_with(.cols = starts_with("weekly"), 
               .fn = ~ sub("^weekly", "daily", .)) %>%
   rename(tariff_gsp_group_id=gsp_group_id) %>%
@@ -221,11 +218,19 @@ weather <- fread("../data/input/Cosy Analysis Weather Mar 26 daily.csv") %>%
 hp_installed <- hp_installed %>%
   left_join(weather)
 
+# Round degrees Celsius 
+hp_installed <- hp_installed %>% mutate(hdd = factor(
+  case_when(
+    daily_avg_air_temperature_celsius < 0 ~ 0,
+    daily_avg_air_temperature_celsius < 15.5 ~ round(daily_avg_air_temperature_celsius),
+    TRUE ~ 15
+  )
+))
 
 rm(weather, combined_df, combined_df2, hp_installed_daily, hp_installed_period)
 
 # hp_installed <- hp_installed %>%
-#   left_join(readRDS("../data/scratch/ev_mpan.RDS")) %>%
+#   left_join(readRDS("data/scratch/ev_mpan.RDS")) %>%
 #   mutate(has_ev = ifelse(!is.na(ev_start), as.numeric(date >= ev_start), 0))
 
 # clean up
@@ -254,11 +259,10 @@ if (random_subsample) {
   gc()
 }
 
-```
+
 
 ## Summary statistics {#sec:sumstats}
 
-```{r fig1:weekly-deals-and-installations}
 # Prepare the data for installations
 weekly_installations <- hp_installed %>%
   group_by(account_id) %>%
@@ -319,10 +323,7 @@ ggplot() +
   )
 
 # Save the combined plot
-ggsave("../graphs/combined_weekly_installations_deals.png", width = 15, height = 10, units = "cm", dpi = 300)
-```
-
-```{r installplot}
+ggsave("graphs/combined_weekly_installations_deals.png", width = 15, height = 10, units = "cm", dpi = 300)
 
 hp_installed %>%
   distinct(account_id, installed_at) %>%
@@ -336,14 +337,13 @@ hp_installed %>%
   ) +
   theme_minimal()
 
-ggsave("../graphs/monthly_installation.png", width = 12, height = 8, dpi = 300)
+ggsave("graphs/monthly_installation.png", width = 12, height = 8, dpi = 300)
 
 
-```
+
 
 ### Table A.14: External Validity by Area for Heat Pump Installation
 
-```{r pop-weighted-msoas}
 # Function to calculate weighted standard deviation
 weighted_sd <- function(x, w) {
   sum_w <- sum(w, na.rm = TRUE)
@@ -398,9 +398,9 @@ summarize_and_test <- function(data, var_name, weight_name) {
 }
 
 # Read and process each dataset
-population2022 <- read_excel("../data/input/sapemsoasyoatablefinal.xlsx", sheet = "Mid-2022 MSOA 2021", skip = 3)
+population2022 <- read_excel("data/input/sapemsoasyoatablefinal.xlsx", sheet = "Mid-2022 MSOA 2021", skip = 3)
 
-cosy_hp_details <- fread("../data/input/cosy_-_hp_details_2024_07_03.csv") %>%
+cosy_hp_details <- fread("data/input/cosy_-_hp_details_2024_07_03.csv") %>%
   inner_join(hp_installed %>% filter(treated == 1) %>% select(account_id) %>% distinct()) %>%
   select(account_id, postcode) %>%
   distinct() %>%
@@ -408,47 +408,47 @@ cosy_hp_details <- fread("../data/input/cosy_-_hp_details_2024_07_03.csv") %>%
   tally() %>%
   filter(!postcode == "")
 
-postcode_msoa <- fread("../data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
+postcode_msoa <- fread("data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
   left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
   mutate(n = ifelse(is.na(n), 0, 1)) %>%
   select(msoa21cd, n) %>%
   group_by(msoa21cd) %>%
   summarise(treated = sum(n))
 
-income <- readxl::read_excel("../data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
+income <- readxl::read_excel("data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct() 
 
-net_income <- readxl::read_excel("../data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Net annual income", skip = 4) %>%
+net_income <- readxl::read_excel("data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Net annual income", skip = 4) %>%
   select(`MSOA code`, `Net annual income (£)`) %>%
   distinct() 
 
-net_housing_income <- readxl::read_excel("../data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Net income after housing costs", skip = 4) %>%
+net_housing_income <- readxl::read_excel("data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Net income after housing costs", skip = 4) %>%
   select(`MSOA code`, `Net annual income after housing costs (£)`) %>%
   distinct()
 
 # Load and preprocess the property_prices data
-property_prices <- read_excel("../data/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls", 
+property_prices <- read_excel("data/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls", 
                               sheet = "1a", skip = 4) %>%
   select(`MSOA code`, `Year ending Mar 2023`) %>%
   rename(msoa21cd = `MSOA code`, `Property price (£)` = `Year ending Mar 2023`)
 
-hh_size <- fread("../data/input/custom-filtered-2024-07-03T10_58_30Z.csv") %>%
+hh_size <- fread("data/input/custom-filtered-2024-07-03T10_58_30Z.csv") %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
   mutate(sum_obs = sum(Observation), weight = Observation / sum_obs) %>%
   summarise(`Average HH Size` = sum(weight * `Household size (9 categories) Code`))
 
-hh_deprivaton <- fread("../data/input/custom-filtered-2024-07-03T10_43_12Z.csv") %>%
+hh_deprivaton <- fread("data/input/custom-filtered-2024-07-03T10_43_12Z.csv") %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
   mutate(sum_obs = sum(Observation), `HH Not Deprived in Any Dim. (%)` = 100 * Observation / sum_obs) %>%
   filter(`Household deprivation (6 categories) Code` == 1)
 
-avg_age <- fread("../data/input/custom-filtered-2024-07-03T11_15_15Z.csv") %>%
+avg_age <- fread("data/input/custom-filtered-2024-07-03T11_15_15Z.csv") %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
   mutate(sum_obs = sum(Observation), weight = Observation / sum_obs) %>%
   summarise(`Average Age` = sum(weight * `Age (101 categories) Code`))
 
-education <- fread("../data/input/custom-filtered-2024-07-03T11_22_39Z.csv") %>%
+education <- fread("data/input/custom-filtered-2024-07-03T11_22_39Z.csv") %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
   mutate(sum_obs = sum(Observation), `Share Level 4 Qualifications (%)` = 100 * Observation / sum_obs) %>%
   filter(`Highest level of qualification (7 categories) Code` == 4)
@@ -511,10 +511,10 @@ stargazer(formatted_results, type = "latex", summary = FALSE,
           rownames = FALSE,
           digits = 2,
           label = "tab:msoa_stats",
-          out = "../tables/balance_table_temp.tex")
+          out = "tables/balance_table_temp.tex")
 
 # Read the content of the generated LaTeX table
-latex_table <- readLines("../tables/balance_table_temp.tex")
+latex_table <- readLines("tables/balance_table_temp.tex")
 
 # Insert custom headers with multicolumn
 header_row <- " & \\multicolumn{2}{c}{Weighted Mean} \\\\"
@@ -529,18 +529,17 @@ if (length(hline_ex_lines) >= 2) {
 }
 
 # Write the modified LaTeX table to a new file
-writeLines(latex_table, "../tables/balance_table.tex")
-```
+writeLines(latex_table, "tables/balance_table.tex")
+
 
 ## Figure A.11: Impact of Heat Pump Installation by Property Value Decile
 
-```{r}
 
 # Read and process each dataset
-population2022 <- read_excel("../data/input/sapemsoasyoatablefinal.xlsx", sheet = "Mid-2022 MSOA 2021", skip = 3)
+population2022 <- read_excel("data/input/sapemsoasyoatablefinal.xlsx", sheet = "Mid-2022 MSOA 2021", skip = 3)
 
 # Load and preprocess the cosy_hp_details data
-cosy_hp_details <- fread("../data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
+cosy_hp_details <- fread("data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
   inner_join(hp_installed %>% select(hashed_mpan) %>% distinct(), by = "hashed_mpan") %>%
   select(hashed_mpan, postcode, property_value) %>%
   distinct() %>%
@@ -549,13 +548,13 @@ cosy_hp_details <- fread("../data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
   filter(postcode != "")
 
 # Load and preprocess the postcode_msoa data
-postcode_msoa <- fread("../data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
+postcode_msoa <- fread("data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
   left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
   mutate(treated = ifelse(is.na(property_value), 0, 1)) %>%
   select(msoa21cd, treated, property_value)
 
 # Load and preprocess the property_prices data
-property_prices <- read_excel("../data/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls", 
+property_prices <- read_excel("data/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls", 
                               sheet = "1a", skip = 4) %>%
   select(`MSOA code`, `Year ending Mar 2023`) %>%
   rename(msoa21cd = `MSOA code`, year_ending_mar_2023 = `Year ending Mar 2023`)
@@ -622,17 +621,15 @@ ggplot(trimmed_combined_data, aes(x = property_value, color = group, fill = grou
   theme(legend.position = "bottom")
 
 
-ggsave("../graphs/average_property_price.png", width = 12, height = 8, dpi = 300)
+ggsave("graphs/average_property_price.png", width = 12, height = 8, dpi = 300)
 
-```
+
 
 ## Table A.3: HP Installation on Electricity Consumption Controlling for EV Ownership 
 
-```{r ev-detection}
-
 # ev half hours 
 # Read the CSV file
-ev_charging <- fread("../data/input/cosy_-_ev_detection_2024_07_04.csv") %>%
+ev_charging <- fread("data/input/cosy_-_ev_detection_2024_07_04.csv") %>%
   mutate(ev_charging = 1,
          date = as.Date(interval_start),
          interval_start = as.POSIXct(interval_start, format="%Y-%m-%d %H:%M:%S"),
@@ -676,7 +673,7 @@ hp_installed <- hp_installed %>%
 
 # Fit the model
 m1 <- feols(total_consumption ~ i(is_hp_installed, ref=0)  |
-              daily_avg_heating_degree + account_id + date, 
+              hdd + account_id + date, 
             data = hp_installed %>% 
               filter(treated==1, rate_period %in% c("Overall")) %>% 
               mutate(total_consumption=365.25*total_consumption) %>%
@@ -684,7 +681,7 @@ m1 <- feols(total_consumption ~ i(is_hp_installed, ref=0)  |
             cluster = ~account_id)
 
 m1c <- feols(total_consumption  ~ i(is_hp_installed, ref=0) + has_ev + i(is_hp_installed, has_ev, ref=0) |
-               daily_avg_heating_degree + account_id + date, 
+               hdd + account_id + date, 
              data = hp_installed %>% 
                filter(treated==1, rate_period %in% c("Overall")) %>% 
                mutate(total_consumption=365.25*total_consumption) %>%
@@ -695,18 +692,15 @@ m1c <- feols(total_consumption  ~ i(is_hp_installed, ref=0) + has_ev + i(is_hp_i
 etable(m1, m1c, tex = TRUE, title = "HP Installation on Electricity Consumption Controlling for EV Ownership", 
        dict = c("total_consumption" = "Yearly Consumption in kWh"),
        fitstat = ~ N + g + pre_avg + t_obs + r2, 
-       file = "../tables/hp_did_ev.tex", replace = TRUE, label = "tab:hp-did-ev")
+       file = "tables/hp_did_ev.tex", replace = TRUE, label = "tab:hp-did-ev")
 
-CleanPreAverage("../tables/hp_did_ev.tex")
+CleanPreAverage("tables/hp_did_ev.tex")
 
 
 
-```
+
 
 ## Table A.4: HP Installation on Probability of Charging EV by Period
-
-
-```{r charging-time}
 
 # Identify the period with the highest EV charging for each mpan and date
 ev_charging_max <- ev_charging %>%
@@ -742,7 +736,7 @@ etable(m_charging1, m_charging2, m_charging3, m_charging4,
        title = "HP Installation on Probability of Charging EV by Period", 
        headers = c("Morning Cosy", "Afternoon Cosy", "Peak Rate", "Other"),
        fitstat = ~ N + g + pre_avg + r2, 
-       file = "../tables/hp_ev_charging.tex", 
+       file = "tables/hp_ev_charging.tex", 
        replace = TRUE, 
        label = "tab:hp-ev-charging",
        dict = c(Morning_Cosy = "Charging EV", 
@@ -751,7 +745,7 @@ etable(m_charging1, m_charging2, m_charging3, m_charging4,
                 Other = "Charging EV"))
 
 # Read the generated LaTeX file
-file_path <- "../tables/hp_ev_charging.tex"
+file_path <- "tables/hp_ev_charging.tex"
 
 # Read the generated LaTeX file
 file_content <- readLines(file_path)
@@ -784,12 +778,8 @@ file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of H
 # Write the modified content back to the LaTeX file
 writeLines(file_content, file_path)
 
-```
 
-
-```{r smart-tariff}
-
-Cosy_hp_agreements_data_2024_07_05 <- fread("../data/input/Cosy_-_hp_agreements_data_2024_07_05.csv") %>%
+Cosy_hp_agreements_data_2024_07_05 <- fread("data/input/Cosy_-_hp_agreements_data_2024_07_05.csv") %>%
   mutate(time_since_hp = round(as.numeric(difftime(agreement_valid_from, installed_at, units = "week"))/(4.43)),
          time_since_hp = case_when(time_since_hp < -15 ~ -15,
                                    time_since_hp > 15 ~ 15,
@@ -828,19 +818,18 @@ ggplot(coefs, aes(x = time_since_hp, y = Estimate, color = post)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
   theme_minimal()
 
-ggsave("../graphs/hp_switch_to_smart_tariff.png")
-```
+ggsave("graphs/hp_switch_to_smart_tariff.png")
+
 
 
 ## Heterogeneity analysis
 
 ### Figure 6: Impact of Heat Pump Installation by Outside Temperature (and Figure A.2 to A.5)
 
-```{r temperature-analysis, eval=TRUE}
 rm(m1, m1c, m_solar, ev_charging, ev_users, ev_charging_agg)
 
 # Fit the model
-m1 <- feols(consumption_hh ~ i(is_hp_installed) | daily_avg_heating_degree + account_id + date, 
+m1 <- feols(consumption_hh ~ i(is_hp_installed) | hdd + account_id + date, 
             data = hp_installed %>% filter(treated == 1) %>% ungroup(), 
             cluster = ~account_id, 
             split = ~ rate_period)
@@ -848,19 +837,17 @@ m1 <- feols(consumption_hh ~ i(is_hp_installed) | daily_avg_heating_degree + acc
 # Unique periods 
 periods <- unique(hp_installed$rate_period)
 
-# Round degrees Celsius 
-hp_installed <- hp_installed %>% mutate(temp_degree = factor(
-  case_when(
-    daily_avg_air_temperature_celsius < 0 ~ 0,
-    daily_avg_air_temperature_celsius < 25 ~ round(daily_avg_air_temperature_celsius),
-    TRUE ~ 25
-  )
-))
-
 # Run the regression model
 tempreg <- feols(consumption_hh ~ i(is_hp_installed, temp_degree, ref=0) |
                    account_id + temp_degree  + date,
-                 data = hp_installed %>% filter(treated==1),
+                 data = hp_installed %>% 
+                   filter(treated==1) %>% 
+                   mutate(temp_degree = factor(
+                     case_when(
+                       daily_avg_air_temperature_celsius < 0 ~ 0,
+                       daily_avg_air_temperature_celsius < 25.5 ~ round(daily_avg_air_temperature_celsius),
+                       TRUE ~ 25
+                     ))),
                  split = ~ rate_period,
                  cluster = ~account_id)
 for (i in 1:5) {
@@ -901,16 +888,13 @@ for (i in 1:5) {
     theme_minimal()
   
   # Print the plot
-  ggsave(paste0("../graphs/hp_temperature_", tolower(gsub(" ", "_", val)), ".png"),
+  ggsave(paste0("graphs/hp_temperature_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
 }
 
-```
-
-```{r quasi-cop-analysis}
 # Load and preprocess gas consumption data
 # previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread("../data/input/cosy_-_hp_gas_consumption_daily_2024_09_10.csv") %>%
+cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_gas_consumption_daily_2024_09_10.csv") %>%
   arrange(account_id, settlement_date)%>%
   distinct(account_id, settlement_date, .keep_all = TRUE) %>%
   filter(installed_at < "2024-05-27") %>%
@@ -956,11 +940,11 @@ overall_daily <- hp_installed %>%
     total_consumption = gas_consumption + elec_consumption
   ) %>%
   group_by(account_id) %>%
-  mutate(temp_degree = factor(
+  mutate(hdd = factor(
     case_when(
       daily_avg_air_temperature_celsius < 0 ~ 0,
-      daily_avg_air_temperature_celsius < 25 ~ round(daily_avg_air_temperature_celsius),
-      TRUE ~ 25
+      daily_avg_air_temperature_celsius < 15.5 ~ round(daily_avg_air_temperature_celsius),
+      TRUE ~ 15
     )
   ))
 
@@ -969,18 +953,24 @@ gc()
 
 # Fit the model
 m1 <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ i(is_hp_installed) | 
-              temp_degree + account_id + date, 
+              hdd + account_id + date, 
             data = overall_daily %>% filter(treated == 1) %>% ungroup(), 
             cluster = ~account_id)
 
 # Run the regression model
+overall_daily <- overall_daily %>% 
+  mutate(temp_degree = factor(
+    case_when(
+      daily_avg_air_temperature_celsius < 0 ~ 0,
+      daily_avg_air_temperature_celsius < 25.5 ~ round(daily_avg_air_temperature_celsius),
+      TRUE ~ 25
+    )))
+
 tempreg <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ 
                    i(is_hp_installed, temp_degree, ref=0) |
                    account_id + temp_degree  + date,
-                 data = overall_daily %>% filter(treated == 1) %>% ungroup(),
+                 data = overall_daily %>% filter(treated == 1) %>% ungroup() ,
                  cluster = ~account_id)
-
-
 
 # Extract coefficients and standard errors
 coefs_m1 <- coeftable(m1) %>%
@@ -1036,22 +1026,15 @@ ggplot(coefs,
   theme(legend.position = "bottom")
 
 # Print the plot
-ggsave(paste0("../graphs/hp_temperature_gas_elec.png"),
+ggsave(paste0("graphs/hp_temperature_gas_elec.png"),
        width = 16, height = 8, units = "cm")
 
 # Calculate the average value for the dashed line
 avg_cop <- abs(m1$`lhs: gas_consumption`$coefficients / m1$`lhs: elec_consumption`$coefficients)
 
-
-library(fixest)
-library(dplyr)
-library(tidyr)
-library(purrr)
-library(progress)
-
 set.seed(123)  # for reproducibility
 B <- 500  # number of bootstrap samples
-temperature_levels <- levels(overall_daily$temp_degree)
+temperature_levels <- levels(coefs$daily_avg_air_temperature_celsius)
 results <- vector("list", B)
 pb <- progress_bar$new(total = B, format = "Bootstrapping [:bar] :percent ETA: :eta")
 
@@ -1080,8 +1063,8 @@ for (b in 1:B) {
   # Extract estimates
   boot_coefs <- coeftable(boot_model) %>%
     data.frame() %>%
-  separate(coefficient, 
-           into = c("is_hp_installed", "remove1", "temp", "remove2"), sep = "::") %>%
+    separate(coefficient, 
+             into = c("is_hp_installed", "remove1", "temp", "remove2"), sep = "::") %>%
     select(lhs, Estimate, temp) %>%
     pivot_wider(names_from = lhs, values_from = Estimate) %>%
     mutate(quasi_cop = abs(gas_consumption / elec_consumption)) %>%
@@ -1122,21 +1105,20 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 15),
 
 
 # Print the plot
-ggsave(paste0("../graphs/quasi_cop.png"),
+ggsave(paste0("graphs/quasi_cop.png"),
        width = 16, height = 8, units = "cm")
 
 
-```
+
 
 ## Installer FE [Not included in the paper]
 
-```{r variance-decomposition}
 # =======================
 # 1. Data Preparation & Regression
 # =======================
 
 # Installer FE
-installers <- fread("../data/input/cosy_-_hp_engineers_2025_03_17.csv") %>%
+installers <- fread("data/input/cosy_-_hp_engineers_2025_03_17.csv") %>%
   filter(account_id %in% hp_installed[hp_installed$treated==1,]$account_id) %>%
   filter(hp_engineer != "") %>%
   group_by(hp_engineer) %>%
@@ -1163,15 +1145,14 @@ df <- hp_installed %>%
 reg <- feols(
   consumption_hh ~ i(is_hp_installed, ref = 0) +
     i(is_hp_installed, hp_engineer, ref = 0, ref2 = "Steven Wiltshire") |
-    account_id + date + temperature,
+    account_id + date + hdd,
   cluster = ~account_id,
   data = df
 )
 
 etable(reg)
-```
 
-```{r out-of-sample-predictions}
+
 # stratified randomisation
 set.seed(123)
 installers$insample <- randomizr::strata_rs(strata = installers$hp_engineer, 
@@ -1181,7 +1162,7 @@ installers$insample <- randomizr::strata_rs(strata = installers$hp_engineer,
 m_insample <- feols(
   consumption_hh ~ i(is_hp_installed, ref = 0) +
     i(is_hp_installed, hp_engineer, ref = 0, ref2 = "Steven Wiltshire") |
-    date + temperature,
+    date + hdd,
   cluster = ~account_id,
   data = df %>% filter(hp_engineer %in% installers[installers$insample == 1,]$hp_engineer)
 )
@@ -1221,7 +1202,7 @@ ggplot(plot_data, aes(x = consumption_hh_pred,
   theme_minimal()
 
 # plot engineer FE
-ggplot(df, 
+ggplot(plot_data, 
        aes(x = consumption_hh_pred, y = consumption_hh, 
            color = factor(insample_label))) +
   geom_point(alpha = 0.3) +
@@ -1236,15 +1217,12 @@ ggplot(df,
   ) +
   theme_minimal()
 
-```
-
-```{r variance-decomposition-2}
 
 # manual decomposition of variance for FE
 fes <- fixef(reg)
 fe_account <- fes$account_id[as.character(df$account_id)]
 fe_date <- fes$date[as.character(df$date)]
-fe_temp <- fes$temperature[as.character(df$temperature)]
+fe_temp <- fes$hdd[as.character(df$hdd)]
 
 # decomposition of treatment effects
 X <- model.matrix(reg)
@@ -1270,18 +1248,15 @@ var_decomp <- data.frame(
 stargazer(var_decomp, 
           summary = FALSE, 
           label = "variance-decomp",
-          out = "../tables/variance_decomp.tex",  
+          out = "tables/variance_decomp.tex",  
           title = "Decomposition of Variance in Consumption Outcomes",
           type = "latex")
-```
-
-```{r variance-decomposition-3}
 
 # 3. Bias-Corrected FE Covariance (felm)
 
 df2 <- df %>%
   inner_join(data.frame(date = as.Date(names(fes$date)), time_fe = fes$date)) %>%
-  inner_join(data.frame(temperature = as.numeric(names(fes$temperature)), temp_fe = fes$temperature))
+  inner_join(data.frame(temperature = as.numeric(names(fes$hdd)), temp_fe = fes$hdd))
 
 df2$consumption_hh_resid <- df2$consumption_hh - df2$time_fe - df2$temp_fe
 
@@ -1308,12 +1283,10 @@ var_table <- data.frame(
 stargazer(var_table, 
           summary = FALSE, 
           label = "bias-coorected-variance-decomp",
-          out = "../tables/bias_corrected_decomp.tex",  
+          out = "tables/bias_corrected_decomp.tex",  
           title = "Decomposition of Variance in Consumption Outcomes",
           type = "latex")
-```
 
-```{r variance-decomposition-4}
 # 4. Covariance: Account FE × Interaction Effect
 account_fe_vec <- fe_sub[fe_sub$fe == "account_id", c("idx", "effect")]
 colnames(account_fe_vec) <- c("account_id", "account_fe")
@@ -1327,14 +1300,12 @@ cor_account_interaction <- cor(df2$account_fe, df2$interaction_pred, use = "comp
 
 cat("Covariance:", cov_account_interaction, "\n")
 cat("Correlation:", cor_account_interaction, "\n")
-```
 
-```{r variance-decomposition-5}
 # 5. Plot: Engineer FE vs Avg Household FE
 
 engineer_house_fe <- df2 %>%
   group_by(hp_engineer) %>%
-  summarise(avg_account_fe = mean(account_fe.y, na.rm = TRUE))
+  summarise(avg_account_fe = mean(account_fe, na.rm = TRUE))
 
 interaction_coefs <- coef(summary(reg_sub)) %>%
   as.data.frame() %>%
@@ -1355,7 +1326,7 @@ ggplot(plot_data, aes(x = avg_account_fe, y = Estimate)) +
   theme_minimal() +
   theme(legend.position = "none")
 
-ggsave("../graphs/engineer_vs_household_fe.png", width = 8, height = 6)
+ggsave("graphs/engineer_vs_household_fe.png", width = 8, height = 6)
 
 
 # coeftable
@@ -1369,28 +1340,26 @@ coefs <- coeftable(reg) %>%
   ) %>% filter(!is.na(remove3))
 
 
-
-
-```
-
-```{r installer-fe, eval=TRUE}
-rm(m1, m1c, m_solar, ev_charging, ev_users, ev_charging_agg)
+rm(m1c, m_solar, ev_charging, ev_users, ev_charging_agg)
+rm(list = ls(pattern = "boot*"))
+rm(list = ls(pattern = "coefs*"))
+rm(results)
 
 # Installer FE
-installers <- fread("../data/input/cosy_-_hp_engineers_2025_03_17.csv") 
+installers <- fread("data/input/cosy_-_hp_engineers_2025_03_17.csv") 
 
 # Unique periods 
 periods <- unique(hp_installed$rate_period)
 
 # Run the regression model
 m1 <- feols(consumption_hh ~ i(is_hp_installed, ref=0) |
-              account_id + daily_avg_heating_degree  + date,
+              account_id + hdd  + date,
             data = hp_installed %>% filter(rate_period == "Overall"),
             cluster = ~account_id) 
 
 # Run the regression model
 tempreg <- feols(consumption_hh ~ i(is_hp_installed, hp_engineer, ref=0) |
-                   account_id + round(daily_avg_heating_degree)  + date,
+                   account_id + hdd  + date,
                  data = df,
                  cluster = ~account_id) 
 
@@ -1437,21 +1406,25 @@ summary(coefs$Estimate)
 quantile(coefs$Estimate, 0.75)/quantile(coefs$Estimate, 0.25)
 
 # Print the plot
-ggsave(paste0("../graphs/hp_engineer.png"),
+ggsave(paste0("graphs/hp_engineer.png"),
        width = 16, height = 8, units = "cm")
 
 
-```
+
 
 
 
 ## Figure A.6: Impact of Heat Pump Installation by EPC Rating 
 
-```{r epc-analysis, eval=TRUE}
 rm(tempreg)
 
+m1 <- feols(consumption_hh ~ i(is_hp_installed) | hdd + account_id + date, 
+            data = hp_installed %>% filter(treated == 1) %>% ungroup(), 
+            cluster = ~account_id, 
+            split = ~ rate_period)
+
 m2a <- feols(consumption_hh ~ i(is_hp_installed, epc_letter, ref=0)  | 
-               daily_avg_heating_degree + account_id + date,
+               hdd + account_id + date,
              data = hp_installed %>%  
                filter(treated==1) %>%
                mutate(epc_letter = case_when(
@@ -1542,19 +1515,16 @@ for (i in 1:5) {
     )
   
   # Print the plot
-  ggsave(paste0("../graphs/hp_epc_", tolower(gsub(" ", "_", val)), ".png"),
+  ggsave(paste0("graphs/hp_epc_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
 }
 
 rm(m2a)
-```
+
 
 ## Figure A.10: Impact of Heat Pump Installation by Previous Heat Source
-
-```{r hs-analysis, eval=TRUE}
-
 m_sources <- feols(consumption_hh ~ i(is_hp_installed, hp_survey_outcome_existing_heat_source, ref=0)  | 
-                     daily_avg_heating_degree + account_id + date,
+                     hdd + account_id + date,
                    data = hp_installed %>% filter(treated == 1, !hp_survey_outcome_existing_heat_source==""), 
                    split = ~ rate_period,
                    cluster = ~ account_id)
@@ -1574,6 +1544,9 @@ for (i in 1:5) {
   val <- m_sources[[i]]$model_info$sample$value
   j <- which(sapply(1:5, function(j) m1[[j]]$model_info$sample$value) == val)
   
+  # Define the shades of reds
+  red_palette <- c("#FF9999", "#FF8080", "#FF6666", "#FF4D4D", "#FF3333", "#FF1A1A", "#FF0000", "#E60000", "#CC0000", "#B20000")
+  
   # Assuming m_sources[[i]] is a model object that has already been defined
   coefs <- coeftable(m_sources[[i]]) %>%
     data.frame() %>%
@@ -1591,59 +1564,59 @@ for (i in 1:5) {
     inner_join(heat_source_counts, by = "hp_survey_outcome_existing_heat_source") %>%
     mutate(`% ATE` = Estimate / m1[[j]]$coefficients * 100,
            lower_ci_ATE = lower_ci / m1[[j]]$coefficients * 100,
-           upper_ci_ATE = upper_ci / m1[[j]]$coefficients * 100)
+           upper_ci_ATE = upper_ci / m1[[j]]$coefficients * 100,
+           heat_source = paste0(heat_source,"\n(", format(share, nsmall = 2, trim = TRUE), "%)"))  # Add share to heat source
   
   # Ensure that 'heat_source' is a factor ordered by 'Estimate' values
   coefs <- coefs %>%
     mutate(heat_source = factor(heat_source, levels = heat_source[order(Estimate)]))
   
   # Create the ggplot
-  yearly_factor <- 365.25*48
-  ggplot(coefs, aes(x = hp_engineer, y = Estimate * yearly_factor)) +  # Scale Estimate
-    geom_point(color = hp_color) +
+  ggplot(coefs, aes(x = heat_source, y = Estimate, fill = heat_source)) +  # Scale Estimate
+    geom_bar(stat = "identity", show.legend = FALSE) +
     geom_line(color = hp_color) +
-    geom_errorbar(aes(ymin = lower_ci * yearly_factor, ymax = upper_ci * yearly_factor), 
-                  width = 0.2, alpha = 0.6, color = hp_color) +  # Scale CI
-    geom_hline(yintercept = m1$coefficients * yearly_factor, 
-               linetype = "dashed", alpha = 0.6, color = hp_color) +  # Scale ATE line
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), 
+                  width = 0.2, alpha = 0.6, color = "grey") +  # Scale CI
+    geom_hline(yintercept = m1[[j]]$coefficients, linetype = "dashed", color = hp_color, alpha = 0.6) +  # Add horizontal line at ATE
+    scale_fill_manual(values = red_palette) +
     scale_y_continuous(
-      name = "Estimate (kWh per Year)",  
-      labels = label_comma(),  # Format y-axis with comma separator
-      sec.axis = sec_axis(~ ./ (m1$coefficients[1] * yearly_factor), 
-                          name = "% of ATE (Annualized)", 
+      name = "Estimate (kWh)",  
+      sec.axis = sec_axis(~ ./ (m1[[j]]$coefficients), 
+                          name = "% of ATE", 
                           labels = percent_format())  # Secondary y-axis as percentage
     ) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Zero line
     labs(
-      x = "Is Installed x Engineer"
+      x = "Is Installed x Previous Heat Source"
     ) +
     theme_minimal() +
-    theme(axis.text.x = element_blank())
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),  # Tilt x-axis labels for better readability
+      legend.position = "none"  # Remove legend
+    )
   
   # Print the plot
-  ggsave(paste0("../graphs/hp_hs_", tolower(gsub(" ", "_", val)), ".png"),
+  ggsave(paste0("graphs/hp_hs_", tolower(gsub(" ", "_", val)), ".png"),
          width = 20, height = 12, units = "cm")
 }
 
 rm(m_sources)
-```
+
 
 ## Figure 7: Impact of Heat Pump Installation by MSOA Income
-
-```{r income}
 # Load and preprocess the cosy_hp_details data
 
-cosy_hp_details <- fread("../data/input/cosy_-_hp_details_2024_07_03.csv") %>%
+cosy_hp_details <- fread("data/input/cosy_-_hp_details_2024_07_03.csv") %>%
   inner_join(hp_installed %>% filter(treated == 1) %>% select(account_id) %>% distinct()) %>%
   filter(!postcode=="") %>%
   select(account_id, postcode)
 
-postcode_msoa <- fread("../data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
+postcode_msoa <- fread("data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
   left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
   select(msoa21cd, pcds) %>%
   distinct(pcds, .keep_all = TRUE)
 
-income <- readxl::read_excel("../data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
+income <- readxl::read_excel("data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct() %>%
   inner_join(postcode_msoa, by=c("MSOA code"="msoa21cd")) %>%
@@ -1651,7 +1624,7 @@ income <- readxl::read_excel("../data/input/saiefy1920finalqaddownload280923.xls
 
 
 # Create unique breaks for predicted_heatloss_watts
-income_dist <- readxl::read_excel("../data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
+income_dist <- readxl::read_excel("data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) 
 
 
@@ -1669,7 +1642,7 @@ hp_installed <- hp_installed %>%
                                labels = labels))
 # income check
 m_income <- feols(consumption_hh ~ i(is_hp_installed, income_category, ref =0) 
-                  | date +  account_id + daily_avg_heating_degree,
+                  | date +  account_id + hdd,
                   data = hp_installed,
                   split = ~ rate_period,
                   cluster = ~account_id)
@@ -1713,7 +1686,7 @@ for (i in 1:5) {
     )
   
   # Print the plot
-  ggsave(paste0("../graphs/hp_income_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
+  ggsave(paste0("graphs/hp_income_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
   
 }
@@ -1774,13 +1747,10 @@ ggplot(all_coefs %>% filter(outcome == "Total Consumption", period != "Overall")
 
 
 # Save the combined plot
-ggsave("../graphs/hp_income_category_combined.png", device = "png", width = 16, height = 12, units = "cm")
-```
+ggsave("graphs/hp_income_category_combined.png", device = "png", width = 16, height = 12, units = "cm")
+
 
 ## property value
-
-```{r}
-
 # create property value decile
 breaks <- hp_installed %>%
   filter(!is.na(property_value)) 
@@ -1799,7 +1769,7 @@ hp_installed <- hp_installed %>%
                                        labels = labels))
 # property_value check
 m_property_value <- feols(consumption_hh ~ i(is_hp_installed, property_value_category, ref =0) 
-                          | date +  account_id + daily_avg_heating_degree,
+                          | date +  account_id + hdd,
                           data = hp_installed,
                           split = ~ rate_period,
                           cluster = ~account_id)
@@ -1844,20 +1814,16 @@ for (i in 1:5) {
     )
   
   # Print the plot
-  ggsave(paste0("../graphs/hp_property_value_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
+  ggsave(paste0("graphs/hp_property_value_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
   
 }
 
-```
+
 
 ## Figure A.8: Impact of Heat Pump Installation by Heat Loss Decile
-
-
-```{r heatloss-analysis, eval=TRUE}
-
 hp_installed <- hp_installed %>%
-  left_join(fread("../data/input/cosy_-_hp_details_2024_07_03.csv") %>%
+  left_join(fread("data/input/cosy_-_hp_details_2024_07_03.csv") %>%
               distinct(account_id, latest_survey_heat_loss) %>% filter(!is.na(latest_survey_heat_loss)))
 
 # Create unique breaks for predicted_heatloss_watts
@@ -1874,7 +1840,7 @@ hp_installed <- hp_installed %>%
                                                 labels = labels))
 
 m_heatloss <- feols(consumption_hh ~ i(is_hp_installed, latest_survey_heat_loss_category, ref =0) 
-                    | account_id + daily_avg_heating_degree + date,
+                    | account_id + hdd + date,
                     data = hp_installed %>% filter(!is.na(latest_survey_heat_loss_category)),
                     split = ~ rate_period,
                     cluster = ~account_id)
@@ -1918,22 +1884,17 @@ for (i in 1:5) {
     )
   
   # Print the plot
-  ggsave(paste0("../graphs/hp_heatloss_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
+  ggsave(paste0("graphs/hp_heatloss_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
   
 }
 
-```
+
 
 
 ### Figure A.9: Impact of Heat Pump Installation on Half-Hourly Electricity Consumption by
-Region
-
-
-```{r regions, eval=TRUE}
-
 m_region <- feols(consumption_hh ~ i(is_hp_installed, region, ref =0) | 
-                    account_id + daily_avg_heating_degree + date,
+                    account_id + hdd + date,
                   data = hp_installed %>% filter(!is.na(region), !region=="", rate_period == "Overall"),
                   cluster = ~account_id)
 
@@ -1976,7 +1937,7 @@ ggplot(coefs_total, aes(x = Region, y = Estimate, fill = Region)) +
   ) 
 
 # Save the plot
-ggsave("../graphs/hp_region_combined.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/hp_region_combined.png", device = "png", width = 16, height = 12, units = "cm")
 
 
 
@@ -1984,12 +1945,9 @@ ggsave("../graphs/hp_region_combined.png", device = "png", width = 16, height = 
 
 
 
-```
+
 
 ### Figure A.7: Impact of Heat Pump Installation by Floor Area
-
-```{r floor-area, eval=TRUE}
-
 # Create unique breaks for total_floor_area
 breaks <- unique(quantile(hp_installed[!is.na(hp_installed$total_floor_area),]$total_floor_area, 
                           probs = seq(0, 1, by = 0.1)))
@@ -2006,7 +1964,7 @@ hp_installed <- hp_installed %>%
 
 
 m_floor <- feols(consumption_hh ~ i(is_hp_installed, total_floor_area_category, ref =0) 
-                 | date +  account_id + daily_avg_heating_degree,
+                 | date +  account_id + hdd,
                  data = hp_installed %>% filter(!is.na(total_floor_area_category), treated==1),
                  split = ~ rate_period,
                  cluster = ~account_id)
@@ -2053,14 +2011,14 @@ for (i in 1:5) {
     )
   
   # Print the plot
-  ggsave(paste0("../graphs/hp_floor_area_", tolower(gsub(" ", "_", val)), ".png"),
+  ggsave(paste0("graphs/hp_floor_area_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
 }
 
 
 
 m_floor_share <- feols(share_consumption ~ i(is_hp_installed, total_floor_area_category, ref =0)
-                       | date +  account_id + daily_avg_heating_degree,
+                       | date +  account_id + hdd,
                        data = hp_installed %>% 
                          filter(!is.na(total_floor_area_category), !rate_period=="Overall", treated==1) %>%
                          group_by(account_id, date) %>%
@@ -2069,7 +2027,7 @@ m_floor_share <- feols(share_consumption ~ i(is_hp_installed, total_floor_area_c
                        cluster = ~account_id)
 
 m1_share <- feols(share_consumption ~ i(is_hp_installed, ref =0)
-                  | date +  account_id + daily_avg_heating_degree,
+                  | date +  account_id + hdd,
                   data = hp_installed %>% 
                     filter(!rate_period=="Overall", treated==1) %>%
                     group_by(account_id, date) %>%
@@ -2120,16 +2078,13 @@ for (i in 1:4) {
     )
   
   # Print the plot
-  ggsave(paste0("../graphs/hp_share_floor_area_", tolower(gsub(" ", "_", val)), ".png"),
+  ggsave(paste0("graphs/hp_share_floor_area_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
 }
 
-```
+
 
 ### Table A.5: HP Installation and Solar PV on Electricity Consumption 
-
-```{r solar}
-
 # Register the pre-treatment average fit statistic
 fitstat_register("pre_avg_solar", function(x) {
   
@@ -2199,7 +2154,7 @@ fitstat_register("pre_avg_rest", function(x) {
 
 # Fit the model
 m_solar <- feols(total_consumption ~ i(is_hp_installed) + i(is_hp_installed, hp_survey_is_solar_present, ref = 0) | 
-                   daily_avg_heating_degree + account_id + date, 
+                   hdd + account_id + date, 
                  data = hp_installed %>% filter(treated == 1) %>% ungroup()  %>% 
                    mutate(total_consumption=365.25*total_consumption,   rate_period = factor(rate_period, levels = c("Morning Cosy",                                                                                                             "Afternoon Cosy","Peak Rate","Other", "Overall"))), 
                  cluster = ~account_id, 
@@ -2209,10 +2164,10 @@ m_solar <- feols(total_consumption ~ i(is_hp_installed) + i(is_hp_installed, hp_
 etable(m_solar,  tex = TRUE, title = "HP Installation and Solar PV on Electricity Consumption ", 
        fitstat = ~ N + g + pre_avg_rest + pre_avg_solar +t_obs + r2, 
        dict = c("total_consumption" = "Yearly Consumption in kWh"),
-       file = "../tables/hp_did_solar.tex", replace = TRUE, label = "tab:hp-did-solar")
+       file = "tables/hp_did_solar.tex", replace = TRUE, label = "tab:hp-did-solar")
 
 # Read the generated LaTeX file
-file_content <- readLines("../tables/hp_did_solar.tex")
+file_content <- readLines("tables/hp_did_solar.tex")
 
 # Find the lines with the pre-treatment average and remove them
 pre_avg_line_index <- grep("Yearly Consumption No Solar PV", file_content)
@@ -2238,20 +2193,17 @@ sample_line <- grep("Size of the 'effective' sample", file_content)
 file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
 
 # Write the modified content back to the LaTeX file
-writeLines(file_content, "../tables/hp_did_solar.tex")  
+writeLines(file_content, "tables/hp_did_solar.tex")  
 
-```
+
 
 ## DID checks
 
 ## Figure A.1: Smart Meter Data Availability for Heat Pump Customers
-
-```{r panelview, eval=TRUE}
-
 library(panelView)
 
-plot_panel <- panelview(consumption_hh ~ is_hp_installed + daily_avg_heating_degree, 
-                        data = hp_installed %>% filter(rate_period=="Overall") %>% select(consumption_hh, account_id, date, is_hp_installed, daily_avg_heating_degree) %>% distinct(), index = c("account_id","date"), 
+plot_panel <- panelview(consumption_hh ~ is_hp_installed + hdd, 
+                        data = hp_installed %>% filter(rate_period=="Overall") %>% select(consumption_hh, account_id, date, is_hp_installed, hdd) %>% distinct(), index = c("account_id","date"), 
                         xlab = "Time", 
                         ylab = "MPAN", 
                         by.timing = TRUE, 
@@ -2265,18 +2217,14 @@ plot_panel <- panelview(consumption_hh ~ is_hp_installed + daily_avg_heating_deg
                                         "Before HP Installation", "After HP Installation", 
                                         "No smart meter data"), collapse.history = "TRUE")
 
-ggsave("../graphs/hp_data_availability.png", 
+ggsave("graphs/hp_data_availability.png", 
        width = 16, height = 8, units = "cm")
 
-```
 
-
-
-```{r panelviewgas, eval=TRUE}
 
 library(panelView)
 
-cosy_hp_install_gas_consumption <- fread("../data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
+cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
   group_by(account_id) %>%
   mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
          treated = max(is_hp_installed),
@@ -2294,159 +2242,156 @@ plot_panel <- panelview(weekly_consumption ~ is_hp_installed,
                         legend.labs = c("Never Treated (Installation in Future)", 
                                         "Before HP Installation", "After HP Installation", 
                                         "No smart meter data"), collapse.history = "TRUE")
-ggsave("../graphs/hp_gas_data_availability.png", 
+ggsave("graphs/hp_gas_data_availability.png", 
        width = 16, height = 8, units = "cm")
 
-```
+
 
 
 ### CS parallele trends checks
+# 
+# # # install from github
+# # remotes::install_github("asheshrambachan/HonestDiD")
+# library(HonestDiD)
+# honest_did <- function(es,
+#                        e          = 0,
+#                        type       = c("smoothness", "relative_magnitude"),
+#                        gridPoints = 100,
+#                        ...) {
+#   
+#   type <- match.arg(type)
+#   
+#   # Make sure that user is passing in an event study
+#   if (es$type != "dynamic") {
+#     stop("need to pass in an event study")
+#   }
+#   
+#   # Check if used universal base period and warn otherwise
+#   if (es$DIDparams$base_period != "universal") {
+#     stop("Use a universal base period for honest_did")
+#   }
+#   
+#   # Recover influence function for event study estimates
+#   es_inf_func <- es$inf.function$dynamic.inf.func.e
+#   
+#   # Recover variance-covariance matrix
+#   n <- nrow(es_inf_func)
+#   V <- t(es_inf_func) %*% es_inf_func / n / n
+#   
+#   # Check time vector is consecutive with referencePeriod = -1
+#   referencePeriod <- -1
+#   consecutivePre  <- !all(diff(es$egt[es$egt <= referencePeriod]) == 1)
+#   consecutivePost <- !all(diff(es$egt[es$egt >= referencePeriod]) == 1)
+#   if ( consecutivePre | consecutivePost ) {
+#     msg <- "honest_did expects a time vector with consecutive time periods;"
+#     msg <- paste(msg, "please re-code your event study and interpret the results accordingly.", sep="\n")
+#     stop(msg)
+#   }
+#   
+#   # Remove the coefficient normalized to zero
+#   hasReference <- any(es$egt == referencePeriod)
+#   if ( hasReference ) {
+#     referencePeriodIndex <- which(es$egt == referencePeriod)
+#     V    <- V[-referencePeriodIndex,-referencePeriodIndex]
+#     beta <- es$att.egt[-referencePeriodIndex]
+#   } else {
+#     beta <- es$att.egt
+#   }
+#   
+#   nperiods <- nrow(V)
+#   npre     <- sum(1*(es$egt < referencePeriod))
+#   npost    <- nperiods - npre
+#   if ( !hasReference & (min(c(npost, npre)) <= 0) ) {
+#     if ( npost <= 0 ) {
+#       msg <- "not enough post-periods"
+#     } else {
+#       msg <- "not enough pre-periods"
+#     }
+#     msg <- paste0(msg, " (check your time vector; note honest_did takes -1 as the reference period)")
+#     stop(msg)
+#   }
+#   
+#   baseVec1 <- basisVector(index=(e+1),size=npost)
+#   orig_ci  <- constructOriginalCS(betahat        = beta,
+#                                   sigma          = V,
+#                                   numPrePeriods  = npre,
+#                                   numPostPeriods = npost,
+#                                   l_vec          = baseVec1)
+#   
+#   if (type=="relative_magnitude") {
+#     robust_ci <- createSensitivityResults_relativeMagnitudes(betahat        = beta,
+#                                                              sigma          = V,
+#                                                              numPrePeriods  = npre,
+#                                                              numPostPeriods = npost,
+#                                                              l_vec          = baseVec1,
+#                                                              gridPoints     = gridPoints,
+#                                                              ...)
+#     
+#   } else if (type == "smoothness") {
+#     robust_ci <- createSensitivityResults(betahat        = beta,
+#                                           sigma          = V,
+#                                           numPrePeriods  = npre,
+#                                           numPostPeriods = npost,
+#                                           l_vec          = baseVec1,
+#                                           ...)
+#   }
+#   
+#   return(list(robust_ci=robust_ci, orig_ci=orig_ci, type=type))
+# }
+# 
+# # start date
+# start_date <- hp_installed %>% ungroup() %>% select(date) %>% distinct() %>% summarise(date = min(date))
+# start_date <- start_date$date
+# 
+# # Adjust your existing code to calculate 'week' and 'firstweek' as the number of weeks from the start_date
+# did_data <- hp_installed %>%
+#   filter(rate_period == "Overall") %>%
+#   mutate(
+#     # Calculate the difference in weeks from the start_date
+#     week = as.numeric(difftime(date, start_date, units = "weeks")) %/% 1 + 1,
+#     # Assuming you have a way to determine 'firstweek', adjust similarly if needed
+#     firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1) %>%
+#   group_by(account_id, firstweek, week) %>%
+#   summarise(consumption = mean(consumption_hh)) %>%
+#   mutate(
+#     firstweek = as.numeric(firstweek),
+#     week = as.numeric(week),
+#     firstweek = ifelse(firstweek>=117, 0, firstweek) # not treated needs to be 0 
+#   ) %>%
+#   group_by(account_id) %>%
+#   mutate(id = cur_group_id())  # all variables need to be numeric
+# 
+# 
+# did_data_subset <- did_data %>% ungroup()
+# 
+# # cs did estimator
+# library(did)
+# est_cs <- att_gt(yname = "consumption",
+#                  tname = "week",
+#                  idname = "id",
+#                  gname = "firstweek",
+#                  data = did_data_subset,
+#                  clustervars = "id",
+#                  control_group=c("notyettreated", "nevertreated"),
+#                  base_period = "universal",
+#                  allow_unbalanced_panel = TRUE,
+#                  print_details = FALSE)
+# 
+# es <- did::aggte(est_cs, type = "dynamic",
+#                  min_e = -5, max_e = 5, na.rm = TRUE)
+# 
+# #Run sensitivity analysis for relative magnitudes
+# sensitivity_results <- honest_did(es, e=0,type="relative_magnitude",Mbarvec=seq(from = 0.5, to = 2, by = 0.5))
+# 
+# HonestDiD::createSensitivityPlot_relativeMagnitudes(sensitivity_results$robust_ci,
+#                                                     sensitivity_results$orig_ci)
+# 
+# ggsave("graphs/hp_sensitivity_results.png")
+# 
 
-```{r honestdid, eval=FALSE}
-# # install from github
-# remotes::install_github("asheshrambachan/HonestDiD")
-library(HonestDiD)
-honest_did <- function(es,
-                       e          = 0,
-                       type       = c("smoothness", "relative_magnitude"),
-                       gridPoints = 100,
-                       ...) {
-  
-  type <- match.arg(type)
-  
-  # Make sure that user is passing in an event study
-  if (es$type != "dynamic") {
-    stop("need to pass in an event study")
-  }
-  
-  # Check if used universal base period and warn otherwise
-  if (es$DIDparams$base_period != "universal") {
-    stop("Use a universal base period for honest_did")
-  }
-  
-  # Recover influence function for event study estimates
-  es_inf_func <- es$inf.function$dynamic.inf.func.e
-  
-  # Recover variance-covariance matrix
-  n <- nrow(es_inf_func)
-  V <- t(es_inf_func) %*% es_inf_func / n / n
-  
-  # Check time vector is consecutive with referencePeriod = -1
-  referencePeriod <- -1
-  consecutivePre  <- !all(diff(es$egt[es$egt <= referencePeriod]) == 1)
-  consecutivePost <- !all(diff(es$egt[es$egt >= referencePeriod]) == 1)
-  if ( consecutivePre | consecutivePost ) {
-    msg <- "honest_did expects a time vector with consecutive time periods;"
-    msg <- paste(msg, "please re-code your event study and interpret the results accordingly.", sep="\n")
-    stop(msg)
-  }
-  
-  # Remove the coefficient normalized to zero
-  hasReference <- any(es$egt == referencePeriod)
-  if ( hasReference ) {
-    referencePeriodIndex <- which(es$egt == referencePeriod)
-    V    <- V[-referencePeriodIndex,-referencePeriodIndex]
-    beta <- es$att.egt[-referencePeriodIndex]
-  } else {
-    beta <- es$att.egt
-  }
-  
-  nperiods <- nrow(V)
-  npre     <- sum(1*(es$egt < referencePeriod))
-  npost    <- nperiods - npre
-  if ( !hasReference & (min(c(npost, npre)) <= 0) ) {
-    if ( npost <= 0 ) {
-      msg <- "not enough post-periods"
-    } else {
-      msg <- "not enough pre-periods"
-    }
-    msg <- paste0(msg, " (check your time vector; note honest_did takes -1 as the reference period)")
-    stop(msg)
-  }
-  
-  baseVec1 <- basisVector(index=(e+1),size=npost)
-  orig_ci  <- constructOriginalCS(betahat        = beta,
-                                  sigma          = V,
-                                  numPrePeriods  = npre,
-                                  numPostPeriods = npost,
-                                  l_vec          = baseVec1)
-  
-  if (type=="relative_magnitude") {
-    robust_ci <- createSensitivityResults_relativeMagnitudes(betahat        = beta,
-                                                             sigma          = V,
-                                                             numPrePeriods  = npre,
-                                                             numPostPeriods = npost,
-                                                             l_vec          = baseVec1,
-                                                             gridPoints     = gridPoints,
-                                                             ...)
-    
-  } else if (type == "smoothness") {
-    robust_ci <- createSensitivityResults(betahat        = beta,
-                                          sigma          = V,
-                                          numPrePeriods  = npre,
-                                          numPostPeriods = npost,
-                                          l_vec          = baseVec1,
-                                          ...)
-  }
-  
-  return(list(robust_ci=robust_ci, orig_ci=orig_ci, type=type))
-}
-
-# start date
-start_date <- hp_installed %>% ungroup() %>% select(date) %>% distinct() %>% summarise(date = min(date))
-start_date <- start_date$date
-
-# Adjust your existing code to calculate 'week' and 'firstweek' as the number of weeks from the start_date
-did_data <- hp_installed %>%
-  filter(rate_period == "Overall") %>%
-  mutate(
-    # Calculate the difference in weeks from the start_date
-    week = as.numeric(difftime(date, start_date, units = "weeks")) %/% 1 + 1,
-    # Assuming you have a way to determine 'firstweek', adjust similarly if needed
-    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1) %>%
-  group_by(account_id, firstweek, week) %>%
-  summarise(consumption = mean(consumption_hh)) %>%
-  mutate(
-    firstweek = as.numeric(firstweek),
-    week = as.numeric(week),
-    firstweek = ifelse(firstweek>=117, 0, firstweek) # not treated needs to be 0 
-  ) %>%
-  group_by(account_id) %>%
-  mutate(id = cur_group_id())  # all variables need to be numeric
-
-
-did_data_subset <- did_data %>% ungroup()
-
-# cs did estimator
-library(did)
-est_cs <- att_gt(yname = "consumption",
-                 tname = "week",
-                 idname = "id",
-                 gname = "firstweek",
-                 data = did_data_subset,
-                 clustervars = "id",
-                 control_group=c("notyettreated", "nevertreated"),
-                 base_period = "universal",
-                 allow_unbalanced_panel = TRUE,
-                 print_details = FALSE)
-
-es <- did::aggte(est_cs, type = "dynamic",
-                 min_e = -5, max_e = 5, na.rm = TRUE)
-
-#Run sensitivity analysis for relative magnitudes
-sensitivity_results <- honest_did(es, e=0,type="relative_magnitude",Mbarvec=seq(from = 0.5, to = 2, by = 0.5))
-
-HonestDiD::createSensitivityPlot_relativeMagnitudes(sensitivity_results$robust_ci,
-                                                    sensitivity_results$orig_ci)
-
-ggsave("../graphs/hp_sensitivity_results.png")
-
-```
 
 ## Figure A.13: Event Study - Heat Pump Installation on Daily Average of Customers’
-Half-Hourly Electricity Consumption
 
-```{r event-study-plot}
 # create df
 event_study_df <- hp_installed %>%
   mutate(weeks_since_hp = as.numeric(difftime(date, installed_at, units = "weeks")) %/% 1 + 1,
@@ -2454,12 +2399,12 @@ event_study_df <- hp_installed %>%
            weeks_since_hp < -52 ~ -52,
            weeks_since_hp > 52 ~ 52,
            TRUE ~ weeks_since_hp)) %>%
-  select(account_id, weeks_since_hp, consumption_hh, daily_avg_heating_degree, date, rate_period)
+  select(account_id, weeks_since_hp, consumption_hh, hdd, date, rate_period)
 
 rm(hp_installed)
 gc()
 
-m_event_study <- feols(consumption_hh ~ i(weeks_since_hp, ref=-1) | account_id + daily_avg_heating_degree + date, 
+m_event_study <- feols(consumption_hh ~ i(weeks_since_hp, ref=-1) | account_id + hdd + date, 
                        data = event_study_df %>% filter(rate_period=="Overall") %>% 
                          mutate(),
                        cluster = ~ account_id)
@@ -2501,13 +2446,13 @@ ggplot(coefs, aes(x = weeks_since_hp, y = Estimate, color = post)) +
 
 
 # Print the plot
-ggsave(paste0("../graphs/hp_event_study_overall.png"),
+ggsave(paste0("graphs/hp_event_study_overall.png"),
        width = 16, height = 8, units = "cm")
 
 rm(m_event_study, hp_installed)
 
 
-m_event_study <- feols(consumption_hh ~ i(weeks_since_hp, ref=-1) | account_id + daily_avg_heating_degree + date, 
+m_event_study <- feols(consumption_hh ~ i(weeks_since_hp, ref=-1) | account_id + hdd + date, 
                        data = event_study_df %>% filter(rate_period=="Peak Rate") %>% 
                          mutate(),
                        cluster = ~ account_id)
@@ -2549,8 +2494,8 @@ ggplot(coefs, aes(x = weeks_since_hp, y = Estimate, color = post)) +
 
 
 # Print the plot
-ggsave(paste0("../graphs/hp_event_study_peak_rate.png"),
+ggsave(paste0("graphs/hp_event_study_peak_rate.png"),
        width = 16, height = 8, units = "cm")
 
 
-```
+
