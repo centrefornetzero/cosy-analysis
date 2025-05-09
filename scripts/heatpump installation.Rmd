@@ -127,8 +127,6 @@ CleanPreAverage <- function(file_path) {
   writeLines(file_content, file_path)
 }
 
-
-
 # Function to format numbers
 format_number <- function(number) {
   return(format(round(number), big.mark = ",", scientific = FALSE))
