@@ -6,46 +6,34 @@
 # the COSY project.
 # ===============================================
 
-
-# -----------------------------
-# 1. Settings
-# -----------------------------
-# Toggle for faster testing
-random_subsample <- FALSE
-
-# -----------------------------
-# 2. Package Setup
-# -----------------------------
-
-# Function to check if a package is installed, and if not, install it
-install_if_needed <- function(package) {
-  if (!require(package, character.only = TRUE)) {
-    install.packages(package, dependencies = TRUE)
-    library(package, character.only = TRUE)
-  }
-}
-
-# List of packages to load
-packages <- c(
-  "knitr", "kableExtra", "did", "fixest", "data.table", "lubridate", 
-  "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", 
-  "forcats", "viridis",  "stringr", "stargazer", "panelView", "readxl", "HonestDiD"
-)
-
-# Load (and install if needed) each package
-lapply(packages, install_if_needed)
-
-# -----------------------------
-# 3. Folder Structure
-# -----------------------------
-
-# Create folders without warning message
-dir.create("graphs", showWarnings = FALSE)
-dir.create("data", showWarnings = FALSE)
-dir.create("data/scratch", showWarnings = FALSE)
-dir.create("data/output", showWarnings = FALSE)
-dir.create("data/input", showWarnings = FALSE)
-dir.create("tables", showWarnings = FALSE)
+# # -----------------------------
+# # 1. Settings
+# # -----------------------------
+# # Toggle for faster testing
+# random_subsample <- FALSE
+# 
+# # -----------------------------
+# # 2. Package Setup
+# # -----------------------------
+# 
+# # Function to check if a package is installed, and if not, install it
+# install_if_needed <- function(package) {
+#   if (!require(package, character.only = TRUE)) {
+#     install.packages(package, dependencies = TRUE)
+#     library(package, character.only = TRUE)
+#   }
+# }
+# 
+# # List of packages to load
+# packages <- c(
+#   "knitr", "kableExtra", "did", "fixest", "data.table", "lubridate", 
+#   "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", 
+#   "forcats", "viridis",  "stringr", "stargazer", "panelView", "readxl", "HonestDiD"
+# )
+# 
+# # Load (and install if needed) each package
+# lapply(packages, install_if_needed)
+# 
 
 # -----------------------------
 # 4. Variable Labels for Output
@@ -87,17 +75,17 @@ setFixest_dict(c(total_consumption = "Consumption in kWh per period",
                  ev_charging = "EV Charging",
                  has_ev = "EV User"))
 
-# -----------------------------
-# 5. Custom Styling
-# -----------------------------
-
-# Custom colors from the provided image 
-flexible_color <- "#4C515C"  # Replace with the exact hex code for Flexible
-cosy_color <- "#5F8ED9"      # Replace with the exact hex code for Cosy
-
-# -----------------------------
-# 6. Define main functions
-# -----------------------------
+# # -----------------------------
+# # 5. Custom Styling
+# # -----------------------------
+# 
+# # Custom colors from the provided image 
+# flexible_color <- "#4C515C"  # Replace with the exact hex code for Flexible
+# cosy_color <- "#5F8ED9"      # Replace with the exact hex code for Cosy
+# 
+# # -----------------------------
+# # 6. Define main functions
+# # -----------------------------
 
 # Function to format numbers
 format_number <- function(number) {
@@ -146,8 +134,6 @@ fitstat_register("pre_avg", function(x) {
   
   return(formatted_pre_avg)
 }, "Half Hourly Consumption")
-
-
 
 # Add number of time periods
 fitstat_register("t_obs", function(x) {
@@ -203,1185 +189,819 @@ CleanPreAverage <- function(file_path) {
 # 7. Data processing
 # -----------------------------
 
-## Merging consumption and customers info datasets
-if(!file.exists("data/scratch/aggregated_data.RDS")) {
-  
-  # agreement data
-  # run queries/Cosy - agreement data
-  agreements <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
-    filter(product_display_name == "Cosy Octopus") %>%
-    arrange(hashed_mpan, agreement_valid_from) %>%
-    mutate(
-      from = as.Date(agreement_valid_from),
-      to = as.Date(agreement_valid_to)
-    ) %>%
-    select(hashed_mpan, from, to) %>%
-    group_by(hashed_mpan) %>%
-    summarise(
-      periods = list(data.frame(from, to)),
-      first_adoption = min(from),  # Get the earliest agreement date for 'adoption'
-      first_week = format(min(from), "%Y-%U"),  # Format the first adoption date as year-week
-      .groups = 'drop'
-    )
-  
-  # files are created using 
-  # queries/cosy - cosy electricity readings
-  # queries/cosy - cosy electricity reading part 2 which I ran for different years seperately
-  aggregated_data <- rbind(fread("data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26.csv"),
-                           fread("data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (1).csv"),
-                           fread("data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (2).csv")) %>%
-    rename(total_consumption = total_read_value,
-           consumption_hh = mean_read_value) %>%
-    mutate(date = as.Date(settlement_date)) %>% 
-    filter(!is.na(date))     %>%
-    select(-c(settlement_date))
-  
-  # Function to check if a date falls within any period
-  check_active_contract <- function(date, periods) {
-    any(sapply(1:nrow(periods[[1]]), function(i) date >= periods[[1]][i, "from"] && (date <= periods[[1]][i, "to"] | is.na(periods[[1]][i, "to"]))))
-  }
-  
-  # Add indicator without heavy merging
-  consumption_with_indicator <- aggregated_data %>%
-    rowwise() %>%
-    mutate(
-      cosy_contract_active = {
-        periods <- agreements$periods[agreements$hashed_mpan == hashed_mpan]
-        if (length(periods) == 0) 0 else as.integer(check_active_contract(date, periods))
-      }
-    ) %>%
-    ungroup()
-  
-  # join with the earliest adoption date
-  aggregated_data <- consumption_with_indicator %>%
-    inner_join(agreements %>% select(-periods))
-  
-  # add overall
-  aggregated_data <- rbind(
-    aggregated_data, 
-    aggregated_data %>% 
-      group_by(account_id, hashed_mpan, date, cosy_contract_active, first_adoption, first_week) %>%
-      summarise(total_consumption = sum(total_consumption)) %>%
-      mutate(rate_period = "Overall",
-             consumption_hh = total_consumption/48)) %>%
-    mutate(rate_period = factor(rate_period, levels = c("Morning Cosy",
-                                                        "Afternoon Cosy",
-                                                        "Peak Rate",
-                                                        "Other", 
-                                                        "Overall")), 
-           weeks_since_cosy = floor(as.numeric(difftime(date, first_adoption, units = "weeks")))) 
-  
-  # Remove the ~ 50 mpans with 2 account id
-  duplicate_mpan <- aggregated_data %>%
-    select(account_id, hashed_mpan) %>%    # Selecting the necessary columns
-    distinct() %>%                         # Removing completely identical rows
-    count(hashed_mpan) %>%                 # Count occurrences of each hashed_mpan
-    filter(n > 1) %>%                      # Keep only those with more than one occurrence
-    left_join(aggregated_data %>% group_by(account_id, hashed_mpan) %>% summarise(min_date = min(date), max_date = max(date)), by = "hashed_mpan") %>%
-    arrange(hashed_mpan, account_id)       # Arrange for better visibility
-  
-  # add customers characteristics
-  # from queries/cosy - cosy details
-  cosy_cosy_details_2024_06_25 <- fread("data/input/cosy_-_cosy_details_2024_06_25.csv") %>%
-    distinct()
-  
-  # Remove moan associated with two accounts !
-  merged_data <- aggregated_data %>%
-    filter(!hashed_mpan %in% duplicate_mpan$hashed_mpan) %>%
-    inner_join(cosy_cosy_details_2024_06_25)
-  
-  # add weather
-  # queries/cosy analysis - weather
-  weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
-    rename_with(.cols = starts_with("weekly"), 
-                .fn = ~ sub("^weekly", "daily", .)) %>%
-    mutate(date_day=as.Date(date_day, format = "%Y-%m-%d")) %>%
-    rename(date = date_day)
-  
-  aggregated_data <- merged_data %>%
-    left_join(weather, by =c("gsp_group_id", "date"))
-  
-  
-  Prev_contract <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
-    arrange(hashed_mpan, as.Date(agreement_valid_from)) %>%
-    group_by(hashed_mpan) %>%
-    mutate(
-      previous_contract = lag(product_display_name),
-      previous_is_variable = lag(is_variable),
-      previous_is_charged_half_hourly = lag(is_charged_half_hourly),
-      is_cosy = product_display_name == "Cosy Octopus"
-    ) %>%
-    filter(is_cosy) %>%
-    slice_head(n=1)
-  
-  # EPC
-  aggregated_data <- aggregated_data %>%
-    mutate(epc_letter = case_when(
-      energy_efficiency >= 91 ~ "A",
-      energy_efficiency >= 81 & energy_efficiency <= 90 ~ "B",
-      energy_efficiency >= 69 & energy_efficiency <= 80 ~ "C",
-      energy_efficiency >= 55 & energy_efficiency <= 68 ~ "D",
-      energy_efficiency >= 39 & energy_efficiency <= 54 ~ "E",
-      energy_efficiency >= 21 & energy_efficiency <= 38 ~ "F",
-      energy_efficiency <= 20 ~ "G",
-      TRUE ~ NA_character_
-    ),
-    eac_mwh = estimated_annual_consumption/1000) %>%
-    left_join(Prev_contract) 
-  
-  # Temperature
-  aggregated_data <- aggregated_data %>% 
-    mutate(hdd = factor(
-      case_when(
-        daily_avg_air_temperature_celsius < 0 ~ 0,
-        daily_avg_air_temperature_celsius < 15.5 ~ round(daily_avg_air_temperature_celsius),
-        TRUE ~ 15
-      )
-    ))
-
-  saveRDS(aggregated_data, "data/scratch/aggregated_data.RDS")
-  
-  rm(weather, adoption, consumption_with_indicator, agreements)
-} else {
-  aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") 
-}
-
-# Run on a subsample of the data for faster processing
-if (random_subsample) {
-  set.seed(123)
-  sampled_accounts <- sample(unique(aggregated_data$account_id), 1000)
-  aggregated_data <- aggregated_data %>% 
-    filter(account_id %in% sampled_accounts)
-  gc()
-}
-
-## Rates Graphs 
-
-### Figure 2: Cosy Rate by Period
-
-# Load the prices
-rates <- fread("data/input/cosy_-_rate_analysis_2024_07_15.csv")  %>%
-  mutate(valid_from = as.Date(valid_from),
-         valid_to = as.Date(valid_to),
-         valid_from = ifelse(is.na(valid_from), as.Date("2022-12-13"), valid_from),
-         valid_to = ifelse(is.na(valid_to), as.Date("2024-07-15"), valid_to),
-         valid_from = as.Date(valid_from),
-         valid_to = as.Date(valid_to)
-  ) %>%
-  filter(!(valid_from == as.Date("2022-12-13") & valid_to == as.Date("2023-03-31")), !valid_from == "2024-06-30") 
-
-# Add the typical marginal price as a reference column
-marginal_price <- rates %>%
-  filter(rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND") %>%
-  distinct(tariff_gsp_group_id, valid_from, unit_rate) %>%
-  rename(typical_marginal_price=unit_rate)
-
-# Merge typical marginal price back into the full dataset
-rates <- rates %>%
-  left_join(marginal_price) %>%
-  mutate(share_of_typical = unit_rate / typical_marginal_price * 100)
-
-plot_selection <- rates %>%
-  filter(tariff_gsp_group_name == "North Western",valid_from == "2022-12-13") 
-
-# Get the unique valid_from date
-unique_valid_from <- unique(plot_selection$valid_from)
-
-# Create a sequence of times for the single day in 1-minute intervals
-times <- seq(from = as.POSIXct(paste(unique_valid_from, "00:00:00")), 
-             to = as.POSIXct(paste(unique_valid_from, "23:59:00")), by = "1 min")
-
-# Initialize rates with NA and group
-rate_data <- data.frame(
-  time = times,
-  rate = NA,
-  group = "Cosy"
-)
-
-# Function to convert INTERVAL strings to times and apply the rates
-apply_rates <- function(data, rates) {
-  for (i in 1:nrow(data)) {
-    start_time <- as.POSIXct(paste(unique_valid_from, substr(data$rate_start_at[i], 11, 18)), format="%Y-%m-%d %H:%M:%S")
-    end_time <- as.POSIXct(paste(unique_valid_from, substr(data$rate_end_at[i], 11, 18)), format="%Y-%m-%d %H:%M:%S")
-    if (start_time > end_time) {
-      # Handle cases where the interval crosses midnight
-      rates$rate[rates$time >= start_time | rates$time < end_time] <- data$unit_rate[i]
-    } else {
-      rates$rate[rates$time >= start_time & rates$time < end_time] <- data$unit_rate[i]
-    }
-  }
-  return(rates)
-}
-
-# Apply the rates using the most recent period
-rate_data <- apply_rates(plot_selection, rate_data)
-
-# Create a data frame for Flexible Octopus with a constant rate
-flexible_octopus <- data.frame(
-  time = times,
-  rate = plot_selection[plot_selection$rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND",]$unit_rate,
-  group = "Typical Marginal Price"
-)
-
-# Combine both data frames
-combined_rates <- rbind(rate_data, flexible_octopus)
-
-# Define the specific rate values for y-axis breaks
-rate_values <- sort(unique(plot_selection$unit_rate))
-
-# Define the time periods for shading
-shaded_times <- data.frame(
-  xmin = as.POSIXct(paste(unique_valid_from, c("04:00:00", "13:00:00", "16:00:00")), format="%Y-%m-%d %H:%M:%S"),
-  xmax = as.POSIXct(paste(unique_valid_from, c("07:00:00", "16:00:00", "19:00:00")), format="%Y-%m-%d %H:%M:%S"),
-  fill = c("red", "red", "lightblue")
-)
-
-# Calculate the typical marginal price (you can adjust this based on your data)
-typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Marginal Price") %>% pull(rate), na.rm = TRUE)
-
-# Add a new column for the share of the typical marginal price
-combined_rates <- combined_rates %>%
-  mutate(share_of_typical = rate / typical_marginal_price * 100)
-
-# Plot the line chart with Flexible Octopus in dashed line and specific y-axis breaks
-# Assuming unique_valid_from is the date used in your 'time' sequence
-ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group)) +
-  geom_rect(data = shaded_times, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = fill),
-            inherit.aes = FALSE, alpha = 0.2) +
-  geom_line(size = 1) +
-  labs(x = "Time of Day",
-       y = "Rate (p/kWh)",
-       color = "Tariff") +
-  scale_x_datetime(date_labels = "%H:%M", 
-                   date_breaks = "2 hour", 
-                   limits = c(as.POSIXct(min(combined_rates$time)), 
-                              as.POSIXct(max(combined_rates$time)- hours(1)))) +  # Set x-axis limits with correct date
-  scale_y_continuous(
-    name = "Rate (p/kWh)",
-    breaks = rate_values,
-    labels = scales::label_number(accuracy = 0.01),  # Format y-axis with 2 decimal places
-    sec.axis = sec_axis(~ . / typical_marginal_price, 
-                        name = "Share of Typical Marginal Price (%)", 
-                        labels = scales::percent_format(accuracy = 1))
-  ) +
-  theme_minimal() + 
-  theme(legend.position = "bottom") +
-  scale_color_manual(values = c("Cosy" = cosy_color, "Typical Marginal Price" = flexible_color)) +
-  scale_linetype_manual(values = c("Cosy" = "solid", "Typical Marginal Price" = "dashed")) +
-  scale_fill_identity() +
-  guides(linetype = "none")
-
-ggsave("graphs/Cosy Tariff.png", width = 10, height = 4, dpi = 300)
-
-
-# Load the prices
-rates <- fread("data/input/cosy_-_rate_analysis_2024_07_15.csv")  %>%
-  mutate(valid_from = as.Date(valid_from),
-         valid_to = as.Date(valid_to),
-         valid_from = ifelse(is.na(valid_from), as.Date("2022-12-13"), valid_from),
-         valid_to = ifelse(is.na(valid_to), as.Date("2024-07-15"), valid_to),
-         valid_from = as.Date(valid_from),
-         valid_to = as.Date(valid_to)
-  ) %>%
-  filter(!(valid_from == as.Date("2022-12-13") & valid_to == as.Date("2023-03-31")), !valid_from == "2024-06-30") 
-
-# Add the typical marginal price as a reference column
-marginal_price <- rates %>%
-  filter(rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND") %>%
-  distinct(tariff_gsp_group_id, valid_from, unit_rate) %>%
-  rename(typical_marginal_price=unit_rate)
-
-# Merge typical marginal price back into the full dataset
-rates <- rates %>%
-  left_join(marginal_price) %>%
-  mutate(share_of_typical = unit_rate / typical_marginal_price * 100)
-
-plot_selection <- rates %>%
-  filter(tariff_gsp_group_name == "North Western",valid_from == "2024-03-31") 
-
-# Get the unique valid_from date
-unique_valid_from <- unique(plot_selection$valid_from)
-
-# Create a sequence of times for the single day in half-hour intervals
-times <- seq(from = as.POSIXct(paste(unique_valid_from, "00:00:00")), 
-             to = as.POSIXct(paste(unique_valid_from, "23:30:00")), by = "30 min")
-
-# Initialize rates with NA and group
-rate_data <- data.frame(
-  time = times,
-  rate = NA,
-  group = "Cosy"
-)
-
-# Function to convert INTERVAL strings to times and apply the rates
-apply_rates <- function(data, rates) {
-  for (i in 1:nrow(data)) {
-    start_time <- as.POSIXct(paste(unique_valid_from, substr(data$rate_start_at[i], 11, 18)), format="%Y-%m-%d %H:%M:%S")
-    end_time <- as.POSIXct(paste(unique_valid_from, substr(data$rate_end_at[i], 11, 18)), format="%Y-%m-%d %H:%M:%S")
-    if (start_time > end_time) {
-      # Handle cases where the interval crosses midnight
-      rates$rate[rates$time >= start_time | rates$time < end_time] <- data$unit_rate[i]
-    } else {
-      rates$rate[rates$time >= start_time & rates$time < end_time] <- data$unit_rate[i]
-    }
-  }
-  return(rates)
-}
-
-# Apply the rates using the most recent period
-rate_data <- apply_rates(plot_selection, rate_data)
-
-# Create a data frame for Flexible Octopus with a constant rate
-flexible_octopus <- data.frame(
-  time = times,
-  rate = plot_selection[plot_selection$rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND",]$unit_rate,
-  group = "Typical Marginal Price"
-)
-
-# Combine both data frames
-combined_rates <- rbind(rate_data, flexible_octopus)
-
-# Define the specific rate values for y-axis breaks
-rate_values <- sort(unique(plot_selection$unit_rate))
-
-# Define the time periods for shading
-shaded_times <- data.frame(
-  xmin = as.POSIXct(paste(unique_valid_from, c("04:00:00", "13:00:00", "16:00:00")), format="%Y-%m-%d %H:%M:%S"),
-  xmax = as.POSIXct(paste(unique_valid_from, c("07:00:00", "16:00:00", "19:00:00")), format="%Y-%m-%d %H:%M:%S"),
-  fill = c("lightblue", "lightblue", "red")
-)
-
-# Calculate the typical marginal price (you can adjust this based on your data)
-typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Marginal Price") %>% pull(rate), na.rm = TRUE)
-
-# Add a new column for the share of the typical marginal price
-combined_rates <- combined_rates %>%
-  mutate(share_of_typical = rate / typical_marginal_price * 100)
-
-# Plot the line chart with Flexible Octopus in dashed line and specific y-axis breaks
-ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group)) +
-  geom_rect(data = shaded_times, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = fill),
-            inherit.aes = FALSE, alpha = 0.2) +
-  geom_line(size = 1) +
-  labs(x = "Time of Day",
-       y = "Rate (p/kWh)",
-       color = "Tariff") +
-  scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hour") +
-  scale_y_continuous(
-    name = "Rate (p/kWh)",
-    breaks = rate_values,
-    labels = scales::label_number(accuracy = 0.01),  # Format y-axis with 2 decimal places
-    sec.axis = sec_axis(~ . / typical_marginal_price, 
-                        name = "Share of Typical Marginal Price (%)", 
-                        labels = scales::percent_format(accuracy = 1))
-  ) +
-  theme_minimal() + 
-  theme(legend.position = "bottom") +
-  scale_color_manual(values = c("Cosy" = cosy_color, "Typical Marginal Price" = flexible_color)) +
-  scale_linetype_manual(values = c("Cosy" = "solid", "Typical Marginal Price" = "dashed")) +
-  scale_fill_identity() +
-  guides(linetype = "none")
-
-
-
-
-### Figure A.16: Rates by Rate Period and GSP Group as of 01 June 2024
-
-# Create rate_period indicator
-rates <- rates %>%
-  mutate(rate_period = case_when(
-    rate_start_at == "INTERVAL '04:00:00' HOUR TO SECOND" ~ "Morning \n & Afternoon Cosy",
-    rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND" ~ "Other \n ( ~ Typical Marginal Price)",
-    rate_start_at == "INTERVAL '13:00:00' HOUR TO SECOND" ~ "Morning \n & Afternoon Cosy",
-    rate_start_at == "INTERVAL '16:00:00' HOUR TO SECOND" ~ "Peak Rate",
-    rate_start_at == "INTERVAL '19:00:00' HOUR TO SECOND" ~ "Other \n ( ~ Typical Marginal Price)",
-    TRUE ~ "Other"
-  ),
-  rate_period = factor(rate_period, levels = c("Morning \n & Afternoon Cosy","Other \n ( ~ Typical Marginal Price)", "Peak Rate")))
-
-# Get the number of unique GSP group names
-num_gsp_groups <- length(unique(rates$tariff_gsp_group_name))
-
-# Define a color palette using RColorBrewer and colorRampPalette to generate more colors if needed
-palette <- colorRampPalette(brewer.pal(12, "Set3"))(num_gsp_groups)
-
-# Add the typical marginal price as a reference column
-rates_selection <- rates %>%
-  filter(valid_from == "2024-03-31") 
-
-
-# Part 1: Bar graph showing all the rates by rate_period and GSP group name
-ggplot(rates_selection, aes(x = rate_period, y = unit_rate, fill = tariff_gsp_group_name)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(x = "Rate Period",
-       y = "Rate (p/kWh)",
-       fill = "GSP Group") +
-  scale_y_continuous(
-    name = "Rate (p/kWh)",
-    labels = scales::label_number(accuracy = 0.01),  # Format y-axis with 2 decimal places
-    sec.axis = sec_axis(~ . / typical_marginal_price, 
-                        name = "Share of Typical Marginal Price (%)", 
-                        labels = scales::percent_format(accuracy = 1))
-  ) +
-  theme_minimal() +
-  scale_fill_manual(values = palette) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-ggsave("graphs/Rates_by_Rate_Period_and_GSP_Group.png", width = 10, height = 6, dpi = 300)
-
-
-
-### Figure A.17: Rates Over Time
-
-# Get the global min and max unit_rate
-global_min_rate <- min(rates$unit_rate, na.rm = TRUE)
-global_max_rate <- max(rates$unit_rate, na.rm = TRUE)
-
-# Part 2: Line graphs showing the change in rates over time for each rate_period, grouped by region
-rates_long <- rates %>%
-  group_by(tariff_gsp_group_name, rate_period) %>%
-  arrange(valid_from)
-
-# Create annotations data frame
-annotations <- rates_long %>%
-  group_by(rate_period) %>%
-  summarise(
-    valid_from = as.Date("2023-01-01"),
-    share_of_typical = median(share_of_typical, na.rm = TRUE),
-    unit_rate = median(unit_rate, na.rm = TRUE),
-    tariff_gsp_group_name = unique(tariff_gsp_group_name)
-  )
-
-ggplot(rates_long, aes(x = valid_from, y = unit_rate, color = tariff_gsp_group_name, group = interaction(tariff_gsp_group_name, rate_period))) +
-  geom_line(size = 1) +
-  labs(
-    x = "Date",
-    y = "Rate (p/kWh)",
-    color = "GSP Group") +
-  theme_minimal() +
-  scale_color_manual(values = palette) +
-  ylim(global_min_rate, global_max_rate) +
-  geom_text(data = annotations, aes(label = rate_period), vjust = 0.8, hjust = 0, color = "grey")
-
-
-ggsave("graphs/Rate_Changes_by_Period.png", width = 12, height = 8, dpi = 300)
-
-
-
-
-### Figure A.18: Rates as Share of Typical Marginal Price Over Time
-
-# Aggregate the data by rate_period and valid_from to get the average for all GSP groups
-rates_avg <- rates %>%
-  group_by(rate_period, valid_from) %>%
-  summarise(
-    avg_unit_rate = mean(unit_rate, na.rm = TRUE),
-    avg_share_of_typical = mean(share_of_typical, na.rm = TRUE)
-  )
-
-# Create annotations data frame
-annotations <- rates_avg %>%
-  group_by(rate_period) %>%
-  summarise(
-    valid_from = as.Date("2023-01-01"),
-    avg_unit_rate = median(avg_unit_rate, na.rm = TRUE),
-    avg_share_of_typical = median(avg_share_of_typical, na.rm = TRUE)
-  )
-
-# Define specific y-axis breaks for share of typical marginal price
-share_breaks <- seq(0, 160, 20)
-
-# Define a palette of blue colors
-blue_palette <- scales::brewer_pal(palette = "Blues")(length(unique(rates_avg$rate_period)))
-
-# Plot average share of typical marginal price over time
-ggplot(rates_avg, aes(x = valid_from, y = avg_share_of_typical, color = rate_period, group = rate_period)) +
-  geom_line(size = 1) +
-  labs(
-    x = "Date",
-    y = "Average Share of Typical Marginal Price (%)",
-    color = "Rate Period"
-  ) +
-  theme_minimal() +
-  scale_color_manual(values = blue_palette) +
-  scale_y_continuous(
-    name = "Average Share of Typical Marginal Price (%)",
-    breaks = share_breaks,
-    labels = scales::percent_format(accuracy = 0.1, scale = 1)
-  ) + 
-  theme(legend.position = "bottom") +
-  geom_text(data = annotations, aes(label = rate_period), vjust = 1.2, hjust = 0, color = "grey")
-
-
-ggsave("graphs/Average_Share_of_Typical_Marginal_Price_by_Period.png", width = 12, height = 8, dpi = 300)
-
-
-
-## Summary Statistics Tables and Graphs {#sec:sumstats}
-
-Next_contract <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
-  arrange(hashed_mpan, desc(as.Date(agreement_valid_from))) %>%
-  group_by(hashed_mpan) %>%
-  mutate(na_flag = ifelse(is.na(agreement_valid_to), 1, 0),
-         na_cumsum = cumsum(na_flag)) %>%
-  filter(na_cumsum == 1) %>%
-  select(-na_flag, -na_cumsum) %>%
-  ungroup()%>%
-  group_by(hashed_mpan) %>%
-  slice(1) %>%
-  mutate(is_variable = ifelse(product_display_name %in% 
-                                c("Co-op Flexible",
-                                  "Flexible Avro",
-                                  "Flexible Octopus",
-                                  "Flexible Octopus Smart Pay as You Go",
-                                  "Loyal Flexible Octopus Smart Pay as You Go"), FALSE, is_variable)) %>%
-  group_by(is_charged_half_hourly) %>%
-  tally() %>%
-  ungroup() %>%
-  mutate(share_is_variable = n/sum(n))
-
-# Contract before cosy
-first_cosy_contracts <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
-  arrange(hashed_mpan, as.Date(agreement_valid_from)) %>%
-  group_by(hashed_mpan) %>%
-  mutate(
-    previous_contract = lag(product_display_name),
-    previous_is_variable = lag(is_variable),
-    previous_is_charged_hh = lag(is_charged_half_hourly),
-    is_cosy = product_display_name == "Cosy Octopus"
-  ) %>%
-  filter(is_cosy) %>%
-  slice_head(n = 1) %>%
-  mutate(previous_is_variable = ifelse(previous_contract %in% 
-                                         c("Co-op Flexible",
-                                           "Flexible Avro",
-                                           "Flexible Octopus",
-                                           "Flexible Octopus Smart Pay as You Go",
-                                           "Loyal Flexible Octopus Smart Pay as You Go"), 
-                                       FALSE, 
-                                       previous_is_variable)) %>%
-  filter(!is.na(previous_is_variable)) %>%
-  group_by(previous_is_charged_hh) %>%
-  tally() %>%
-  mutate(share = 100*n/sum(n)) %>%
-  arrange(share)
-
-
-### Figure 3: Weekly Adoption of the Cosy tariff
-# Prepare the data
-weekly_adoptions <- aggregated_data %>%
-  ungroup() %>%
-  select(hashed_mpan, first_adoption) %>%
-  distinct() %>%
-  mutate(first_week = floor_date(first_adoption, "week")) %>%
-  group_by(first_week) %>%
-  summarise(adoptions = n())
-
-# Define the date for the announcement
-announcement_date <- as.Date("2023-08-31")
-
-# Choose a color from the Brewer palette for the text annotation
-text_color <- brewer.pal(n = 3, name = "Set1")[1]
-
-# Create the plot with the vertical line and adjusted annotation
-ggplot(weekly_adoptions, aes(x = first_week, y = adoptions)) +
-  geom_line(color = cosy_color) +  # Line plot for trends with a color from the Brewer palette
-  geom_point(color = cosy_color) +  # Points to highlight individual data with the same color
-  geom_vline(xintercept = as.numeric(announcement_date), linetype = "dashed", color = text_color) +  # Vertical line for the announcement
-  annotate("text", x = announcement_date - weeks(1), y = 150,
-           label = "Announcement:\nBoiler Upgrade Scheme\nincrease to £7,500", hjust = 1, color = text_color) +  # Annotate the vertical line
-  labs(
-    x = "Week",
-    y = "Customers switching to Cosy"
-  ) +
-  scale_x_date(
-    labels = scales::date_format("%b %y"),  # Formatting months and years
-    date_breaks = "1 month"  # Adjust this based on your data density
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position="none",
-    axis.text.x = element_text(angle = 45, hjust = 1)  # Improve readability by rotating labels
-  )
-
-# Save the plot
-ggsave("graphs/weekly_adoptions.png", width = 16, height = 8, units = "cm")
-
-
-# Analyze contracts
-contract_analysis_all <-fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") 
-
-contract_analysis <- contract_analysis_all %>%
-  inner_join(aggregated_data %>% distinct(account_id, hashed_mpan)) %>%
-  filter(product_display_name == "Cosy Octopus") %>%
-  arrange(account_id, hashed_mpan, agreement_valid_from) %>%
-  mutate(
-    from = as.Date(agreement_valid_from),
-    to = as.Date(agreement_valid_to)
-  ) %>%
-  select(account_id, hashed_mpan, from, to) %>%
-  group_by(account_id) %>%
-  summarise(
-    num_contracts = n(),  # Count number of contracts per customer
-    ongoing = sum(is.na(to)),  # Count how many contracts are ongoing
-    ended = sum(!is.na(to))  # Count how many contracts have ended
-  ) %>%
-  mutate(
-    category = case_when(
-      num_contracts == 1 & ongoing == 1 ~ "Stayed on Cosy (ongoing)",
-      num_contracts == 1 & ended == 1 ~ "Tried then switched",
-      num_contracts > 1 ~ "Multiple contracts",
-      TRUE ~ "Other"  # Catch-all for any other cases
-    )
-  )
-
-# Count each category
-category_counts <- contract_analysis %>%
-  count(category)
-
-print(category_counts)
-
-
-
-
-## Availability of smart meter data
-
-### Figure A.19: Smart Meter Data Availability for Cosy Adopters
-
-if (!file.exists("graphs/data_availability.png")) {
-  plot_panel <- panelview(consumption_hh ~ cosy_contract_active + hdd, 
-                          data = aggregated_data %>% filter(rate_period=="Overall", !is.na(date), !is.na(hashed_mpan)) %>% 
-                            select(consumption_hh, hashed_mpan, date, cosy_contract_active, hdd) %>% distinct(), index = c("hashed_mpan","date"), 
-                          xlab = "Time", ylab = "hashed_mpan", by.timing = TRUE, 
-                          pre.post = TRUE, gridOff = TRUE, axis.lab.gap = c(100),
-                          main = "Smart Meter Data Availability",
-                          background = "white",
-                          color = c(flexible_color, cosy_color, "white"),
-                          legend.labs = c("Before Cosy", "After Cosy", "No smart meter data"), 
-                          collapse.history = "TRUE")
-  ggsave("graphs/data_availability.png", 
-         width = 16, height = 8, units = "cm")
-}
-
-
-
-
-## External Validity Tables 
-
-# start date
-start_date <- aggregated_data %>% ungroup() %>% summarise(date=min(first_adoption, na.rm = TRUE))
-start_date <- start_date$date
-
-# Found the previous contract before adopting cosy
-Prev_contract <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
-  arrange(hashed_mpan, as.Date(agreement_valid_from)) %>%
-  group_by(hashed_mpan) %>%
-  mutate(
-    previous_contract = lag(product_display_name),
-    previous_is_variable = lag(is_variable),
-    previous_is_charged_half_hourly = lag(is_charged_half_hourly),
-    is_cosy = product_display_name == "Cosy Octopus"
-  ) %>%
-  filter(is_cosy) %>%
-  slice_head(n=1)
-
-# Create a hashed_mpan dataset
-first_adoption <- aggregated_data %>%
-  left_join(Prev_contract) %>%
-  ungroup() %>%
-  select(hashed_mpan, tariff_gsp_group_id, first_adoption, urbanity, previous_is_charged_half_hourly,
-         floor_area, eac_mwh, property_value, energy_efficiency, estimated_annual_consumption) %>%
-  distinct() %>%
-  mutate(adoption_week =  round(as.numeric(difftime(floor_date(first_adoption, "week"), start_date, units = "weeks"))),
-         urban = case_when(
-           urbanity %in% c('Large Urban Areas', 'Smaller Urban Areas') ~ 1,
-           urbanity %in% c('Accessible Settlements', 'Sparse/Remote Villages/Dwellings', 'Accessible Villages/Dwellings', 'Sparse/Remote Settlements') ~ 0,
-           TRUE ~ NA
-         ))
-
-# early adoptors table
-m_adopters <- feols(adoption_week ~ i(urban, ref=0) + log(floor_area) + log(property_value) + log(energy_efficiency) + log(estimated_annual_consumption) + previous_is_charged_half_hourly, data = first_adoption, se = "hetero")
-etable(m_adopters)
-
-# Extract coefficients and standard errors
-coefs <- coeftable(m_adopters) %>%
-  data.frame() %>%
-  tibble::rownames_to_column("term") %>%
-  filter(term != "(Intercept)") %>%
-  mutate(term = case_when(term == "i(factor_var = urban, ref = 0)" ~ "Urban",
-                          term == "log(floor_area)" ~ "Log Floor Area",
-                          term == "log(property_value)" ~ "Log Property Value",
-                          term == "log(energy_efficiency)" ~ "Log Energy Efficiency",
-                          term == "log(estimated_annual_consumption)" ~ "Log Estimated Consumption",
-                          term == "previous_is_touTRUE" ~ "Previous Contract Is ToU",
-                          TRUE ~ term),
-         lower_ci = Estimate - 1.96 * `Std..Error`,
-         upper_ci = Estimate + 1.96 * `Std..Error`
-  ) %>%
-  arrange(Estimate)
-
-
-# Add a note below the graph
-note <- "Note: The dependent variable is adoption week (0 for the first week adopters up to 65 for the later). \n Early adopters are more urban, have higher electricity consumption and more energy efficient homes. \n Data: Domus dataset and OE energy."
-
-# Function to calculate weighted standard deviation
-weighted_sd <- function(x, w) {
-  sum_w <- sum(w, na.rm = TRUE)
-  mean_w <- sum(w * x, na.rm = TRUE) / sum_w
-  sqrt(sum(w * (x - mean_w)^2, na.rm = TRUE) / sum_w)
-}
-
-# Function to perform weighted t-test
-weighted_t_test <- function(x, w, y, v) {
-  n_x <- sum(w, na.rm = TRUE)
-  n_y <- sum(v, na.rm = TRUE)
-  mean_x <- sum(w * x, na.rm = TRUE) / n_x
-  mean_y <- sum(v * y, na.rm = TRUE) / n_y
-  var_x <- sum(w * (x - mean_x)^2, na.rm = TRUE) / n_x
-  var_y <- sum(v * (y - mean_y)^2, na.rm = TRUE) / n_y
-  t_stat <- (mean_x - mean_y) / sqrt(var_x / n_x + var_y / n_y)
-  df <- (var_x / n_x + var_y / n_y)^2 / ((var_x / n_x)^2 / (n_x - 1) + (var_y / n_y)^2 / (n_y - 1))
-  p_value <- 2 * pt(-abs(t_stat), df)
-  return(p_value)
-}
-
-# Function to summarize and test
-summarize_and_test <- function(data, var_name, weight_name) {
-  # Calculate weighted means, standard deviations, and non-missing observation counts for each treatment group
-  summary_stats <- data %>%
-    group_by(treated) %>%
-    summarise(
-      N = sum(!is.na(.data[[var_name]])), # Count non-missing observations
-      Weighted_Mean = weighted.mean(.data[[var_name]], .data[[weight_name]], na.rm = TRUE),
-      SD = weighted_sd(.data[[var_name]], .data[[weight_name]]),
-      .groups = 'drop'
-    ) %>%
-    pivot_wider(names_from = treated, values_from = c("N", "Weighted_Mean", "SD"), names_sep = " ")
-  
-  # Prepare for weighted t-test by separating data and weights
-  data1 <- filter(data, treated == 1)[[var_name]]
-  weights1 <- filter(data, treated == 1)[[weight_name]]
-  data2 <- filter(data, treated == 0)[[var_name]]
-  weights2 <- filter(data, treated == 0)[[weight_name]]
-  
-  # Check if both groups have sufficient data for weighted t-test
-  if (length(unique(data1)) > 1 && length(unique(data2)) > 1 && length(data1) > 1 && length(data2) > 1) {
-    p_value <- weighted_t_test(data1, weights1, data2, weights2)
-  } else {
-    p_value <- NA_real_ # Insufficient data or variability
-  }
-  
-  # Combine results
-  tibble(Variable = var_name) %>%
-    bind_cols(summary_stats) %>%
-    mutate(`P Value` = p_value)
-}
-
-rm(m_adopters)
-
-# Read and process each dataset
-# https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/middlesuperoutputareamidyearpopulationestimates
-
-population2022 <- read_excel("data/input/sapemsoasyoatablefinal.xlsx", sheet = "Mid-2022 MSOA 2021", skip = 3)
-
-cosy_hp_details <- fread("data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
-  inner_join(aggregated_data %>% select(hashed_mpan) %>% distinct()) %>%
-  select(hashed_mpan, postcode) %>%
-  distinct() %>%
-  group_by(postcode) %>%
-  tally() %>%
-  filter(!postcode == "")
-# https://www.data.gov.uk/dataset/c2235117-cbfd-480d-8fc7-b564bd0f4d58/output-area-2021-to-lsoas-to-msoas-to-lep-to-lad-dec-2022-best-fit-lookup-in-en-v2
-postcode_msoa <- fread("data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
-  left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
-  mutate(n = ifelse(is.na(n), 0, 1)) %>%
-  select(msoa21cd, n) %>%
-  group_by(msoa21cd) %>%
-  summarise(treated = sum(n))
-# https://www.ons.gov.uk/peoplepopulationandcommunity/personalandhouseholdfinances/incomeandwealth/bulletins/smallareamodelbasedincomeestimates/financialyearending2020
-income <- readxl::read_excel("data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
-  select(`MSOA code`, `Total annual income (£)`) %>%
-  distinct() 
-
-# Load and preprocess the property_prices data
-# https://www.ons.gov.uk/peoplepopulationandcommunity/housing/datasets/hpssadataset3meanhousepricebymsoaquarterlyrollingyear
-property_prices <- read_excel("data/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls", 
-                              sheet = "1a", skip = 4) %>%
-  select(`MSOA code`, `Year ending Mar 2023`) %>%
-  rename(msoa21cd = `MSOA code`, `Property price (£)` = `Year ending Mar 2023`)
-
-# customs dataset from https://www.ons.gov.uk/datasets/create
-hh_size <- fread("data/input/custom-filtered-2024-07-03T10_58_30Z.csv") %>%
-  group_by(`Middle layer Super Output Areas Code`) %>%
-  mutate(sum_obs = sum(Observation), weight = Observation / sum_obs) %>%
-  summarise(`Average HH Size` = sum(weight * `Household size (9 categories) Code`))
-
-hh_deprivaton <- fread("data/input/custom-filtered-2024-07-03T10_43_12Z.csv") %>%
-  group_by(`Middle layer Super Output Areas Code`) %>%
-  mutate(sum_obs = sum(Observation), `HH Not Deprived in Any Dim. (%)` = 100 * Observation / sum_obs) %>%
-  filter(`Household deprivation (6 categories) Code` == 1)
-
-avg_age <- fread("data/input/custom-filtered-2024-07-03T11_15_15Z.csv") %>%
-  group_by(`Middle layer Super Output Areas Code`) %>%
-  mutate(sum_obs = sum(Observation), weight = Observation / sum_obs) %>%
-  summarise(`Average Age` = sum(weight * `Age (101 categories) Code`))
-
-education <- fread("data/input/custom-filtered-2024-07-03T11_22_39Z.csv") %>%
-  group_by(`Middle layer Super Output Areas Code`) %>%
-  mutate(sum_obs = sum(Observation), `Share Level 4 Qualifications (%)` = 100 * Observation / sum_obs) %>%
-  filter(`Highest level of qualification (7 categories) Code` == 4)
-
-# Merge all datasets by `MSOA code` or `Middle layer Super Output Areas Code`
-merged_data <- postcode_msoa %>%
-  inner_join(income, by = c("msoa21cd"="MSOA code")) %>%
-  inner_join(property_prices,by = c("msoa21cd")) %>%
-  inner_join(hh_size, by = c("msoa21cd" = "Middle layer Super Output Areas Code")) %>%
-  inner_join(hh_deprivaton, by = c("msoa21cd" = "Middle layer Super Output Areas Code")) %>%
-  inner_join(avg_age, by = c("msoa21cd" = "Middle layer Super Output Areas Code")) %>%
-  inner_join(education, by = c("msoa21cd" = "Middle layer Super Output Areas Code")) %>%
-  inner_join(population2022 %>% select(`MSOA 2021 Code`, Total), by = c("msoa21cd" = "MSOA 2021 Code")) %>%
-  mutate(country = substr(msoa21cd, 1, 1),
-         treated = as.numeric(treated > 0)) %>%
-  filter(!msoa21cd == "", country %in% c("E", "W"))
-
-# List of variables of interest
-variables <- c(
-  "Total annual income (£)",
-  "Property price (£)",
-  "Average HH Size",
-  "HH Not Deprived in Any Dim. (%)",
-  "Average Age",
-  "Share Level 4 Qualifications (%)"
-)
-
-# Applying the function across all variables
-results <- purrr::map_dfr(variables, ~summarize_and_test(merged_data, .x, "Total")) %>%
-  as.data.frame()
-
-# Format the counts with thousand separators
-results <- results %>%
-  mutate(`N 1` = format(`N 1`, big.mark = ",", scientific = FALSE),
-         `N 0` = format(`N 0`, big.mark = ",", scientific = FALSE))
-
-# Adjust the format of the table for LaTeX output
-formatted_results <- results %>%
-  select(Variable, `Weighted_Mean 1`, `SD 1`, `Weighted_Mean 0`, `SD 0`, `P Value`) %>%
-  rename(
-    `Weighted Mean Treated` = `Weighted_Mean 1`,
-    `SD Treated` = `SD 1`,
-    `Weighted Mean Others` = `Weighted_Mean 0`,
-    `SD Others` = `SD 0`
-  ) %>%
-  mutate(
-    `Weighted Mean Treated` = paste0(format(round(`Weighted Mean Treated`, 2), big.mark = ",", nsmall = 2), " (", format(round(`SD Treated`, 2), big.mark = ",", nsmall = 2), ")"),
-    `Weighted Mean Others` = paste0(format(round(`Weighted Mean Others`, 2), big.mark = ",", nsmall = 2), " (", format(round(`SD Others`, 2), big.mark = ",", nsmall = 2), ")"),
-    `P Value` = format(round(`P Value`, 2), nsmall = 2)
-  ) %>%
-  select(Variable, `Weighted Mean Treated`, `Weighted Mean Others`)
-
-# Add the N values to the column names
-colnames(formatted_results)[2] <- paste0("MSOAs with Cosy Adopters (N = ", results$`N 1`[1], ")")
-colnames(formatted_results)[3] <- paste0("Other MSOAs (N = ", results$`N 0`[1], ")")
-
-# Create the LaTeX table using stargazer
-stargazer(formatted_results, type = "latex", summary = FALSE, 
-          title = "External Validity by Area for \textit{Cosy} Adopters",
-          rownames = FALSE,
-          digits = 2,
-          label = "tab:msoa-stats-cosy",
-          out = "tables/balance_table_cosy.tex")
-
-# Read the content of the generated LaTeX table
-latex_table <- readLines("tables/balance_table_cosy.tex")
-
-# Insert custom headers with multicolumn
-header_row <- " & \\multicolumn{2}{c}{Weighted Mean} \\\\"
-position <- grep("\\\\begin\\{tabular\\}", latex_table) + 1
-latex_table <- append(latex_table, header_row, after = position)
-
-# Replace the first and last instances of \hline \\[-1.8ex] with \hline \hline \\[-1.8ex]
-hline_ex_lines <- grep("\\hline" , latex_table)
-if (length(hline_ex_lines) >= 2) {
-  latex_table[hline_ex_lines[1]] <- gsub("\\hline", "\\hline\\hline", latex_table[hline_ex_lines[1]], fixed = TRUE)
-  latex_table[hline_ex_lines[length(hline_ex_lines)]] <- gsub("\\hline", "\\hline\\hline", latex_table[hline_ex_lines[length(hline_ex_lines)]], fixed = TRUE)
-}
-
-# Write the modified LaTeX table to a new file
-writeLines(latex_table, "tables/balance_table_cosy.tex")
-
-
-# Function to summarize and test
-summarize_and_test <- function(data, var_name, weight_name) {
-  # Calculate weighted means, standard deviations, and non-missing observation counts for each treatment group
-  summary_stats <- data %>%
-    group_by(treated) %>%
-    summarise(
-      N = sum(!is.na(.data[[var_name]])), # Count non-missing observations
-      Weighted_Mean = weighted.mean(.data[[var_name]], .data[[weight_name]], na.rm = TRUE),
-      SD = weighted_sd(.data[[var_name]], .data[[weight_name]]),
-      .groups = 'drop'
-    ) %>%
-    pivot_wider(names_from = treated, values_from = c("N", "Weighted_Mean", "SD"), names_sep = " ")
-  
-  # Prepare for weighted t-test by separating data and weights
-  data1 <- filter(data, treated == 1)[[var_name]]
-  weights1 <- filter(data, treated == 1)[[weight_name]]
-  data2 <- filter(data, treated == 0)[[var_name]]
-  weights2 <- filter(data, treated == 0)[[weight_name]]
-  
-  # Check if both groups have sufficient data for weighted t-test
-  if (length(unique(data1)) > 1 && length(unique(data2)) > 1 && length(data1) > 1 && length(data2) > 1) {
-    p_value <- weighted_t_test(data1, weights1, data2, weights2)
-  } else {
-    p_value <- NA_real_ # Insufficient data or variability
-  }
-  
-  # Combine results
-  tibble(Variable = var_name) %>%
-    bind_cols(summary_stats) %>%
-    mutate(`P Value` = p_value)
-}
-
-
-# Load and preprocess the cosy_hp_details data
-population2022 <- read_excel("data/input/sapemsoasyoatablefinal.xlsx", sheet = "Mid-2022 MSOA 2021", skip = 3)
-
-cosy_hp_details <- fread("data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
-  inner_join(aggregated_data %>% select(hashed_mpan) %>% distinct(), by = "hashed_mpan") %>%
-  select(hashed_mpan, postcode, property_value) %>%
-  distinct() %>%
-  group_by(postcode) %>%
-  summarise(property_value = mean(property_value, na.rm = TRUE)) %>%
-  filter(postcode != "")
-
-# Load and preprocess the postcode_msoa data
-postcode_msoa <- fread("data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
-  left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
-  mutate(treated = ifelse(is.na(property_value), 0, 1)) %>%
-  select(msoa21cd, treated, property_value)
-
-# Load and preprocess the property_prices data
-property_prices <- read_excel("data/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls", 
-                              sheet = "1a", skip = 4) %>%
-  select(`MSOA code`, `Year ending Mar 2023`) %>%
-  rename(msoa21cd = `MSOA code`, year_ending_mar_2023 = `Year ending Mar 2023`)
-
-# Merge all datasets
-merged_data <- postcode_msoa %>%
-  inner_join(property_prices, by = "msoa21cd") %>%
-  mutate(country = substr(msoa21cd, 1, 1)) %>%
-  filter(msoa21cd != "", country %in% c("E", "W"))
-
-# Create combined data frame for plotting
-treated_1 <- merged_data %>%
-  filter(treated == 1) %>%
-  select(property_value = year_ending_mar_2023) %>%
-  mutate(group = "MSOAs with Cosy Customers")
-
-treated_0 <- merged_data %>%
-  filter(treated == 0) %>%
-  select(property_value = year_ending_mar_2023) %>%
-  mutate(group = "MSOAs without Cosy Customers")
-
-property_value_data <- merged_data %>%
-  filter(!is.na(property_value)) %>%
-  select(property_value) %>%
-  mutate(group = "Cosy Customers")
-
-combined_data <- bind_rows(
-  treated_1,
-  treated_0,
-  property_value_data
-)
-
-# Trim outliers by removing values outside the 1st and 99th percentiles
-trimmed_combined_data <- combined_data %>%
-  group_by(group) %>%
-  filter(property_value > quantile(property_value, 0.01) & property_value < quantile(property_value, 0.99))
-
-# Calculate means for each group
-means <- trimmed_combined_data %>%
-  group_by(group) %>%
-  summarise(mean_value = mean(property_value, na.rm = TRUE))
-
-ggplot(trimmed_combined_data, aes(x = property_value, color = group, fill = group)) +
-  geom_density(alpha = 0.5, aes(y = ..scaled..)) +
-  geom_vline(data = means, aes(xintercept = mean_value, color = group), linetype = "dashed") +
-  scale_color_manual(values = c("skyblue", "lightgreen", "orange")) +
-  scale_fill_manual(values = c("skyblue", "lightgreen", "orange")) +
-  scale_x_continuous(labels = dollar_format(prefix = "£", suffix = "k", scale = 1e-3, big.mark = ",")) +
-  labs(
-    title = "Density Plot of Property Prices",
-    x = "Property Value",
-    y = "Density",
-    color = NULL,  # Remove the legend title for color
-    fill = NULL    # Remove the legend title for fill
-  ) +
-  theme_classic() +
-  theme(legend.position = "bottom")
-
-
-ggsave("graphs/average_property_price.png", width = 12, height = 8, dpi = 300)
-
-
-
-
-
-# Empirical Analysis {#sec:results}
-
-## TWFE Heterogeneity Analysis
-
-### Table A.9: Cosy Adoption on Electricity Consumption Controlling for EV Charging
-# ev half hours 
-# Read the CSV file
-ev_charging <- fread("data/input/cosy_-_ev_detection_2024_07_04.csv") %>%
-  mutate(ev_charging = 1,
-         date = as.Date(interval_start),
-         interval_start = as.POSIXct(interval_start, format="%Y-%m-%d %H:%M:%S"),
-         hour = as.integer(format(interval_start, "%H")),
-         rate_period = case_when(
-           hour >= 4 & hour < 7 ~ "Morning Cosy",
-           hour >= 13 & hour < 16 ~ "Afternoon Cosy",
-           hour >= 16 & hour < 19 ~ "Peak Rate",
-           TRUE ~ "Other"
-         )
-  )
-
-# Aggregate at the account id, mpan, date and rate period level
-ev_charging_agg <- rbind(ev_charging %>%
-                           group_by(account_id,  hashed_mpan, date, rate_period) %>%
-                           tally(),
-                         ev_charging %>%
-                           group_by(account_id,  hashed_mpan, date) %>%
-                           tally() %>% 
-                           mutate(rate_period="Overall")) %>%
-  rename(ev_charging=n)
-
-# EV users details
-ev_users <- ev_charging %>%
-  group_by(account_id) %>%
-  summarise(is_ev_detected= min(as.Date(interval_start)))
-
-# Update hp_installed with the new ev_charging values using case_when
-aggregated_data <- aggregated_data %>%
-  left_join(ev_charging_agg) %>%
-  mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging),
-         ev_charging = case_when(
-           rate_period == "Overall" ~ ev_charging / 48,
-           rate_period == "Other" ~ ev_charging / 30,
-           TRUE ~ ev_charging / 6
-         ),
-         rate_period = factor(rate_period, levels = c("Morning Cosy",
-                                                      "Afternoon Cosy",
-                                                      "Peak Rate",
-                                                      "Other", 
-                                                      "Overall"))) %>%
-  left_join(ev_users) %>%
-  mutate(has_ev = as.numeric(is_ev_detected <= date),
-         has_ev = ifelse(is.na(has_ev), 0, has_ev)) %>%
-  distinct(account_id, date, rate_period, .keep_all=TRUE)
-
-# Fit the model
-m1c <- feols(consumption_hh ~ i(cosy_contract_active, ref=0) + has_ev + i(cosy_contract_active, has_ev, ref=0) | 
-               hdd + account_id + date, 
-             data = aggregated_data, 
-             cluster = ~account_id, 
-             split = ~ rate_period)
-
-etable( m1c, cluster = ~ account_id + date)
-
-# Generate the initial LaTeX table
-etable(m1c, tex = TRUE, title = "Cosy Adoption on Electricity Consumption Controlling for EV Charging", 
-       fitstat = ~ N + g + pre_avg + t_obs + r2, 
-       file = "tables/did_ev.tex", replace = TRUE, label = "tab:hp-did-ev")
-CleanPreAverage("tables/did_ev.tex")
-
-
-###  Table 3: Cosy Adoption on Probability of Charging EV by Period
-
-# Identify the period with the highest EV charging for each mpan and date
-ev_charging_max <- ev_charging %>%
-  group_by(account_id, hashed_mpan, date, rate_period) %>%
-  summarise(ev_charging = sum(ev_charging, na.rm = TRUE)) %>%
-  group_by(account_id, hashed_mpan, date) %>%
-  filter(ev_charging == max(ev_charging)) %>%
-  mutate(highest_ev_charging = 1) %>%
-  ungroup()
-
-ev_charging_max <- ev_charging_max %>%
-  left_join(aggregated_data %>% select(account_id, hashed_mpan, date, cosy_contract_active) %>% distinct()) 
-
-# Create dummy variables for rate periods
-ev_charging_max <- ev_charging_max %>%
-  mutate(
-    Morning_Cosy = ifelse(rate_period == "Morning Cosy", 1, 0),
-    Afternoon_Cosy = ifelse(rate_period == "Afternoon Cosy", 1, 0),
-    Peak_Rate = ifelse(rate_period == "Peak Rate", 1, 0),
-    Other = ifelse(rate_period == "Other", 1, 0)
-  )
-
-# Run the fixed effects models
-m_charging1 <- feols(Morning_Cosy ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-m_charging2 <- feols(Afternoon_Cosy ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-m_charging3 <- feols(Peak_Rate ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-m_charging4 <- feols(Other ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-
-
-# Generate the LaTeX table with the dependent variable named "Charging EV"
-etable(m_charging1, m_charging2, m_charging3, m_charging4, 
-       tex = TRUE, 
-       title = "Cosy Adoption on Probability of Charging EV by Period", 
-       headers = c("Morning Cosy", "Afternoon Cosy", "Peak Rate", "Other"),
-       fitstat = ~ N + g + pre_avg + r2, 
-       file = "tables/ev_charging.tex", 
-       replace = TRUE, 
-       label = "tab:ev-charging",
-       dict = c(Morning_Cosy = "Charging EV", 
-                Afternoon_Cosy = "Charging EV", 
-                Peak_Rate = "Charging EV", 
-                Other = "Charging EV"))
-
-file_path <- "tables/ev_charging.tex"
-
-# Read the generated LaTeX file
-file_content <- readLines(file_path)
-
-# Find the lines with the pre-treatment average and remove them
-if (length(grep("Charging EV", file_content))==1) {
-  pre_avg_line_index <- grep("Charging EV", file_content)
-} else {
-  pre_avg_line_index <- grep("Charging EV", file_content)[2]
-}
-
-pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
-file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
-
-# Find the position just after the coefficients
-coeff_end_index <- grep("Fixed-effects", file_content) -2
-
-# Insert the pre-treatment average row after the coefficients
-file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
-file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
-
-# Add a \midrule after the pre-treatment average
-file_content <- append(file_content, "\\midrule", after = coeff_end_index)
-
-# Modify the label for "Size of the 'effective' sample" to "Number of Households"
-sample_line <- grep("Size of the 'effective' sample", file_content)
-file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
-
-# Modify the name of the dependent in pre-treatment averages
-var_line <- grep("Half Hourly Consumption", file_content)
-file_content[sample_line] <- gsub("Half Hourly Consumption", "Charging EV", file_content[var_line])
-
-# Add note
-note <- "\\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} We show the results of four OLS models where the dependent variable is whether a charging event occurred in the period of interest – morning \\textit{Cosy} 4am-7am (column 1), afternoon \\textit{Cosy} 1pm-4pm (column 2), peak 4pm-7pm (column 3), and all other hours of the day (column 4). The sample is 127,789 charging events among 1,743 \\textit{Cosy} adopters for whom we detect evidence of EV charging. Where a charging events stretches across multiple periods, we attribute it to the period that comprises the \\textit{majority} of the event (in minutes). We see that among these EV owning \\textit{Cosy} adopters, \\textit{Cosy} adoption is associated with more charging the off-peak period and less in the peak and other periods.}"
-
-file_content <- append(file_content, note, after = grep("\\centering", file_content)-1)
-
-# Write the modified content back to the LaTeX file
-writeLines(file_content, file_path)
-
+source("scripts/02_01_load_data.R")
+
+# List objects in the environment
+list_env <- c(ls(), "list_env")
+
+# ## Merging consumption and customers info datasets
+# if(!file.exists("data/scratch/aggregated_data.RDS")) {
+#   
+#   # agreement data
+#   # run queries/Cosy - agreement data
+#   agreements <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
+#     filter(product_display_name == "Cosy Octopus") %>%
+#     arrange(hashed_mpan, agreement_valid_from) %>%
+#     mutate(
+#       from = as.Date(agreement_valid_from),
+#       to = as.Date(agreement_valid_to)
+#     ) %>%
+#     select(hashed_mpan, from, to) %>%
+#     group_by(hashed_mpan) %>%
+#     summarise(
+#       periods = list(data.frame(from, to)),
+#       first_adoption = min(from),  # Get the earliest agreement date for 'adoption'
+#       first_week = format(min(from), "%Y-%U"),  # Format the first adoption date as year-week
+#       .groups = 'drop'
+#     )
+#   
+#   # files are created using 
+#   # queries/cosy - cosy electricity readings
+#   # queries/cosy - cosy electricity reading part 2 which I ran for different years seperately
+#   aggregated_data <- rbind(fread("data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26.csv"),
+#                            fread("data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (1).csv"),
+#                            fread("data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (2).csv")) %>%
+#     rename(total_consumption = total_read_value,
+#            consumption_hh = mean_read_value) %>%
+#     mutate(date = as.Date(settlement_date)) %>% 
+#     filter(!is.na(date))     %>%
+#     select(-c(settlement_date))
+#   
+#   # Function to check if a date falls within any period
+#   check_active_contract <- function(date, periods) {
+#     any(sapply(1:nrow(periods[[1]]), function(i) date >= periods[[1]][i, "from"] && (date <= periods[[1]][i, "to"] | is.na(periods[[1]][i, "to"]))))
+#   }
+#   
+#   # Add indicator without heavy merging
+#   consumption_with_indicator <- aggregated_data %>%
+#     rowwise() %>%
+#     mutate(
+#       cosy_contract_active = {
+#         periods <- agreements$periods[agreements$hashed_mpan == hashed_mpan]
+#         if (length(periods) == 0) 0 else as.integer(check_active_contract(date, periods))
+#       }
+#     ) %>%
+#     ungroup()
+#   
+#   # join with the earliest adoption date
+#   aggregated_data <- consumption_with_indicator %>%
+#     inner_join(agreements %>% select(-periods))
+#   
+#   # add overall
+#   aggregated_data <- rbind(
+#     aggregated_data, 
+#     aggregated_data %>% 
+#       group_by(account_id, hashed_mpan, date, cosy_contract_active, first_adoption, first_week) %>%
+#       summarise(total_consumption = sum(total_consumption)) %>%
+#       mutate(rate_period = "Overall",
+#              consumption_hh = total_consumption/48)) %>%
+#     mutate(rate_period = factor(rate_period, levels = c("Morning Cosy",
+#                                                         "Afternoon Cosy",
+#                                                         "Peak Rate",
+#                                                         "Other", 
+#                                                         "Overall")), 
+#            weeks_since_cosy = floor(as.numeric(difftime(date, first_adoption, units = "weeks")))) 
+#   
+#   # Remove the ~ 50 mpans with 2 account id
+#   duplicate_mpan <- aggregated_data %>%
+#     select(account_id, hashed_mpan) %>%    # Selecting the necessary columns
+#     distinct() %>%                         # Removing completely identical rows
+#     count(hashed_mpan) %>%                 # Count occurrences of each hashed_mpan
+#     filter(n > 1) %>%                      # Keep only those with more than one occurrence
+#     left_join(aggregated_data %>% group_by(account_id, hashed_mpan) %>% summarise(min_date = min(date), max_date = max(date)), by = "hashed_mpan") %>%
+#     arrange(hashed_mpan, account_id)       # Arrange for better visibility
+#   
+#   # add customers characteristics
+#   # from queries/cosy - cosy details
+#   cosy_cosy_details_2024_06_25 <- fread("data/input/cosy_-_cosy_details_2024_06_25.csv") %>%
+#     distinct()
+#   
+#   # Remove moan associated with two accounts !
+#   merged_data <- aggregated_data %>%
+#     filter(!hashed_mpan %in% duplicate_mpan$hashed_mpan) %>%
+#     inner_join(cosy_cosy_details_2024_06_25)
+#   
+#   # add weather
+#   # queries/cosy analysis - weather
+#   weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
+#     rename_with(.cols = starts_with("weekly"), 
+#                 .fn = ~ sub("^weekly", "daily", .)) %>%
+#     mutate(date_day=as.Date(date_day, format = "%Y-%m-%d")) %>%
+#     rename(date = date_day)
+#   
+#   aggregated_data <- merged_data %>%
+#     left_join(weather, by =c("gsp_group_id", "date"))
+#   
+#   
+#   Prev_contract <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
+#     arrange(hashed_mpan, as.Date(agreement_valid_from)) %>%
+#     group_by(hashed_mpan) %>%
+#     mutate(
+#       previous_contract = lag(product_display_name),
+#       previous_is_variable = lag(is_variable),
+#       previous_is_charged_half_hourly = lag(is_charged_half_hourly),
+#       is_cosy = product_display_name == "Cosy Octopus"
+#     ) %>%
+#     filter(is_cosy) %>%
+#     slice_head(n=1)
+#   
+#   # EPC
+#   aggregated_data <- aggregated_data %>%
+#     mutate(epc_letter = case_when(
+#       energy_efficiency >= 91 ~ "A",
+#       energy_efficiency >= 81 & energy_efficiency <= 90 ~ "B",
+#       energy_efficiency >= 69 & energy_efficiency <= 80 ~ "C",
+#       energy_efficiency >= 55 & energy_efficiency <= 68 ~ "D",
+#       energy_efficiency >= 39 & energy_efficiency <= 54 ~ "E",
+#       energy_efficiency >= 21 & energy_efficiency <= 38 ~ "F",
+#       energy_efficiency <= 20 ~ "G",
+#       TRUE ~ NA_character_
+#     ),
+#     eac_mwh = estimated_annual_consumption/1000) %>%
+#     left_join(Prev_contract) 
+#   
+#   # Temperature
+#   aggregated_data <- aggregated_data %>% 
+#     mutate(hdd = factor(
+#       case_when(
+#         daily_avg_air_temperature_celsius < 0 ~ 0,
+#         daily_avg_air_temperature_celsius < 15.5 ~ round(daily_avg_air_temperature_celsius),
+#         TRUE ~ 15
+#       )
+#     ))
+# 
+#   saveRDS(aggregated_data, "data/scratch/aggregated_data.RDS")
+#   
+#   rm(weather, adoption, consumption_with_indicator, agreements)
+# } else {
+#   aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") 
+# }
+# 
+# # Run on a subsample of the data for faster processing
+# if (random_subsample) {
+#   set.seed(123)
+#   sampled_accounts <- sample(unique(aggregated_data$account_id), 1000)
+#   aggregated_data <- aggregated_data %>% 
+#     filter(account_id %in% sampled_accounts)
+#   gc()
+# }
+
+source("scripts/02_02_rate_graphs.R")
+rm(list = setdiff(ls(), list_env))
+
+# ## Rates Graphs 
+# 
+# ### Figure 2: Cosy Rate by Period
+# 
+# # Load the prices
+# rates <- fread("data/input/cosy_-_rate_analysis_2024_07_15.csv")  %>%
+#   mutate(valid_from = as.Date(valid_from),
+#          valid_to = as.Date(valid_to),
+#          valid_from = ifelse(is.na(valid_from), as.Date("2022-12-13"), valid_from),
+#          valid_to = ifelse(is.na(valid_to), as.Date("2024-07-15"), valid_to),
+#          valid_from = as.Date(valid_from),
+#          valid_to = as.Date(valid_to)
+#   ) %>%
+#   filter(!(valid_from == as.Date("2022-12-13") & valid_to == as.Date("2023-03-31")), !valid_from == "2024-06-30") 
+# 
+# # Add the typical marginal price as a reference column
+# marginal_price <- rates %>%
+#   filter(rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND") %>%
+#   distinct(tariff_gsp_group_id, valid_from, unit_rate) %>%
+#   rename(typical_marginal_price=unit_rate)
+# 
+# # Merge typical marginal price back into the full dataset
+# rates <- rates %>%
+#   left_join(marginal_price) %>%
+#   mutate(share_of_typical = unit_rate / typical_marginal_price * 100)
+# 
+# plot_selection <- rates %>%
+#   filter(tariff_gsp_group_name == "North Western",valid_from == "2022-12-13") 
+# 
+# # Get the unique valid_from date
+# unique_valid_from <- unique(plot_selection$valid_from)
+# 
+# # Create a sequence of times for the single day in 1-minute intervals
+# times <- seq(from = as.POSIXct(paste(unique_valid_from, "00:00:00")), 
+#              to = as.POSIXct(paste(unique_valid_from, "23:59:00")), by = "1 min")
+# 
+# # Initialize rates with NA and group
+# rate_data <- data.frame(
+#   time = times,
+#   rate = NA,
+#   group = "Cosy"
+# )
+# 
+# # Function to convert INTERVAL strings to times and apply the rates
+# apply_rates <- function(data, rates) {
+#   for (i in 1:nrow(data)) {
+#     start_time <- as.POSIXct(paste(unique_valid_from, substr(data$rate_start_at[i], 11, 18)), format="%Y-%m-%d %H:%M:%S")
+#     end_time <- as.POSIXct(paste(unique_valid_from, substr(data$rate_end_at[i], 11, 18)), format="%Y-%m-%d %H:%M:%S")
+#     if (start_time > end_time) {
+#       # Handle cases where the interval crosses midnight
+#       rates$rate[rates$time >= start_time | rates$time < end_time] <- data$unit_rate[i]
+#     } else {
+#       rates$rate[rates$time >= start_time & rates$time < end_time] <- data$unit_rate[i]
+#     }
+#   }
+#   return(rates)
+# }
+# 
+# # Apply the rates using the most recent period
+# rate_data <- apply_rates(plot_selection, rate_data)
+# 
+# # Create a data frame for Flexible Octopus with a constant rate
+# flexible_octopus <- data.frame(
+#   time = times,
+#   rate = plot_selection[plot_selection$rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND",]$unit_rate,
+#   group = "Typical Marginal Price"
+# )
+# 
+# # Combine both data frames
+# combined_rates <- rbind(rate_data, flexible_octopus)
+# 
+# # Define the specific rate values for y-axis breaks
+# rate_values <- sort(unique(plot_selection$unit_rate))
+# 
+# # Define the time periods for shading
+# shaded_times <- data.frame(
+#   xmin = as.POSIXct(paste(unique_valid_from, c("04:00:00", "13:00:00", "16:00:00")), format="%Y-%m-%d %H:%M:%S"),
+#   xmax = as.POSIXct(paste(unique_valid_from, c("07:00:00", "16:00:00", "19:00:00")), format="%Y-%m-%d %H:%M:%S"),
+#   fill = c("red", "red", "lightblue")
+# )
+# 
+# # Calculate the typical marginal price (you can adjust this based on your data)
+# typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Marginal Price") %>% pull(rate), na.rm = TRUE)
+# 
+# # Add a new column for the share of the typical marginal price
+# combined_rates <- combined_rates %>%
+#   mutate(share_of_typical = rate / typical_marginal_price * 100)
+# 
+# # Plot the line chart with Flexible Octopus in dashed line and specific y-axis breaks
+# # Assuming unique_valid_from is the date used in your 'time' sequence
+# ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group)) +
+#   geom_rect(data = shaded_times, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = fill),
+#             inherit.aes = FALSE, alpha = 0.2) +
+#   geom_line(size = 1) +
+#   labs(x = "Time of Day",
+#        y = "Rate (p/kWh)",
+#        color = "Tariff") +
+#   scale_x_datetime(date_labels = "%H:%M", 
+#                    date_breaks = "2 hour", 
+#                    limits = c(as.POSIXct(min(combined_rates$time)), 
+#                               as.POSIXct(max(combined_rates$time)- hours(1)))) +  # Set x-axis limits with correct date
+#   scale_y_continuous(
+#     name = "Rate (p/kWh)",
+#     breaks = rate_values,
+#     labels = scales::label_number(accuracy = 0.01),  # Format y-axis with 2 decimal places
+#     sec.axis = sec_axis(~ . / typical_marginal_price, 
+#                         name = "Share of Typical Marginal Price (%)", 
+#                         labels = scales::percent_format(accuracy = 1))
+#   ) +
+#   theme_minimal() + 
+#   theme(legend.position = "bottom") +
+#   scale_color_manual(values = c("Cosy" = cosy_color, "Typical Marginal Price" = flexible_color)) +
+#   scale_linetype_manual(values = c("Cosy" = "solid", "Typical Marginal Price" = "dashed")) +
+#   scale_fill_identity() +
+#   guides(linetype = "none")
+# 
+# ggsave("graphs/Cosy Tariff.png", width = 10, height = 4, dpi = 300)
+# 
+# 
+# # Load the prices
+# rates <- fread("data/input/cosy_-_rate_analysis_2024_07_15.csv")  %>%
+#   mutate(valid_from = as.Date(valid_from),
+#          valid_to = as.Date(valid_to),
+#          valid_from = ifelse(is.na(valid_from), as.Date("2022-12-13"), valid_from),
+#          valid_to = ifelse(is.na(valid_to), as.Date("2024-07-15"), valid_to),
+#          valid_from = as.Date(valid_from),
+#          valid_to = as.Date(valid_to)
+#   ) %>%
+#   filter(!(valid_from == as.Date("2022-12-13") & valid_to == as.Date("2023-03-31")), !valid_from == "2024-06-30") 
+# 
+# # Add the typical marginal price as a reference column
+# marginal_price <- rates %>%
+#   filter(rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND") %>%
+#   distinct(tariff_gsp_group_id, valid_from, unit_rate) %>%
+#   rename(typical_marginal_price=unit_rate)
+# 
+# # Merge typical marginal price back into the full dataset
+# rates <- rates %>%
+#   left_join(marginal_price) %>%
+#   mutate(share_of_typical = unit_rate / typical_marginal_price * 100)
+# 
+# plot_selection <- rates %>%
+#   filter(tariff_gsp_group_name == "North Western",valid_from == "2024-03-31") 
+# 
+# # Get the unique valid_from date
+# unique_valid_from <- unique(plot_selection$valid_from)
+# 
+# # Create a sequence of times for the single day in half-hour intervals
+# times <- seq(from = as.POSIXct(paste(unique_valid_from, "00:00:00")), 
+#              to = as.POSIXct(paste(unique_valid_from, "23:30:00")), by = "30 min")
+# 
+# # Initialize rates with NA and group
+# rate_data <- data.frame(
+#   time = times,
+#   rate = NA,
+#   group = "Cosy"
+# )
+# 
+# # Function to convert INTERVAL strings to times and apply the rates
+# apply_rates <- function(data, rates) {
+#   for (i in 1:nrow(data)) {
+#     start_time <- as.POSIXct(paste(unique_valid_from, substr(data$rate_start_at[i], 11, 18)), format="%Y-%m-%d %H:%M:%S")
+#     end_time <- as.POSIXct(paste(unique_valid_from, substr(data$rate_end_at[i], 11, 18)), format="%Y-%m-%d %H:%M:%S")
+#     if (start_time > end_time) {
+#       # Handle cases where the interval crosses midnight
+#       rates$rate[rates$time >= start_time | rates$time < end_time] <- data$unit_rate[i]
+#     } else {
+#       rates$rate[rates$time >= start_time & rates$time < end_time] <- data$unit_rate[i]
+#     }
+#   }
+#   return(rates)
+# }
+# 
+# # Apply the rates using the most recent period
+# rate_data <- apply_rates(plot_selection, rate_data)
+# 
+# # Create a data frame for Flexible Octopus with a constant rate
+# flexible_octopus <- data.frame(
+#   time = times,
+#   rate = plot_selection[plot_selection$rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND",]$unit_rate,
+#   group = "Typical Marginal Price"
+# )
+# 
+# # Combine both data frames
+# combined_rates <- rbind(rate_data, flexible_octopus)
+# 
+# # Define the specific rate values for y-axis breaks
+# rate_values <- sort(unique(plot_selection$unit_rate))
+# 
+# # Define the time periods for shading
+# shaded_times <- data.frame(
+#   xmin = as.POSIXct(paste(unique_valid_from, c("04:00:00", "13:00:00", "16:00:00")), format="%Y-%m-%d %H:%M:%S"),
+#   xmax = as.POSIXct(paste(unique_valid_from, c("07:00:00", "16:00:00", "19:00:00")), format="%Y-%m-%d %H:%M:%S"),
+#   fill = c("lightblue", "lightblue", "red")
+# )
+# 
+# # Calculate the typical marginal price (you can adjust this based on your data)
+# typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Marginal Price") %>% pull(rate), na.rm = TRUE)
+# 
+# # Add a new column for the share of the typical marginal price
+# combined_rates <- combined_rates %>%
+#   mutate(share_of_typical = rate / typical_marginal_price * 100)
+# 
+# # Plot the line chart with Flexible Octopus in dashed line and specific y-axis breaks
+# ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group)) +
+#   geom_rect(data = shaded_times, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = fill),
+#             inherit.aes = FALSE, alpha = 0.2) +
+#   geom_line(size = 1) +
+#   labs(x = "Time of Day",
+#        y = "Rate (p/kWh)",
+#        color = "Tariff") +
+#   scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hour") +
+#   scale_y_continuous(
+#     name = "Rate (p/kWh)",
+#     breaks = rate_values,
+#     labels = scales::label_number(accuracy = 0.01),  # Format y-axis with 2 decimal places
+#     sec.axis = sec_axis(~ . / typical_marginal_price, 
+#                         name = "Share of Typical Marginal Price (%)", 
+#                         labels = scales::percent_format(accuracy = 1))
+#   ) +
+#   theme_minimal() + 
+#   theme(legend.position = "bottom") +
+#   scale_color_manual(values = c("Cosy" = cosy_color, "Typical Marginal Price" = flexible_color)) +
+#   scale_linetype_manual(values = c("Cosy" = "solid", "Typical Marginal Price" = "dashed")) +
+#   scale_fill_identity() +
+#   guides(linetype = "none")
+# 
+# 
+# 
+# 
+# ### Figure A.16: Rates by Rate Period and GSP Group as of 01 June 2024
+# 
+# # Create rate_period indicator
+# rates <- rates %>%
+#   mutate(rate_period = case_when(
+#     rate_start_at == "INTERVAL '04:00:00' HOUR TO SECOND" ~ "Morning \n & Afternoon Cosy",
+#     rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND" ~ "Other \n ( ~ Typical Marginal Price)",
+#     rate_start_at == "INTERVAL '13:00:00' HOUR TO SECOND" ~ "Morning \n & Afternoon Cosy",
+#     rate_start_at == "INTERVAL '16:00:00' HOUR TO SECOND" ~ "Peak Rate",
+#     rate_start_at == "INTERVAL '19:00:00' HOUR TO SECOND" ~ "Other \n ( ~ Typical Marginal Price)",
+#     TRUE ~ "Other"
+#   ),
+#   rate_period = factor(rate_period, levels = c("Morning \n & Afternoon Cosy","Other \n ( ~ Typical Marginal Price)", "Peak Rate")))
+# 
+# # Get the number of unique GSP group names
+# num_gsp_groups <- length(unique(rates$tariff_gsp_group_name))
+# 
+# # Define a color palette using RColorBrewer and colorRampPalette to generate more colors if needed
+# palette <- colorRampPalette(brewer.pal(12, "Set3"))(num_gsp_groups)
+# 
+# # Add the typical marginal price as a reference column
+# rates_selection <- rates %>%
+#   filter(valid_from == "2024-03-31") 
+# 
+# 
+# # Part 1: Bar graph showing all the rates by rate_period and GSP group name
+# ggplot(rates_selection, aes(x = rate_period, y = unit_rate, fill = tariff_gsp_group_name)) +
+#   geom_bar(stat = "identity", position = "dodge") +
+#   labs(x = "Rate Period",
+#        y = "Rate (p/kWh)",
+#        fill = "GSP Group") +
+#   scale_y_continuous(
+#     name = "Rate (p/kWh)",
+#     labels = scales::label_number(accuracy = 0.01),  # Format y-axis with 2 decimal places
+#     sec.axis = sec_axis(~ . / typical_marginal_price, 
+#                         name = "Share of Typical Marginal Price (%)", 
+#                         labels = scales::percent_format(accuracy = 1))
+#   ) +
+#   theme_minimal() +
+#   scale_fill_manual(values = palette) +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# 
+# ggsave("graphs/Rates_by_Rate_Period_and_GSP_Group.png", width = 10, height = 6, dpi = 300)
+# 
+# 
+# 
+# ### Figure A.17: Rates Over Time
+# 
+# # Get the global min and max unit_rate
+# global_min_rate <- min(rates$unit_rate, na.rm = TRUE)
+# global_max_rate <- max(rates$unit_rate, na.rm = TRUE)
+# 
+# # Part 2: Line graphs showing the change in rates over time for each rate_period, grouped by region
+# rates_long <- rates %>%
+#   group_by(tariff_gsp_group_name, rate_period) %>%
+#   arrange(valid_from)
+# 
+# # Create annotations data frame
+# annotations <- rates_long %>%
+#   group_by(rate_period) %>%
+#   summarise(
+#     valid_from = as.Date("2023-01-01"),
+#     share_of_typical = median(share_of_typical, na.rm = TRUE),
+#     unit_rate = median(unit_rate, na.rm = TRUE),
+#     tariff_gsp_group_name = unique(tariff_gsp_group_name)
+#   )
+# 
+# ggplot(rates_long, aes(x = valid_from, y = unit_rate, color = tariff_gsp_group_name, group = interaction(tariff_gsp_group_name, rate_period))) +
+#   geom_line(size = 1) +
+#   labs(
+#     x = "Date",
+#     y = "Rate (p/kWh)",
+#     color = "GSP Group") +
+#   theme_minimal() +
+#   scale_color_manual(values = palette) +
+#   ylim(global_min_rate, global_max_rate) +
+#   geom_text(data = annotations, aes(label = rate_period), vjust = 0.8, hjust = 0, color = "grey")
+# 
+# 
+# ggsave("graphs/Rate_Changes_by_Period.png", width = 12, height = 8, dpi = 300)
+# 
+# 
+# 
+# 
+# ### Figure A.18: Rates as Share of Typical Marginal Price Over Time
+# 
+# # Aggregate the data by rate_period and valid_from to get the average for all GSP groups
+# rates_avg <- rates %>%
+#   group_by(rate_period, valid_from) %>%
+#   summarise(
+#     avg_unit_rate = mean(unit_rate, na.rm = TRUE),
+#     avg_share_of_typical = mean(share_of_typical, na.rm = TRUE)
+#   )
+# 
+# # Create annotations data frame
+# annotations <- rates_avg %>%
+#   group_by(rate_period) %>%
+#   summarise(
+#     valid_from = as.Date("2023-01-01"),
+#     avg_unit_rate = median(avg_unit_rate, na.rm = TRUE),
+#     avg_share_of_typical = median(avg_share_of_typical, na.rm = TRUE)
+#   )
+# 
+# # Define specific y-axis breaks for share of typical marginal price
+# share_breaks <- seq(0, 160, 20)
+# 
+# # Define a palette of blue colors
+# blue_palette <- scales::brewer_pal(palette = "Blues")(length(unique(rates_avg$rate_period)))
+# 
+# # Plot average share of typical marginal price over time
+# ggplot(rates_avg, aes(x = valid_from, y = avg_share_of_typical, color = rate_period, group = rate_period)) +
+#   geom_line(size = 1) +
+#   labs(
+#     x = "Date",
+#     y = "Average Share of Typical Marginal Price (%)",
+#     color = "Rate Period"
+#   ) +
+#   theme_minimal() +
+#   scale_color_manual(values = blue_palette) +
+#   scale_y_continuous(
+#     name = "Average Share of Typical Marginal Price (%)",
+#     breaks = share_breaks,
+#     labels = scales::percent_format(accuracy = 0.1, scale = 1)
+#   ) + 
+#   theme(legend.position = "bottom") +
+#   geom_text(data = annotations, aes(label = rate_period), vjust = 1.2, hjust = 0, color = "grey")
+# 
+# 
+# ggsave("graphs/Average_Share_of_Typical_Marginal_Price_by_Period.png", width = 12, height = 8, dpi = 300)
+
+
+source("scripts/02_03_summary_graphs.R")
+
+# List objects in the environment
+list_env <- c(ls(), "list_env")
+
+
+# ## Summary Statistics Tables and Graphs {#sec:sumstats}
+# Next_contract <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
+#   arrange(hashed_mpan, desc(as.Date(agreement_valid_from))) %>%
+#   group_by(hashed_mpan) %>%
+#   mutate(na_flag = ifelse(is.na(agreement_valid_to), 1, 0),
+#          na_cumsum = cumsum(na_flag)) %>%
+#   filter(na_cumsum == 1) %>%
+#   select(-na_flag, -na_cumsum) %>%
+#   ungroup()%>%
+#   group_by(hashed_mpan) %>%
+#   slice(1) %>%
+#   mutate(is_variable = ifelse(product_display_name %in% 
+#                                 c("Co-op Flexible",
+#                                   "Flexible Avro",
+#                                   "Flexible Octopus",
+#                                   "Flexible Octopus Smart Pay as You Go",
+#                                   "Loyal Flexible Octopus Smart Pay as You Go"), FALSE, is_variable)) %>%
+#   group_by(is_charged_half_hourly) %>%
+#   tally() %>%
+#   ungroup() %>%
+#   mutate(share_is_variable = n/sum(n))
+# 
+# # Contract before cosy
+# first_cosy_contracts <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
+#   arrange(hashed_mpan, as.Date(agreement_valid_from)) %>%
+#   group_by(hashed_mpan) %>%
+#   mutate(
+#     previous_contract = lag(product_display_name),
+#     previous_is_variable = lag(is_variable),
+#     previous_is_charged_hh = lag(is_charged_half_hourly),
+#     is_cosy = product_display_name == "Cosy Octopus"
+#   ) %>%
+#   filter(is_cosy) %>%
+#   slice_head(n = 1) %>%
+#   mutate(previous_is_variable = ifelse(previous_contract %in% 
+#                                          c("Co-op Flexible",
+#                                            "Flexible Avro",
+#                                            "Flexible Octopus",
+#                                            "Flexible Octopus Smart Pay as You Go",
+#                                            "Loyal Flexible Octopus Smart Pay as You Go"), 
+#                                        FALSE, 
+#                                        previous_is_variable)) %>%
+#   filter(!is.na(previous_is_variable)) %>%
+#   group_by(previous_is_charged_hh) %>%
+#   tally() %>%
+#   mutate(share = 100*n/sum(n)) %>%
+#   arrange(share)
+# 
+# 
+# ### Figure 3: Weekly Adoption of the Cosy tariff
+# # Prepare the data
+# weekly_adoptions <- aggregated_data %>%
+#   ungroup() %>%
+#   select(hashed_mpan, first_adoption) %>%
+#   distinct() %>%
+#   mutate(first_week = floor_date(first_adoption, "week")) %>%
+#   group_by(first_week) %>%
+#   summarise(adoptions = n())
+# 
+# # Define the date for the announcement
+# announcement_date <- as.Date("2023-08-31")
+# 
+# # Choose a color from the Brewer palette for the text annotation
+# text_color <- brewer.pal(n = 3, name = "Set1")[1]
+# 
+# # Create the plot with the vertical line and adjusted annotation
+# ggplot(weekly_adoptions, aes(x = first_week, y = adoptions)) +
+#   geom_line(color = cosy_color) +  # Line plot for trends with a color from the Brewer palette
+#   geom_point(color = cosy_color) +  # Points to highlight individual data with the same color
+#   geom_vline(xintercept = as.numeric(announcement_date), linetype = "dashed", color = text_color) +  # Vertical line for the announcement
+#   annotate("text", x = announcement_date - weeks(1), y = 150,
+#            label = "Announcement:\nBoiler Upgrade Scheme\nincrease to £7,500", hjust = 1, color = text_color) +  # Annotate the vertical line
+#   labs(
+#     x = "Week",
+#     y = "Customers switching to Cosy"
+#   ) +
+#   scale_x_date(
+#     labels = scales::date_format("%b %y"),  # Formatting months and years
+#     date_breaks = "1 month"  # Adjust this based on your data density
+#   ) +
+#   theme_minimal() +
+#   theme(
+#     legend.position="none",
+#     axis.text.x = element_text(angle = 45, hjust = 1)  # Improve readability by rotating labels
+#   )
+# 
+# # Save the plot
+# ggsave("graphs/weekly_adoptions.png", width = 16, height = 8, units = "cm")
+# 
+# 
+# # Analyze contracts
+# contract_analysis_all <-fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") 
+# 
+# contract_analysis <- contract_analysis_all %>%
+#   inner_join(aggregated_data %>% distinct(account_id, hashed_mpan)) %>%
+#   filter(product_display_name == "Cosy Octopus") %>%
+#   arrange(account_id, hashed_mpan, agreement_valid_from) %>%
+#   mutate(
+#     from = as.Date(agreement_valid_from),
+#     to = as.Date(agreement_valid_to)
+#   ) %>%
+#   select(account_id, hashed_mpan, from, to) %>%
+#   group_by(account_id) %>%
+#   summarise(
+#     num_contracts = n(),  # Count number of contracts per customer
+#     ongoing = sum(is.na(to)),  # Count how many contracts are ongoing
+#     ended = sum(!is.na(to))  # Count how many contracts have ended
+#   ) %>%
+#   mutate(
+#     category = case_when(
+#       num_contracts == 1 & ongoing == 1 ~ "Stayed on Cosy (ongoing)",
+#       num_contracts == 1 & ended == 1 ~ "Tried then switched",
+#       num_contracts > 1 ~ "Multiple contracts",
+#       TRUE ~ "Other"  # Catch-all for any other cases
+#     )
+#   )
+# 
+# # Count each category
+# category_counts <- contract_analysis %>%
+#   count(category)
+# 
+# print(category_counts)
+# 
+# 
+
+source("scripts/02_04_data_validity.R")
+
+source("scripts/02_05_balance_table.R")
+
+source("scripts/02_06_ev_ownership.R")
+
+# # Empirical Analysis {#sec:results}
+# 
+# ## TWFE Heterogeneity Analysis
+# 
+# ### Table A.9: Cosy Adoption on Electricity Consumption Controlling for EV Charging
+# # ev half hours 
+# # Read the CSV file
+# ev_charging <- fread("data/input/cosy_-_ev_detection_2024_07_04.csv") %>%
+#   mutate(ev_charging = 1,
+#          date = as.Date(interval_start),
+#          interval_start = as.POSIXct(interval_start, format="%Y-%m-%d %H:%M:%S"),
+#          hour = as.integer(format(interval_start, "%H")),
+#          rate_period = case_when(
+#            hour >= 4 & hour < 7 ~ "Morning Cosy",
+#            hour >= 13 & hour < 16 ~ "Afternoon Cosy",
+#            hour >= 16 & hour < 19 ~ "Peak Rate",
+#            TRUE ~ "Other"
+#          )
+#   )
+# 
+# # Aggregate at the account id, mpan, date and rate period level
+# ev_charging_agg <- rbind(ev_charging %>%
+#                            group_by(account_id,  hashed_mpan, date, rate_period) %>%
+#                            tally(),
+#                          ev_charging %>%
+#                            group_by(account_id,  hashed_mpan, date) %>%
+#                            tally() %>% 
+#                            mutate(rate_period="Overall")) %>%
+#   rename(ev_charging=n)
+# 
+# # EV users details
+# ev_users <- ev_charging %>%
+#   group_by(account_id) %>%
+#   summarise(is_ev_detected= min(as.Date(interval_start)))
+# 
+# # Update hp_installed with the new ev_charging values using case_when
+# aggregated_data <- aggregated_data %>%
+#   left_join(ev_charging_agg) %>%
+#   mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging),
+#          ev_charging = case_when(
+#            rate_period == "Overall" ~ ev_charging / 48,
+#            rate_period == "Other" ~ ev_charging / 30,
+#            TRUE ~ ev_charging / 6
+#          ),
+#          rate_period = factor(rate_period, levels = c("Morning Cosy",
+#                                                       "Afternoon Cosy",
+#                                                       "Peak Rate",
+#                                                       "Other", 
+#                                                       "Overall"))) %>%
+#   left_join(ev_users) %>%
+#   mutate(has_ev = as.numeric(is_ev_detected <= date),
+#          has_ev = ifelse(is.na(has_ev), 0, has_ev)) %>%
+#   distinct(account_id, date, rate_period, .keep_all=TRUE)
+# 
+# # Fit the model
+# m1c <- feols(consumption_hh ~ i(cosy_contract_active, ref=0) + has_ev + i(cosy_contract_active, has_ev, ref=0) | 
+#                hdd + account_id + date, 
+#              data = aggregated_data, 
+#              cluster = ~account_id, 
+#              split = ~ rate_period)
+# 
+# etable( m1c, cluster = ~ account_id + date)
+# 
+# # Generate the initial LaTeX table
+# etable(m1c, tex = TRUE, title = "Cosy Adoption on Electricity Consumption Controlling for EV Charging", 
+#        fitstat = ~ N + g + pre_avg + t_obs + r2, 
+#        file = "tables/did_ev.tex", replace = TRUE, label = "tab:hp-did-ev")
+# CleanPreAverage("tables/did_ev.tex")
+# 
+# 
+# ###  Table 3: Cosy Adoption on Probability of Charging EV by Period
+# 
+# # Identify the period with the highest EV charging for each mpan and date
+# ev_charging_max <- ev_charging %>%
+#   group_by(account_id, hashed_mpan, date, rate_period) %>%
+#   summarise(ev_charging = sum(ev_charging, na.rm = TRUE)) %>%
+#   group_by(account_id, hashed_mpan, date) %>%
+#   filter(ev_charging == max(ev_charging)) %>%
+#   mutate(highest_ev_charging = 1) %>%
+#   ungroup()
+# 
+# ev_charging_max <- ev_charging_max %>%
+#   left_join(aggregated_data %>% select(account_id, hashed_mpan, date, cosy_contract_active) %>% distinct()) 
+# 
+# # Create dummy variables for rate periods
+# ev_charging_max <- ev_charging_max %>%
+#   mutate(
+#     Morning_Cosy = ifelse(rate_period == "Morning Cosy", 1, 0),
+#     Afternoon_Cosy = ifelse(rate_period == "Afternoon Cosy", 1, 0),
+#     Peak_Rate = ifelse(rate_period == "Peak Rate", 1, 0),
+#     Other = ifelse(rate_period == "Other", 1, 0)
+#   )
+# 
+# # Run the fixed effects models
+# m_charging1 <- feols(Morning_Cosy ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
+# m_charging2 <- feols(Afternoon_Cosy ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
+# m_charging3 <- feols(Peak_Rate ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
+# m_charging4 <- feols(Other ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
+# 
+# 
+# # Generate the LaTeX table with the dependent variable named "Charging EV"
+# etable(m_charging1, m_charging2, m_charging3, m_charging4, 
+#        tex = TRUE, 
+#        title = "Cosy Adoption on Probability of Charging EV by Period", 
+#        headers = c("Morning Cosy", "Afternoon Cosy", "Peak Rate", "Other"),
+#        fitstat = ~ N + g + pre_avg + r2, 
+#        file = "tables/ev_charging.tex", 
+#        replace = TRUE, 
+#        label = "tab:ev-charging",
+#        dict = c(Morning_Cosy = "Charging EV", 
+#                 Afternoon_Cosy = "Charging EV", 
+#                 Peak_Rate = "Charging EV", 
+#                 Other = "Charging EV"))
+# 
+# file_path <- "tables/ev_charging.tex"
+# 
+# # Read the generated LaTeX file
+# file_content <- readLines(file_path)
+# 
+# # Find the lines with the pre-treatment average and remove them
+# if (length(grep("Charging EV", file_content))==1) {
+#   pre_avg_line_index <- grep("Charging EV", file_content)
+# } else {
+#   pre_avg_line_index <- grep("Charging EV", file_content)[2]
+# }
+# 
+# pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
+# file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
+# 
+# # Find the position just after the coefficients
+# coeff_end_index <- grep("Fixed-effects", file_content) -2
+# 
+# # Insert the pre-treatment average row after the coefficients
+# file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
+# file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
+# 
+# # Add a \midrule after the pre-treatment average
+# file_content <- append(file_content, "\\midrule", after = coeff_end_index)
+# 
+# # Modify the label for "Size of the 'effective' sample" to "Number of Households"
+# sample_line <- grep("Size of the 'effective' sample", file_content)
+# file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
+# 
+# # Modify the name of the dependent in pre-treatment averages
+# var_line <- grep("Half Hourly Consumption", file_content)
+# file_content[sample_line] <- gsub("Half Hourly Consumption", "Charging EV", file_content[var_line])
+# 
+# # Add note
+# note <- "\\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} We show the results of four OLS models where the dependent variable is whether a charging event occurred in the period of interest – morning \\textit{Cosy} 4am-7am (column 1), afternoon \\textit{Cosy} 1pm-4pm (column 2), peak 4pm-7pm (column 3), and all other hours of the day (column 4). The sample is 127,789 charging events among 1,743 \\textit{Cosy} adopters for whom we detect evidence of EV charging. Where a charging events stretches across multiple periods, we attribute it to the period that comprises the \\textit{majority} of the event (in minutes). We see that among these EV owning \\textit{Cosy} adopters, \\textit{Cosy} adoption is associated with more charging the off-peak period and less in the peak and other periods.}"
+# 
+# file_content <- append(file_content, note, after = grep("\\centering", file_content)-1)
+# 
+# # Write the modified content back to the LaTeX file
+# writeLines(file_content, file_path)
+# 
 
 
 ### Table A.10: Impact of Cosy for Leavers
