@@ -7,7 +7,7 @@ packages <- c(
   "knitr", "kableExtra", "did", "fixest", "data.table", "lubridate", 
   "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", 
   "forcats", "viridis",  "stringr", "stargazer", "panelView", "readxl","purrr",
-  "progress", "lfe", "tibble"
+  "progress", "lfe", "tibble", "stringr", "didimputation", "ggtext"
 )
 
 # Function to check if a package is installed, and if not, install it
@@ -55,3 +55,7 @@ rm(list = setdiff(ls(), c("random_subsample", "flexible_color", "cosy_color", "h
 gc()
 
 source("scripts/02_00_cosy.R")
+
+source("scripts/03_00_balance_tables_and_reweighting.R")
+
+source("scripts/04_00_half_hourly_analysis.R")
