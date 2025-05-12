@@ -91,9 +91,7 @@ ggsave("graphs/weekly_adoptions.png", width = 16, height = 8, units = "cm")
 
 
 # Analyze contracts
-contract_analysis_all <-fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") 
-
-contract_analysis <- contract_analysis_all %>%
+contract_analysis <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
   inner_join(aggregated_data %>% distinct(account_id, hashed_mpan)) %>%
   filter(product_display_name == "Cosy Octopus") %>%
   arrange(account_id, hashed_mpan, agreement_valid_from) %>%

@@ -2507,4 +2507,6 @@ rm(list = setdiff(ls(), list_env))
 #        width = 16, height = 8, units = "cm")
 
 
+source("scripts/01_12_DiD_analysis.R")
+rm(list = setdiff(ls(), list_env))
 

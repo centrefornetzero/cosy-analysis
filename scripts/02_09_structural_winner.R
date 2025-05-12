@@ -1,13 +1,3 @@
-# libraries
-library(dplyr)
-library(data.table)
-library(fixest)
-library(tidyr)
-library(ggplot2)
-
-# cosy colour
-cosy_color <- "#5F8ED9"      # Replace with the exact hex code for Cosy
-
 
 # Load the prices
 rates <- fread("data/input/cosy_-_rate_analysis_2024_07_15.csv")  %>%
@@ -61,7 +51,7 @@ aggregated_data <- aggregated_data %>%
 
 
 # get the load shifting coefficients 
-m1 <- feols(consumption_hh ~ i(cosy_contract_active) | daily_avg_heating_degree + account_id + date, 
+m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date, 
             data = aggregated_data, 
             cluster = ~account_id, 
             split = ~ rate_period)
@@ -77,7 +67,7 @@ m1_coefs <- coeftable(m1) %>%
 
 # get the load shifting coefficient by property value decile
 m_property_value <- feols(consumption_hh ~ i(cosy_contract_active, property_value_category, ref =0) 
-                          | date +  account_id + daily_avg_heating_degree,
+                          | date +  account_id + hdd,
                           data = aggregated_data %>% filter(!is.na(property_value_category)),
                           split = ~ rate_period,
                           cluster = ~account_id)
@@ -147,7 +137,7 @@ cosy_saving5 <- aggregated_data %>%
             mean_consumption = sum(mean_consumption)) %>%
   mutate( structural_gain =  marginal_price-cosy_price,
           share_gain = 1-(marginal_price-structural_gain+load_shifting_gain)/marginal_price,
-          saving_gbp = 365.25*(marginal_price-cosy_price-load_shifting_gain)
+          saving_gbp = 365.25*(marginal_price-cosy_price-load_shifting_gain),
           property_value_category = factor(property_value_category, labels = labels))
 
 # Define the shades of reds
