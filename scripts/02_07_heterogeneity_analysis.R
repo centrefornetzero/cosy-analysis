@@ -91,6 +91,10 @@ ggplot(coefs %>% filter(rate_period != "Overall"), aes(x = `Average Daily Temper
 ggsave("graphs/cosy_temperature_binned.png",
        width = 16, height = 8, units = "cm")
 
+# Check how many days under 0
+x <- hp_installed %>% ungroup() %>% filter(treated==1, rate_period=="Overall")  %>% mutate(tempdegree = round(daily_avg_air_temperature_celsius)) %>% distinct(date, tempdegree) %>% filter(tempdegree > 0)
+table(x$tempdegree)
+
 # Unique periods 
 periods <- unique(aggregated_data$rate_period)
 

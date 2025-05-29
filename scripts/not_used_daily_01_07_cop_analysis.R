@@ -1,97 +1,81 @@
-# Load data 
-
-# get consumption by period
-electricity_daily <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
-  group_by(account_id, settlement_date) %>%
-  summarise(total_consumption = sum(total_read_value)) %>%
-  mutate(consumption_hh = total_consumption / 48) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>%
-               distinct(account_id, .keep_all = TRUE),
-             by=c("account_id")) %>%
-  mutate(date = as.Date(settlement_date),
-         is_hp_installed = as.numeric(installed_at <= date))%>%
-  group_by(account_id) %>%
-  mutate(treated = max(is_hp_installed))
-
-
 # Load and preprocess gas consumption data
 # previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
-  group_by(account_id) %>%
-  mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
+cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_gas_consumption_daily_2024_09_10.csv") %>%
+  arrange(account_id, settlement_date)%>%
+  distinct(account_id, settlement_date, .keep_all = TRUE) %>%
+  filter(installed_at < "2024-05-27") %>%
+  mutate(is_hp_installed = as.numeric(installed_at <= settlement_date),
          treated = max(is_hp_installed),
-         min_settlement_week = min(settlement_week)) %>%
-  distinct(account_id, settlement_week, .keep_all = TRUE)
+         min_settlement_date = min(settlement_date),
+         settlement_date = as.Date(settlement_date))
 
 # Create a sequence of weeks
-min_date <- min(cosy_hp_install_gas_consumption$settlement_week)
-max_date <- max(cosy_hp_install_gas_consumption$settlement_week)
+min_date <- min(cosy_hp_install_gas_consumption$settlement_date)
+max_date <- max(cosy_hp_install_gas_consumption$settlement_date)
 all_weeks <- seq(min_date, max_date, by = "week")
 
 # Create a data frame with all combinations of account_id and settlement_week
 all_combinations <- expand.grid(
   account_id = unique(cosy_hp_install_gas_consumption$account_id),
-  settlement_week = all_weeks
+  settlement_date = as.Date(all_weeks)
 )
 
 # Merge with original data
 merged_data <- all_combinations %>%
   left_join(cosy_hp_install_gas_consumption %>% 
-              distinct(account_id, settlement_week, weekly_consumption, 
-                       min_settlement_week, installed_at)) %>%
-  filter(min_settlement_week < settlement_week) %>%
+              distinct(account_id, settlement_date, consumption_chargedcurrent_daily, 
+                       min_settlement_date, installed_at))%>%
+  filter(min_settlement_date < settlement_date) %>%
   mutate(
-    is_hp_installed = as.numeric(installed_at < settlement_week),
-    weekly_consumption = ifelse(is.na(weekly_consumption), 0, weekly_consumption)
+    is_hp_installed = as.numeric(installed_at < settlement_date),
+    gas_consumption = ifelse(is.na(consumption_chargedcurrent_daily), 0, consumption_chargedcurrent_daily)
   ) 
 
 # Define overall_weekly by merging with electricity data
-overall_weekly <- electricity_daily %>%
-  mutate(settlement_week = floor_date(date, "week") + 1,
-         is_hp_installed = as.numeric(installed_at <= settlement_week)) %>%
-  group_by(account_id, hashed_mpan, tariff_gsp_group_id, settlement_week, treated, installed_at, is_hp_installed) %>%
-  summarise(elec_consumption = sum(total_consumption)) %>%
+overall_daily <- hp_installed %>%
+  filter(rate_period== "Overall") %>%
+  filter(account_id %in% merged_data$account_id) %>%
+  select(account_id, date, total_consumption, daily_avg_air_temperature_celsius, is_hp_installed, treated, daily_avg_air_temperature_celsius) %>%
+  rename(elec_consumption = total_consumption) %>%
   left_join(merged_data %>%
-              select(account_id, settlement_week, weekly_consumption) %>%
-              rename(gas_consumption = weekly_consumption)) %>%
+              rename(date = settlement_date) %>%
+              select(account_id, date, gas_consumption)) %>%
   mutate(
-    gas_consumption =  gas_consumption,
-    elec_consumption =  elec_consumption,
+    gas_consumption = gas_consumption,
+    elec_consumption = elec_consumption,
     total_consumption = gas_consumption + elec_consumption
-  ) 
-
-# add weather 
-weather_weekly <- fread("data/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
-  mutate(settlement_week = as.Date(week_date)) %>%
-  select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius)
-
-# merge with consumption data
-overall_weekly <- overall_weekly %>%
-  inner_join(weather_weekly) %>%
-  rename(hdd = avg_heating_degree) %>% 
-  mutate(temp_degree = factor(
+  ) %>%
+  group_by(account_id) %>%
+  mutate(hdd = factor(
     case_when(
-      avg_air_temperature_celsius < 0 ~ 0,
-      avg_air_temperature_celsius < 25.5 ~ round(avg_air_temperature_celsius),
-      TRUE ~ 25
-    )))
+      daily_avg_air_temperature_celsius < 0 ~ 0,
+      daily_avg_air_temperature_celsius < 15.5 ~ round(daily_avg_air_temperature_celsius),
+      TRUE ~ 15
+    )
+  ))
 
-rm(all_combinations, cosy_hp_install_gas_consumption, merged_data, weather_weekly, electricity_daily)
+rm(all_combinations, cosy_hp_install_gas_consumption, merged_data, weather_weekly)
 gc()
 
 # Fit the model
 m1 <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ i(is_hp_installed) | 
-              hdd + account_id + settlement_week, 
-            data = overall_weekly %>% 
-              filter(treated == 1) %>% 
-              ungroup(), 
+              hdd + account_id + date, 
+            data = overall_daily %>% filter(treated == 1) %>% ungroup(), 
             cluster = ~account_id)
 
 # Run the regression model
+overall_daily <- overall_daily %>% 
+  mutate(temp_degree = factor(
+    case_when(
+      daily_avg_air_temperature_celsius < 0 ~ 0,
+      daily_avg_air_temperature_celsius < 25.5 ~ round(daily_avg_air_temperature_celsius),
+      TRUE ~ 25
+    )))
+
 tempreg <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ 
                    i(is_hp_installed, temp_degree, ref=0) |
-                   account_id + temp_degree  + settlement_week,
-                 data = overall_weekly %>% filter(treated == 1) %>% ungroup() ,
+                   account_id + temp_degree  + date,
+                 data = overall_daily %>% filter(treated == 1) %>% ungroup() ,
                  cluster = ~account_id)
 
 # Extract coefficients and standard errors
@@ -123,7 +107,7 @@ coefs_wider <- coefs  %>%
   mutate(quasi_cop = abs(gas_consumption / elec_consumption)) 
 
 # Plot gas and elec
-ggplot(coefs, 
+ggplot(coefs %>% filter(as.numeric(daily_avg_air_temperature_celsius) < 23), 
        aes(x = daily_avg_air_temperature_celsius, y = Estimate, group = lhs)) +
   geom_point(aes(color = lhs, fill = lhs)) +
   geom_line(aes(color = lhs)) +
@@ -164,10 +148,10 @@ for (b in 1:B) {
   pb$tick()
   
   # Resample account_ids with replacement
-  sampled_ids <- sample(unique(overall_weekly$account_id), replace = TRUE)
+  sampled_ids <- sample(unique(overall_daily$account_id), replace = TRUE)
   
   # Rebuild bootstrapped sample
-  boot_data <- overall_weekly %>%
+  boot_data <- overall_daily %>%
     filter(treated == 1) %>%
     semi_join(data.frame(account_id = sampled_ids), by = "account_id")
   
@@ -175,7 +159,7 @@ for (b in 1:B) {
   boot_model <- tryCatch({
     feols(c(elec_consumption, gas_consumption) ~ 
             i(is_hp_installed, temp_degree, ref = 0) |
-            account_id + temp_degree + settlement_week,
+            account_id + temp_degree + date,
           data = boot_data, cluster = ~account_id)
   }, error = function(e) return(NULL))
   
@@ -206,42 +190,11 @@ cop_boot <- bind_rows(results, .id = "bootstrap") %>%
     .groups = "drop"
   )
 
-# ASHP COP data from the EPRI chart
-ashp_cop <- data.frame(
-  temp_f = c(-20, -10, 0, 10, 20, 30, 40, 50, 60),
-  cop = c(1.8, 1.8, 1.9, 2.1, 2.4, 2.7, 3.1, 3.5, 3.9)
-) %>% 
-  mutate(temp_c = (temp_f - 32) * 5 / 9) 
 
-# Create target Celsius values from 0 to 15°C
-target_temps <- tibble(temp_c = seq(0, 15, by = 1))
-
-# Interpolate using base R's approx, wrapped in a tidyverse style
-ashp_interp_df <- target_temps %>%
-  mutate(cop = approx(x = ashp_cop$temp_c, y = ashp_cop$cop, xout = temp_c)$y)
-
-# Define the linear model from The Brattle Group chart
-brattle_cop <- tibble(temp_c = seq(0, 15, by = 1)) %>%
-  mutate(
-    temp_f = temp_c * 9 / 5 + 32,
-    cop = 1.2 + 0.05 * temp_f,
-    temp = as.character(temp_c)  # to match factor format in cop_boot if needed
-  )
-
-ashp_interp_df <- ashp_interp_df %>%
-  mutate(source = "EPRI")
-
-brattle_cop <- brattle_cop %>%
-  select(temp_c, cop) %>%
-  mutate(source = "Brattle")
-
-cop_reference_lines <- bind_rows(ashp_interp_df, brattle_cop)
-
-# Your existing ggplot + ASHP COP overlay
-ggplot(cop_boot %>% filter(as.numeric(temp) < 17), 
-       aes(x = as.numeric(as.character(temp)), y = median)) +
+ggplot(cop_boot %>% filter(as.numeric(temp) < 15), 
+       aes(x = temp, y = median)) +
   geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
-  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = "grey") +
   geom_hline(yintercept = avg_cop, linetype = "dashed", color = hp_color) +
   annotate("text", 
            x = 2.5,
@@ -250,18 +203,12 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 17),
            parse = TRUE,
            color = hp_color,
            size = 4) +
-  # Overlay both COP reference lines with legend
-  geom_line(data = cop_reference_lines, 
-            aes(x = temp_c, y = cop, linetype = source), 
-            color = flexible_color) +
-  scale_linetype_manual(values = c("EPRI" = "solid", "Brattle" = "dashed")) +
   labs(
     x = "Average Temperature in Degrees (°C)",
-    y = "Estimated ratio of heat output \nto energy input",
-    linetype = "COP Source"
+    y = "Estimated ratio of heat output \nto energy input"
   ) +
-  theme_minimal() +
-  theme(legend.position = "bottom") 
+  theme_minimal()
+
 
 # Print the plot
 ggsave(paste0("graphs/quasi_cop.png"),
