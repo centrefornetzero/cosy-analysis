@@ -63,6 +63,9 @@ hp_installed <- hp_installed %>%
 # summary statistics
 summary(hp_installed)
 
+# HP deals and installation
+deals_and_installations <- fread("data/input/cosy_-_hp_deals_and_installation_2025_06_06.csv") %>%
+  distinct(account_id, .keep_all = TRUE)
 
 # Run on a subsample of the data for faster processing
 if (random_subsample) {
