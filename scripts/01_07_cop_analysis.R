@@ -63,7 +63,9 @@ overall_weekly <- electricity_daily %>%
 # add weather 
 weather_weekly <- fread("data/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
   mutate(settlement_week = as.Date(week_date)) %>%
-  select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius)
+  distinct(gsp_group_id, settlement_week, .keep_all = TRUE) %>%
+  select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius) %>%
+  rename(tariff_gsp_group_id = gsp_group_id)
 
 # merge with consumption data
 overall_weekly <- overall_weekly %>%
@@ -76,14 +78,15 @@ overall_weekly <- overall_weekly %>%
       TRUE ~ 25
     )))
 
-rm(all_combinations, cosy_hp_install_gas_consumption, merged_data, weather_weekly, electricity_daily)
+rm(all_combinations, merged_data, weather_weekly, electricity_daily)
 gc()
 
 # Fit the model
 m1 <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ i(is_hp_installed) | 
               hdd + account_id + settlement_week, 
             data = overall_weekly %>% 
-              filter(treated == 1) %>% 
+              filter(treated == 1,
+                     account_id %in% unique(cosy_hp_install_gas_consumption$account_id)) %>% 
               ungroup(), 
             cluster = ~account_id)
 
@@ -91,7 +94,9 @@ m1 <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ i(is_hp_in
 tempreg <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ 
                    i(is_hp_installed, temp_degree, ref=0) |
                    account_id + temp_degree  + settlement_week,
-                 data = overall_weekly %>% filter(treated == 1) %>% ungroup() ,
+                 data = overall_weekly %>% filter(treated == 1,
+                                                  account_id %in% unique(cosy_hp_install_gas_consumption$account_id)) %>% 
+                   ungroup() ,
                  cluster = ~account_id)
 
 # Extract coefficients and standard errors
@@ -176,7 +181,7 @@ for (b in 1:B) {
     feols(c(elec_consumption, gas_consumption) ~ 
             i(is_hp_installed, temp_degree, ref = 0) |
             account_id + temp_degree + settlement_week,
-          data = boot_data, cluster = ~account_id)
+          data = boot_data, cluster = ~account_id, lean=TRUE)
   }, error = function(e) return(NULL))
   
   # If failed, skip

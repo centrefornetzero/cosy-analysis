@@ -69,16 +69,16 @@ text_color <- brewer.pal(n = 3, name = "Set1")[1]
 ggplot(weekly_adoptions, aes(x = first_week, y = adoptions)) +
   geom_line(color = cosy_color) +  # Line plot for trends with a color from the Brewer palette
   geom_point(color = cosy_color) +  # Points to highlight individual data with the same color
-  geom_vline(xintercept = as.numeric(announcement_date), linetype = "dashed", color = text_color) +  # Vertical line for the announcement
+  geom_vline(xintercept = as.numeric(announcement_date), linetype = "dashed", color = cosy_color) +  # Vertical line for the announcement
   annotate("text", x = announcement_date - weeks(1), y = 150,
-           label = "Announcement:\nBoiler Upgrade Scheme\nincrease to £7,500", hjust = 1, color = text_color) +  # Annotate the vertical line
+           label = "Announcement:\nBoiler Upgrade Scheme\nincrease to £7,500", hjust = 1, color = cosy_color) +  # Annotate the vertical line
   labs(
     x = "Week",
     y = "Customers switching to Cosy"
   ) +
   scale_x_date(
-    labels = scales::date_format("%b %y"),  # Formatting months and years
-    date_breaks = "1 month"  # Adjust this based on your data density
+    labels = scales::date_format("%b %y"),
+    date_breaks = "3 month"
   ) +
   theme_minimal() +
   theme(
