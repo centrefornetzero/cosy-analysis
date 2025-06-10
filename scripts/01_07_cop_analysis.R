@@ -78,25 +78,27 @@ overall_weekly <- overall_weekly %>%
       TRUE ~ 25
     )))
 
-rm(all_combinations, merged_data, weather_weekly, electricity_daily)
+# Gas only 
+overall_weekly <- overall_weekly %>% 
+  filter(treated == 1) %>%
+  inner_join(cosy_hp_install_gas_consumption %>% distinct(account_id))
+
+
+rm(all_combinations, merged_data, weather_weekly, electricity_daily, cosy_hp_install_gas_consumption)
 gc()
 
+       
 # Fit the model
 m1 <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ i(is_hp_installed) | 
               hdd + account_id + settlement_week, 
-            data = overall_weekly %>% 
-              filter(treated == 1,
-                     account_id %in% unique(cosy_hp_install_gas_consumption$account_id)) %>% 
-              ungroup(), 
+            data = overall_weekly, 
             cluster = ~account_id)
 
 # Run the regression model
 tempreg <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ 
                    i(is_hp_installed, temp_degree, ref=0) |
                    account_id + temp_degree  + settlement_week,
-                 data = overall_weekly %>% filter(treated == 1,
-                                                  account_id %in% unique(cosy_hp_install_gas_consumption$account_id)) %>% 
-                   ungroup() ,
+                 data = overall_weekly,
                  cluster = ~account_id)
 
 # Extract coefficients and standard errors
@@ -120,6 +122,8 @@ coefs <- coeftable(tempreg) %>%
          upper_ci_ATE = `/% ATE` + 1.96 * (`Std..Error` / avg_ate * 100)
   ) %>%
   filter(lhs != "total_consumption") 
+fwrite(coefs, "data/scratch/gas_electricity_by_temperature.csv")
+
 
 coefs_wider <- coefs  %>%
   filter(lhs != "total_consumption") %>%
@@ -128,7 +132,7 @@ coefs_wider <- coefs  %>%
   mutate(quasi_cop = abs(gas_consumption / elec_consumption)) 
 
 # Plot gas and elec
-ggplot(coefs, 
+ggplot(coefs %>% filter(as.numeric(daily_avg_air_temperature_celsius) <23), 
        aes(x = daily_avg_air_temperature_celsius, y = Estimate, group = lhs)) +
   geom_point(aes(color = lhs, fill = lhs)) +
   geom_line(aes(color = lhs)) +
@@ -247,11 +251,11 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 17),
        aes(x = as.numeric(as.character(temp)), y = median)) +
   geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
-  geom_hline(yintercept = avg_cop, linetype = "dashed", color = hp_color) +
+  geom_hline(yintercept = 3.37, linetype = "dashed", color = hp_color) +
   annotate("text", 
            x = 2.5,
            y = avg_cop + 0.4,
-           label = paste0("italic('Sample average ≈", round(avg_cop, 2), "')"),
+           label = paste0("italic('Sample average ≈", 3.37, "')"),
            parse = TRUE,
            color = hp_color,
            size = 4) +
@@ -263,7 +267,7 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 17),
   labs(
     x = "Average Temperature in Degrees (°C)",
     y = "Estimated ratio of heat output \nto energy input",
-    linetype = "COP Source"
+    linetype = "Engineering Models of COP"
   ) +
   theme_minimal() +
   theme(legend.position = "bottom") 
