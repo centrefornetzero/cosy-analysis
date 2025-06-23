@@ -646,7 +646,7 @@ ggsave("graphs/HP_anticipation.png")
 
 rds_files <- list(
   Overall =  "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly_gas_only.RDS",
+  Electricity = "data/scratch/est_cs_elec_weekly.RDS",
   Gas = "data/scratch/est_cs_gas_weekly.RDS"
 )
 
