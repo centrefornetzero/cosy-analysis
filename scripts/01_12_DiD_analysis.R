@@ -40,15 +40,25 @@ hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% dis
 
 # Load and preprocess gas consumption data
 # previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
+min_weeks <- fread("~/Downloads/New_Query_2025-06-16_3_04pm_2025_06_17.csv") %>%
   group_by(account_id) %>%
+  rename(settlement_week = week_starting) %>%
+  distinct(account_id, settlement_week, .keep_all = TRUE) %>%
+  group_by(account_id, installed_at) %>%
+  mutate(sum_consumption = sum(weekly_kwh)) %>%
+  filter(weekly_kwh > 0) %>%
+  mutate(min_settlement_week = min(settlement_week))%>%
+  distinct(account_id, min_settlement_week)
+
+cosy_hp_install_gas_consumption <- fread("~/Downloads/New_Query_2025-06-16_3_04pm_2025_06_17.csv") %>%
+  group_by(account_id) %>%
+  rename(settlement_week = week_starting) %>%
   mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
-         treated = max(is_hp_installed),
-         min_settlement_week = min(settlement_week)) %>%
+         treated = max(is_hp_installed)) %>%
   distinct(account_id, settlement_week, .keep_all = TRUE)
 
 # Create a sequence of weeks
-min_date <- min(cosy_hp_install_gas_consumption$settlement_week)
+min_date <- min(min_weeks$min_settlement_week)
 max_date <- max(cosy_hp_install_gas_consumption$settlement_week)
 all_weeks <- seq(min_date, max_date, by = "week")
 
@@ -60,14 +70,18 @@ all_combinations <- expand.grid(
 
 # Merge with original data
 merged_data <- all_combinations %>%
+  inner_join(min_weeks) %>%
   left_join(cosy_hp_install_gas_consumption %>% 
+              rename(weekly_consumption = weekly_kwh) %>%
               distinct(account_id, settlement_week, weekly_consumption, 
-                       min_settlement_week, installed_at)) %>%
+                       installed_at)) %>%
   filter(min_settlement_week < settlement_week) %>%
   mutate(
     is_hp_installed = as.numeric(installed_at < settlement_week),
     weekly_consumption = ifelse(is.na(weekly_consumption), 0, weekly_consumption)
-  ) 
+  ) %>%
+  filter(account_id %in% unique(hp_installed$account_id))
+length(unique(merged_data$account_id))
 
 # Define overall_weekly by merging with electricity data
 overall_weekly <- hp_installed %>%
@@ -98,8 +112,8 @@ did_data <- overall_weekly %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
   select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
-  filter(week <= 129, firstweek <= 129) 
-
+  filter(week <= 129, firstweek <= 129)  
+  
 # Step 2: Estimate CS models and save results
 
 # Define the output filenames for the main analysis
@@ -133,7 +147,6 @@ for (i in seq_along(yname_vars)) {
   saveRDS(est_cs, filename)
   message("Saved: ", filename)
 }
-
 
 # Robustness check with base_period = "universal"
 robust_output_filenames <- gsub("\\.RDS$", "_robust_universal.RDS", output_filenames)
@@ -198,9 +211,9 @@ for (i in seq_along(yname_vars)) {
 }
 
 # Step 4: Estimate CS models for the gas-only subset
-
 did_data <- overall_weekly %>%
   ungroup() %>%
+  filter(account_id %in% unique(merged_data$account_id)) %>%
   mutate(
     week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
     firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
@@ -209,8 +222,7 @@ did_data <- overall_weekly %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
   select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
-  filter(week <= 129, firstweek <= 129)  %>% 
-  filter(!is.na(gas_consumption))
+  filter(week <= 129, firstweek <= 129) 
 
 gas_only_output_filename <- "data/scratch/est_cs_elec_weekly_gas_only.RDS"
 
@@ -629,7 +641,6 @@ ggplot(plot_data, aes(x = anticipation_week, y = estimate, color = type, fill = 
   theme(legend.position = "bottom")
 
 ggsave("graphs/HP_anticipation.png")
-
 
 
 
