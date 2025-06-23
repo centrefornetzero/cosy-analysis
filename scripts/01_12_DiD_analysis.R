@@ -40,7 +40,7 @@ hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% dis
 
 # Load and preprocess gas consumption data
 # previous 2024_06_13.csv
-min_weeks <- fread("~/Downloads/New_Query_2025-06-16_3_04pm_2025_06_17.csv") %>%
+min_weeks <- fread("data/input/hp_gas_consumption_2025_06_17.csv") %>%
   group_by(account_id) %>%
   rename(settlement_week = week_starting) %>%
   distinct(account_id, settlement_week, .keep_all = TRUE) %>%
@@ -50,7 +50,7 @@ min_weeks <- fread("~/Downloads/New_Query_2025-06-16_3_04pm_2025_06_17.csv") %>%
   mutate(min_settlement_week = min(settlement_week))%>%
   distinct(account_id, min_settlement_week)
 
-cosy_hp_install_gas_consumption <- fread("~/Downloads/New_Query_2025-06-16_3_04pm_2025_06_17.csv") %>%
+cosy_hp_install_gas_consumption <- fread("data/input/hp_gas_consumption_2025_06_17.csv") %>%
   group_by(account_id) %>%
   rename(settlement_week = week_starting) %>%
   mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
