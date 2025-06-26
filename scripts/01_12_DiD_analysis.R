@@ -198,7 +198,6 @@ for (i in seq_along(yname_vars)) {
 }
 
 # Step 4: Estimate CS models for the gas-only subset
-
 did_data <- overall_weekly %>%
   ungroup() %>%
   mutate(
@@ -360,7 +359,13 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
 }
 
 
-# Example usage
+# Example usage            
+rds_files <- list(
+  Overall =  "data/scratch/est_cs_total_weekly.RDS",
+  Electricity = "data/scratch/est_cs_elec_weekly.RDS",
+  Gas = "data/scratch/est_cs_gas_weekly.RDS"
+)
+               
 aggte_simple_overall <- aggte(readRDS(rds_files$Overall), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 aggte_simple_elec <- aggte(readRDS(rds_files$Electricity), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 aggte_simple_gas <- aggte(readRDS(rds_files$Gas), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
@@ -456,13 +461,6 @@ file_name <- "graphs/dynamic_hp_plot_combined.png"
 
 # Save the plot
 ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
-
-# Define the paths to the RDS files for electricity and gas
-rds_files <- list(
-  Overall =  "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly.RDS"
-)
 
 # define the start date
 start_date <- min(overall_weekly$settlement_week)
