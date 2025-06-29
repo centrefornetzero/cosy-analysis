@@ -199,6 +199,7 @@ for (i in seq_along(yname_vars)) {
 
 # Step 4: Estimate CS models for the gas-only subset
 start_date <- min(overall_weekly$settlement_week)
+start_date <- min(overall_weekly$settlement_week)
 did_data <- overall_weekly %>%
   filter(account_id %in% merged_data$account_id) %>%
   ungroup() %>%
@@ -206,7 +207,7 @@ did_data <- overall_weekly %>%
     week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
     firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
   ) %>%
-  group_by(account_id, firstweek, week) %>%
+  group_by(account_id) %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
   select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
@@ -233,53 +234,5 @@ message("Saved: ", gas_only_output_filename)
 
 
 
-# Same dataset with not yet treated
-start_date <- min(overall_weekly$settlement_week)
-did_data <- overall_weekly %>%
-  ungroup() %>%
-  mutate(
-    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
-    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
-  ) %>%
-  group_by(account_id) %>%
-  mutate(id = cur_group_id()) %>%
-  ungroup() %>%
-  select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
-  filter(week <= 129, firstweek <= 129) 
 
-# Define the output base paths for gas and electricity
-output_base_path <- "data/scratch/"
-output_filenames <- c("est_cs_elec_weekly", "est_cs_gas_weekly")
-
-# Define the corresponding variable names
-yname_vars <- c("elec_consumption", "gas_consumption")
-
-# Loop over 0 to 10 weeks of anticipation and save each estimate with a unique filename
-for (i in seq_along(yname_vars)) {
-  yname <- yname_vars[i]
-  base_filename <- output_filenames[i]
-  
-  for (anticipation_week in 0:10) {
-    # Create the dynamic filename with anticipation week included
-    filename <- paste0(output_base_path, base_filename, "_anticipation_", anticipation_week, ".RDS")
-    
-    message("Estimating treatment effect for ", yname, " with anticipation ", anticipation_week, " and saving to ", filename)
-    
-    # Estimate the treatment effect with varying anticipation
-    est_cs <- att_gt(yname = yname,
-                     tname = "week",
-                     idname = "id",
-                     gname = "firstweek",
-                     data = did_data,
-                     anticipation = anticipation_week,
-                     clustervars = "id",
-                     control_group = c("notyettreated"),
-                     allow_unbalanced_panel = TRUE,
-                     base_period = "varying")
-    
-    # Save the result with the constructed filename
-    saveRDS(est_cs, filename)
-    message("Saved: ", filename)
-  }
-}
 
