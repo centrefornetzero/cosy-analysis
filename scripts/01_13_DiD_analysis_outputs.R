@@ -15,27 +15,6 @@ hp_installed <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
   group_by(account_id) %>%
   mutate(treated = max(is_hp_installed))  # identify treated versus not yet treated
 
-# add daily weather data
-weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
-  rename_with(.cols = starts_with("weekly"), 
-              .fn = ~ sub("^weekly", "daily", .)) %>%
-  rename(tariff_gsp_group_id=gsp_group_id) %>%
-  mutate(date_day=as.Date(date_day, format = "%Y-%m-%d")) %>%
-  rename(date = date_day)
-
-# merge weather
-hp_installed <- hp_installed %>%
-  left_join(weather)
-
-# Round degrees Celsius 
-hp_installed <- hp_installed %>% mutate(hdd = factor(
-  case_when(
-    daily_avg_air_temperature_celsius < 0 ~ 0,
-    daily_avg_air_temperature_celsius < 15.5 ~ round(daily_avg_air_temperature_celsius),
-    TRUE ~ 15
-  )
-))
-
 
 # Check number of accounts
 hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% distinct() %>% dim()
@@ -85,6 +64,25 @@ overall_weekly <- hp_installed %>%
     elec_consumption = 52.25 * elec_consumption,
     total_consumption = gas_consumption + elec_consumption
   ) 
+
+
+# add weather 
+weather_weekly <- fread("data/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
+  mutate(settlement_week = as.Date(week_date)) %>%
+  distinct(gsp_group_id, settlement_week, .keep_all = TRUE) %>%
+  select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius) %>%
+  rename(tariff_gsp_group_id = gsp_group_id)
+
+# merge with consumption data
+overall_weekly <- overall_weekly %>%
+  inner_join(weather_weekly) %>%
+  rename(hdd = avg_heating_degree) %>% 
+  mutate(temp_degree = factor(
+    case_when(
+      avg_air_temperature_celsius < 0 ~ 0,
+      avg_air_temperature_celsius < 25.5 ~ round(avg_air_temperature_celsius),
+      TRUE ~ 25
+    )))
 
 
 # Create CS main results 
@@ -592,11 +590,11 @@ fitstat_register("t_obs", function(x) {
 
 # Apply the TWFE models
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)
 m3 <- feols(total_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)  
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)  
 
 
 # Define the main periods
