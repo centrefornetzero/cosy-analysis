@@ -629,8 +629,8 @@ for(period in main_periods) {
 
 
 # Generate the initial LaTeX table with TWFE models
-etable(m2, m3, m1, 
-       m2, m3, m1,
+etable(m1, m2, m3,
+       m1, m2, m3,
        headers = list(list("TWFE" = 3, "CS" = 3),
                       list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
        depvar = FALSE,
@@ -750,8 +750,8 @@ for(period in main_periods) {
 }
 
 # Generate the initial LaTeX table with TWFE models
-etable(m2, m3, m1, 
-       m2, m3, m1,
+etable(m1, m2, m3, 
+       m1, m2, m3,
        headers = list(list("TWFE" = 3, "CS" = 3),
                       list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
        depvar = FALSE,
