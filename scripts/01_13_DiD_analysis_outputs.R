@@ -629,8 +629,8 @@ for(period in main_periods) {
 
 
 # Generate the initial LaTeX table with TWFE models
-etable(m2_overall, m3_overall, m1_overall, 
-       m2_overall, m3_overall, m1_overall,
+etable(m2, m3, m1, 
+       m2, m3, m1,
        headers = list(list("TWFE" = 3, "CS" = 3),
                       list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
        depvar = FALSE,
@@ -716,11 +716,11 @@ writeLines(file_content, file_path)
 
 # Apply the TWFE models
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id)
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id)
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id)
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id)
 m3 <- feols(total_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id) 
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id) 
 
 # Initialize variables to store estimates and standard errors
 cs_estimates <- list()
@@ -750,8 +750,8 @@ for(period in main_periods) {
 }
 
 # Generate the initial LaTeX table with TWFE models
-etable(m2_overall, m3_overall, m1_overall, 
-       m2_overall, m3_overall, m1_overall,
+etable(m2, m3, m1, 
+       m2, m3, m1,
        headers = list(list("TWFE" = 3, "CS" = 3),
                       list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
        depvar = FALSE,
