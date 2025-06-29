@@ -34,7 +34,6 @@ flexible_color <- "#4C515C"
 cosy_color <- "#5F8ED9"      
 hp_color <- "#AD87CA"
 not_hp_color <- "#2D354A"
-
 rating_colors <- c(
   "A" = "#00CC00",  # Green
   "B" = "#66FF33",  # Light Green
