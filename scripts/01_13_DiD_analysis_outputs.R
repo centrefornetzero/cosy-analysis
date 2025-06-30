@@ -674,7 +674,7 @@ new_se <- c(paste0("(", cs_se[["Electricity"]], ")"),
 coeff_line <- grep("Is HP Installed \\$=\\$ 1", file_content)
 se_line <- coeff_line + 1
 obs_line <- grep("Observations", file_content)
-sample_line <- grep("Size of the 'effective' sample", file_content)
+sample_line <- grep("Number of Households", file_content)
 periods_line <- grep("Number of Time Periods", file_content)
 hdd_line <- grep("HDD", file_content)
 mpan_line <- grep("Household", file_content)[1]
@@ -795,7 +795,7 @@ new_se <- c(paste0("(", cs_se[["Electricity"]], ")"),
 coeff_line <- grep("Is HP Installed \\$=\\$ 1", file_content)
 se_line <- coeff_line + 1
 obs_line <- grep("Observations", file_content)
-sample_line <- grep("Size of the 'effective' sample", file_content)
+sample_line <- grep("Number of Households", file_content)
 periods_line <- grep("Number of Time Periods", file_content)
 hdd_line <- grep("HDD", file_content)
 mpan_line <- grep("Household", file_content)[1]
