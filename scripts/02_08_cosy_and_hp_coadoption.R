@@ -69,7 +69,8 @@ fitstat_register("pre_avg2", function(x) {
 # get install date
 hp_install_date <- fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>%
   select(account_id, installed_at) %>%
-  mutate(installed_at = as.Date(installed_at))
+  mutate(installed_at = as.Date(installed_at)) %>%
+  distinct(account_id, .keep_all = TRUE)
 
 # get people from the survey responders
 survey_responses <- fread("data/input/responses.csv") %>%
@@ -77,9 +78,10 @@ survey_responses <- fread("data/input/responses.csv") %>%
   rename(account_number = kid) %>%
   inner_join(fread("data/input/survey_ids.csv")) %>%
   mutate(installed_at_2 = as.Date(`When was your heat pump installed?`),
-         `Electric vehicle(s)` = as.numeric(`Electric vehicle(s)`=="Electric vehicle(s)"))
+         `Electric vehicle(s)` = as.numeric(`Electric vehicle(s)`=="Electric vehicle(s)")) %>%
+  distinct(account_id, .keep_all = TRUE)
 
-aggregated_data <- aggregated_data %>%
+aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") %>%
   left_join(hp_install_date)  %>%
   left_join(survey_responses)  %>%
   mutate(is_hp_installed = ifelse(!is.na(installed_at), 
@@ -94,7 +96,8 @@ m_hp_cosy <- feols(consumption_hh ~ i(is_hp_installed) + i(cosy_contract_active)
                    split = ~ rate_period)
 
 etable(m_hp_cosy, tex=TRUE, title = "HP and Cosy Adoption",
-       fitstat = ~ N + g + pre_avg2 + pre_avg3  +t_obs + r2, file = "tables/did_hp_install.tex", replace = TRUE, label="tab:did-hp-install")
+       fitstat = ~ N + g + pre_avg2 + pre_avg3  +t_obs + r2, 
+       file = "tables/did_hp_install.tex", replace = TRUE, label="tab:did-hp-install")
 
 
 
@@ -182,8 +185,10 @@ ggsave(paste0("graphs/did_controlling_hp_installation.png"),
        width = 16, height = 8, units = "cm")
 
 
-etable(m_with_control, m_without_control, tex=TRUE, title = "HP and Cosy Adoption",
-       fitstat = ~ N + g  + pre_avg2 + pre_avg3 +t_obs + r2, file = "tables/did_hp_install_overall.tex", replace = TRUE, label="tab:did-hp-install-overall")
+etable(m_with_control, m_without_control, tex=TRUE, 
+       title = "HP and Cosy Adoption",
+       fitstat = ~ N + g  + pre_avg2 + pre_avg3 +t_obs + r2, 
+       file = "tables/did_hp_install_overall.tex", replace = TRUE, label="tab:did-hp-install-overall")
 
 
 # Read the generated LaTeX file
