@@ -96,7 +96,6 @@ did_data <- overall_weekly %>%
   group_by(account_id) %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
-  select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
   filter(week <= 129, firstweek <= 129) 
 
 
@@ -490,7 +489,7 @@ note <- "We show estimates from three CS estimates of the impact of consumption 
 create_latex_table(models, headers, title, file, label, pre_treatment_averages, note)
 
 
-
+# Format the TWFE and CS comparison tex files
 CleanPreAverage <- function(file_path) {
   
   # Read the generated LaTeX file
@@ -590,11 +589,11 @@ fitstat_register("t_obs", function(x) {
 
 # Apply the TWFE models
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)
+            data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)
+            data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)
 m3 <- feols(total_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)  
+            data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)  
 
 
 # Define the main periods
@@ -712,15 +711,34 @@ file_content <- append(file_content, new_row, after = sample_line)
 # Write the modified content back to the LaTeX file
 writeLines(file_content, file_path)
 
+# clean
+rm(m1,m2,m3)
+               
+# Create CS main results 
+start_date <- min(overall_weekly$settlement_week)
+did_data <- overall_weekly %>%
+  ungroup() %>%
+  mutate(
+    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
+  ) %>%
+  group_by(account_id) %>%
+  mutate(id = cur_group_id()) %>%
+  ungroup() %>%
+  filter(week <= 129) %>%
+  mutate(firstweek = ifelse(firstweek > 129, 0, firstweek))
 
 
 # Apply the TWFE models
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id)
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03", 
+                                             account_id %in% did_data$account_id), cluster = ~ account_id)
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id)
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03", 
+                                             account_id %in% did_data$account_id), cluster = ~ account_id)
 m3 <- feols(total_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id) 
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03", 
+                                             account_id %in% did_data$account_id), cluster = ~ account_id) 
 
 # Initialize variables to store estimates and standard errors
 cs_estimates <- list()

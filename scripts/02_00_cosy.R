@@ -185,6 +185,17 @@ CleanPreAverage <- function(file_path) {
   writeLines(file_content, file_path)
 }
 
+# fix dates import
+base_as_date <- base::as.Date  # save original function
+
+as.Date <- function(x, ...) {
+  if (is.numeric(x)) {
+    base_as_date(x, origin = "1970-01-01", ...)
+  } else {
+    base_as_date(x, ...)
+  }
+}
+
 # -----------------------------
 # 7. Data processing
 # -----------------------------
