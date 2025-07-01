@@ -1,7 +1,7 @@
 # Load data 
 
 # get consumption by period
-electricity_daily <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
+hp_installed <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
   group_by(account_id, settlement_date) %>%
   summarise(total_consumption = sum(total_read_value)) %>%
   mutate(consumption_hh = total_consumption / 48) %>%
@@ -11,8 +11,11 @@ electricity_daily <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") 
   mutate(date = as.Date(settlement_date),
          is_hp_installed = as.numeric(installed_at <= date))%>%
   group_by(account_id) %>%
-  mutate(treated = max(is_hp_installed))
+  mutate(treated = max(is_hp_installed))  # identify treated versus not yet treated
 
+
+# Check number of accounts
+hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% distinct() %>% dim()
 
 # Load and preprocess gas consumption data
 # previous 2024_06_13.csv
@@ -46,7 +49,7 @@ merged_data <- all_combinations %>%
   ) 
 
 # Define overall_weekly by merging with electricity data
-overall_weekly <- electricity_daily %>%
+overall_weekly <- hp_installed %>%
   mutate(settlement_week = floor_date(date, "week") + 1,
          is_hp_installed = as.numeric(installed_at <= settlement_week)) %>%
   group_by(account_id, hashed_mpan, tariff_gsp_group_id, settlement_week, treated, installed_at, is_hp_installed) %>%
@@ -55,10 +58,11 @@ overall_weekly <- electricity_daily %>%
               select(account_id, settlement_week, weekly_consumption) %>%
               rename(gas_consumption = weekly_consumption)) %>%
   mutate(
-    gas_consumption =  gas_consumption,
-    elec_consumption =  elec_consumption,
+    gas_consumption = gas_consumption,
+    elec_consumption = elec_consumption,
     total_consumption = gas_consumption + elec_consumption
   ) 
+
 
 # add weather 
 weather_weekly <- fread("data/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
@@ -78,10 +82,19 @@ overall_weekly <- overall_weekly %>%
       TRUE ~ 25
     )))
 
-# Gas only 
-overall_weekly <- overall_weekly %>% 
-  filter(treated == 1) %>%
-  inner_join(cosy_hp_install_gas_consumption %>% distinct(account_id))
+
+# Create CS main results 
+start_date <- min(overall_weekly$settlement_week)
+did_data <- overall_weekly %>%
+  ungroup() %>%
+  mutate(
+    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
+  ) %>%
+  group_by(account_id) %>%
+  mutate(id = cur_group_id()) %>%
+  ungroup() %>%
+  filter(week <= 129, firstweek <= 129) 
 
 
 rm(all_combinations, merged_data, weather_weekly, electricity_daily, cosy_hp_install_gas_consumption)
@@ -91,7 +104,7 @@ gc()
 # Fit the model
 m1 <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ i(is_hp_installed) | 
               hdd + account_id + settlement_week, 
-            data = overall_weekly, 
+            data =  overall_weekly %>% filter(account_id %in% did_data$account_id), 
             cluster = ~account_id)
 
 # Run the regression model
@@ -251,11 +264,11 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 17),
        aes(x = as.numeric(as.character(temp)), y = median)) +
   geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
-  geom_hline(yintercept = 3.37, linetype = "dashed", color = hp_color) +
+  geom_hline(yintercept = 3.49, linetype = "dashed", color = hp_color) +
   annotate("text", 
            x = 2.5,
-           y = avg_cop + 0.4,
-           label = paste0("italic('Sample average ≈", 3.37, "')"),
+           y = avg_cop + 1,
+           label = paste0("italic('Sample average ≈", 3.49, "')"),
            parse = TRUE,
            color = hp_color,
            size = 4) +

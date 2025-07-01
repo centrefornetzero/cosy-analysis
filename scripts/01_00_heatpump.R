@@ -339,7 +339,7 @@ rm(list = setdiff(ls(), list_env))
 # ggsave("graphs/monthly_installation.png", width = 12, height = 8, dpi = 300)
 # 
 
-#source("scripts/01_03_balance_table.R")
+source("scripts/01_03_balance_table.R")
 rm(list = setdiff(ls(), list_env))
 
 # ### Table A.14: External Validity by Area for Heat Pump Installation
@@ -623,7 +623,7 @@ rm(list = setdiff(ls(), list_env))
 # 
 # ggsave("graphs/average_property_price.png", width = 12, height = 8, dpi = 300)
 
-#source("scripts/01_04_ev_ownership.R")
+source("scripts/01_04_ev_ownership.R")
 rm(list = setdiff(ls(), list_env))
 
 # ## Table A.3: HP Installation on Electricity Consumption Controlling for EV Ownership 
@@ -779,7 +779,7 @@ rm(list = setdiff(ls(), list_env))
 # # Write the modified content back to the LaTeX file
 # writeLines(file_content, file_path)
 
-#source("scripts/01_05_switch_to_smart_tariff.R")
+source("scripts/01_05_switch_to_smart_tariff.R")
 rm(list = setdiff(ls(), list_env))
 
 # 
@@ -827,7 +827,7 @@ rm(list = setdiff(ls(), list_env))
 
 
 ## Heterogeneity analysis
-#source("scripts/01_06_heterogeneity_analysis.R")
+source("scripts/01_06_heterogeneity_analysis.R")
 rm(list = setdiff(ls(), list_env))
 gc()
 
@@ -900,7 +900,7 @@ gc()
 # }
 
 
-#source("scripts/01_07_cop_analysis.R")
+source("scripts/01_07_cop_analysis.R")
 rm(list = setdiff(ls(), list_env))
 
 # # Load and preprocess gas consumption data
@@ -1120,7 +1120,7 @@ rm(list = setdiff(ls(), list_env))
 #        width = 16, height = 8, units = "cm")
 
 
-#source("scripts/01_08_engineer_variance_analysis.R")
+source("scripts/01_08_engineer_variance_analysis.R")
 rm(list = setdiff(ls(), list_env))
 
 
@@ -2086,7 +2086,7 @@ rm(list = setdiff(ls(), list_env))
 # }
 
 
-#source("scripts/01_09_solar_PV_analysis.R")
+source("scripts/01_09_solar_PV_analysis.R")
 rm(list = setdiff(ls(), list_env))
 
 # ### Table A.5: HP Installation and Solar PV on Electricity Consumption
@@ -2201,7 +2201,7 @@ rm(list = setdiff(ls(), list_env))
 # writeLines(file_content, "tables/hp_did_solar.tex")
 
 
-#source("scripts/01_10_data_availability.R")
+source("scripts/01_10_data_availability.R")
 rm(list = setdiff(ls(), list_env))
 
 ## DID checks
@@ -2396,7 +2396,7 @@ rm(list = setdiff(ls(), list_env))
 # ggsave("graphs/hp_sensitivity_results.png")
 # 
 
-#source("scripts/01_11_event_study.R")
+source("scripts/01_11_event_study.R")
 rm(list = setdiff(ls(), list_env))
 
 ## Figure A.13: Event Study - Heat Pump Installation on Daily Average of Customers’
