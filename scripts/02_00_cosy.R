@@ -851,13 +851,13 @@ rm(list = setdiff(ls(), list_env))
 # 
 # 
 
-source("scripts/02_04_data_availability.R")
+#source("scripts/02_04_data_availability.R")
 rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_05_balance_table.R")
+#source("scripts/02_05_balance_table.R")
 rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_06_lct_ownership_and_leavers.R")
+#source("scripts/02_06_lct_ownership_and_leavers.R")
 rm(list = setdiff(ls(), list_env))
 
 # # Empirical Analysis {#sec:results}
@@ -1374,7 +1374,7 @@ rm(list = setdiff(ls(), list_env))
 # 
 # ggsave("graphs/sensitivity_results.png")
 
-source("scripts/02_07_heterogeneity_analysis.R")
+#source("scripts/02_07_heterogeneity_analysis.R")
 rm(list = setdiff(ls(), list_env))
 gc()   
 
@@ -2994,7 +2994,7 @@ gc()
 # # Save the combined plot
 # ggsave("graphs/income_share_combined.png", device = "png", width = 16, height = 12, units = "cm")
 
-source("sources/02_08_cosy_and_hp_coadoption.R")
+source("scripts/02_08_cosy_and_hp_coadoption.R")
 
 # ### Figure A.21: Main Results Coefficients With and Without Controlling for Heat Pump
 # # Register the pre-treatment average fit statistic

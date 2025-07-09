@@ -2,7 +2,7 @@
 
 
 # Load data
-aggregated_data <- readRDS("../data/scratch/aggregated_data.RDS") 
+aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") 
 
 # Unique periods 
 periods <- unique(aggregated_data$rate_period)
@@ -19,7 +19,7 @@ for (period in periods) {
     
     # Determine the filename based on the base period
     file_suffix <- ifelse(base_period == "universal", "_universal", "")
-    filename <- paste0("../data/scratch/did_cosy_", period, file_suffix, ".RDS")
+    filename <- paste0("data/scratch/did_cosy_", period, file_suffix, ".RDS")
     
     # Check if the file already exists
     if (!file.exists(filename)) {
@@ -63,7 +63,7 @@ for (period in periods) {
 for(period in periods) {
   
   # Load CS
-  est_cs <- readRDS(paste0("../data/scratch/did_cosy_", period, ".RDS"))
+  est_cs <- readRDS(paste0("data/scratch/did_cosy_", period, ".RDS"))
   
   # create the graphs
   est_cs$first_week <- (weeks(est_cs$group -1) + floor_date(start_date, "week"))
@@ -97,7 +97,7 @@ for(period in periods) {
       axis.text.x = element_text(angle = 45, hjust = 1),  # Tilt x-axis labels for better readability
       legend.position = "right"  # Position the legend on the right
     )
-  ggsave(paste0("../graphs/monthly_att_", period %>% tolower() %>% str_replace(" ", "_"), ".png"))
+  ggsave(paste0("graphs/monthly_att_", period %>% tolower() %>% str_replace(" ", "_"), ".png"))
   
 }
 
@@ -147,7 +147,7 @@ create_ggplot <- function(period_data, period_name) {
 for(period in periods) {
   
   # Load CS
-  est_cs <- readRDS(paste0("../data/scratch/did_cosy_", period, ".RDS"))
+  est_cs <- readRDS(paste0("data/scratch/did_cosy_", period, ".RDS"))
   
   # Retrieve estimates
   period_data <- aggte(est_cs, type="dynamic",alp = 0.01, min_e = -52, max_e = 52)
@@ -159,7 +159,7 @@ for(period in periods) {
   print(p)
   
   # Define the filename
-  file_name <- paste("../graphs/plot_", period, ".png", sep = "")
+  file_name <- paste("graphs/plot_", period, ".png", sep = "")
   
   # Save the plot
   ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
@@ -192,7 +192,7 @@ all_period_data <- data.frame()
 # Loop through each period to create the combined data frame
 for(period in periods) {
   # Load CS
-  est_cs <- readRDS(paste0("../data/scratch/did_cosy_", period, ".RDS"))
+  est_cs <- readRDS(paste0("data/scratch/did_cosy_", period, ".RDS"))
   
   # Retrieve estimates
   period_data <- aggte(est_cs, type = "dynamic", alp = 0.01, min_e = -52, max_e = 52)
@@ -240,7 +240,7 @@ ggplot(all_period_data, aes(x = event_time, y = coefficient, color = cosy_status
 
 
 # Save the combined plot
-ggsave("../graphs/dynamic_att_combined.png",  device = "png", width = 16, height = 12, dpi = 300)
+ggsave("graphs/dynamic_att_combined.png",  device = "png", width = 16, height = 12, dpi = 300)
 
 
 
@@ -297,7 +297,7 @@ create_calendar_ggplot <- function(period_data, period_name, start_date, y_min, 
 for(period in periods) {
   
   # Load CS
-  est_cs <- readRDS(paste0("../data/scratch/did_cosy_", period, ".RDS"))
+  est_cs <- readRDS(paste0("data/scratch/did_cosy_", period, ".RDS"))
   
   # Retrieve estimates
   period_data <- aggte(est_cs, type="calendar",alp = 0.01)
@@ -309,7 +309,7 @@ for(period in periods) {
   print(p)
   
   # Define the filename
-  file_name <- paste("../graphs/calendarplot_", period, ".png", sep = "")
+  file_name <- paste("graphs/calendarplot_", period, ".png", sep = "")
   
   # Save the plot
   ggsave(file_name, plot = p, device = "png", width = 5, height = 4, dpi = 300)
@@ -330,7 +330,7 @@ for(period in periods) {
 #   print(p)
 #   
 #   # Define the filename
-#   file_name <- paste("../graphs/calendarplot_", period, ".png", sep = "")
+#   file_name <- paste("graphs/calendarplot_", period, ".png", sep = "")
 #   
 #   # Save the plot
 #   ggsave(file_name, plot = p, device = "png", width = 5, height = 4, dpi = 300)
@@ -365,7 +365,7 @@ all_period_data <- data.frame()
 # Loop through each period to create the combined data frame
 for(period in periods) {
   # Load CS
-  est_cs <- readRDS(paste0("../data/scratch/did_cosy_", period, ".RDS"))
+  est_cs <- readRDS(paste0("data/scratch/did_cosy_", period, ".RDS"))
   
   # Retrieve estimates
   period_data <- aggte(est_cs, type = "calendar", alp = 0.01)
@@ -410,7 +410,7 @@ ggplot(all_period_data, aes(x = week_date, y = estimate)) +
   facet_wrap(~ period, scales = "free")
 
 # Save the combined plot
-ggsave("../graphs/calendarplot_combined.png",  device = "png", width = 16, height = 12, dpi = 300)
+ggsave("graphs/calendarplot_combined.png",  device = "png", width = 16, height = 12, dpi = 300)
 
 # Function to format numbers
 format_number <- function(number) {
@@ -505,7 +505,7 @@ CleanPreAverage <- function(file_path) {
 main_periods <- unique(aggregated_data$rate_period)
 
 
-#if (!file.exists("../tables/did.tex")) {
+#if (!file.exists("tables/did.tex")) {
 m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date, 
             data = aggregated_data, 
             cluster = ~account_id, 
@@ -514,9 +514,9 @@ m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
 etable(m1, m1, tex=TRUE, title = "Cosy Adoption",
        headers = list(list("TWFE" = 5, "CS" = 5),
                       list(rep(as.character(sort(main_periods)), times = 2))), 
-       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "../tables/did.tex", replace = TRUE, label="tab:did-main")
+       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/did.tex", replace = TRUE, label="tab:did-main")
 
-CleanPreAverage("../tables/did.tex")
+CleanPreAverage("tables/did.tex")
 
 
 
@@ -533,7 +533,7 @@ cs_pre_avg <- list()
 # Loop through each period to get the Callaway and Sant'Anna estimates
 for(period in main_periods) {
   # Load CS
-  est_cs <- readRDS(paste0("../data/scratch/did_cosy_", period, ".RDS"))
+  est_cs <- readRDS(paste0("data/scratch/did_cosy_", period, ".RDS"))
   
   # Simple Aggte
   aggte_simple <- aggte(est_cs, type = "simple", na.rm = TRUE, clustervars="id", bstrap=TRUE, alp = 0.01)
@@ -554,7 +554,7 @@ for(period in main_periods) {
 }
 
 # Define the file path
-file_path <- "../tables/did.tex"
+file_path <- "tables/did.tex"
 
 # Read the generated LaTeX file
 file_content <- readLines(file_path)
@@ -722,7 +722,7 @@ main_periods <- sort(unique(aggregated_data$rate_period))
 
 # Creating models list for the new table
 models <- lapply(main_periods, function(period) {
-  aggte(readRDS(paste0("../data/scratch/did_cosy_", period, ".RDS")), 
+  aggte(readRDS(paste0("data/scratch/did_cosy_", period, ".RDS")), 
         type = "simple", 
         na.rm = TRUE, 
         clustervars="id",
@@ -737,7 +737,7 @@ headers <- main_periods
 
 # File details
 title <- "Cosy Adoption on Half Hourly Electricity Consumption in kWh"
-file <- "../tables/cosy_did_cs.tex"
+file <- "tables/cosy_did_cs.tex"
 label <- "tab:cosy-did-cs"
 
 # Create the LaTeX table
@@ -754,17 +754,17 @@ m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
 etable(m1, m1, tex=TRUE, title = "Cosy Adoption",
        headers = list(list("TWFE" = 5, "CS" = 5),
                       list(rep(as.character(sort(main_periods)), times = 2))), 
-       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "../tables/did.tex", replace = TRUE, label="tab:did-main")
+       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/did.tex", replace = TRUE, label="tab:did-main")
 
-CleanPreAverage("../tables/did.tex")
+CleanPreAverage("tables/did.tex")
 
-file_content <- readLines("../tables/did.tex")
+file_content <- readLines("tables/did.tex")
 
 # Modify the table formatting
 file_content[5] <- gsub("\\\\begin\\{tabular\\}\\{lcccccccccc\\}", "\\\\begin{tabular}{@{}l@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}}", file_content[5])
 
 # Write the modified content back to the LaTeX file
-writeLines(file_content, "../tables/did.tex")
+writeLines(file_content, "tables/did.tex")
 
 # Find main periods
 main_periods <- unique(aggregated_data$rate_period)
@@ -780,7 +780,7 @@ cs_pre_avg <- list()
 # Loop through each period to get the Callaway and Sant'Anna estimates
 for(period in main_periods) {
   # Load CS
-  est_cs <- readRDS(paste0("../data/scratch/did_cosy_", period, ".RDS"))
+  est_cs <- readRDS(paste0("data/scratch/did_cosy_", period, ".RDS"))
   
   # Simple Aggte
   aggte_simple <- aggte(est_cs, type = "simple", na.rm = TRUE, clustervars="id", bstrap=TRUE, alp = 0.01)
@@ -801,7 +801,7 @@ for(period in main_periods) {
 }
 
 # Define the file path
-file_path <- "../tables/did.tex"
+file_path <- "tables/did.tex"
 
 # Read the generated LaTeX file
 file_content <- readLines(file_path)
@@ -878,8 +878,8 @@ file_content <- append(file_content, new_row, after = sample_line)
 # Write the modified content back to the LaTeX file
 writeLines(file_content, file_path)
 
-
-library(didimputation)
+# DID IMPUTATION ESTIMATOR
+                
 # Initialize an empty list to store the results
 imputation_results_list <- list()
 
@@ -927,9 +927,6 @@ for (period in periods) {
 }
 
 # At the end, you will have all the results stored in `imputation_results_list`
-
-library(ggplot2)
-library(dplyr)
 
 # Initialize an empty data frame to store all period data
 all_period_data <- data.frame()
@@ -981,7 +978,7 @@ for(i in seq_along(imputation_results_list)) {
   print(p)
   
   # Define the filename
-  file_name <- paste("../graphs/imputation_plot_", period_name, ".png", sep = "")
+  file_name <- paste("graphs/imputation_plot_", period_name, ".png", sep = "")
   
   # Save the plot
   ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
@@ -1019,4 +1016,4 @@ ggplot(all_period_data %>% filter(!period == "Overall"), aes(x = event_time, y =
   facet_wrap(~ period, scales = "free")
 
 # Save the combined plot
-ggsave("../graphs/dynamic_att_combined_imputation.png", device = "png", width = 16, height = 12, dpi = 300)
+ggsave("graphs/dynamic_att_combined_imputation.png", device = "png", width = 16, height = 12, dpi = 300)
