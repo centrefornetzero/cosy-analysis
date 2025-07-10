@@ -163,7 +163,7 @@ as.Date <- function(x, ...) {
 }
 
 # -----------------------------
-# 7. Data processing
+# Data processing
 # -----------------------------
 
 source("scripts/02_01_load_data.R")
