@@ -75,9 +75,14 @@ weather_weekly <- fread("data/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
 
 # merge with consumption data
 overall_weekly <- overall_weekly %>%
-  inner_join(weather_weekly) %>%
-  rename(hdd = avg_heating_degree) %>% 
-  mutate(temp_degree = factor(
+  inner_join(weather_weekly) %>% 
+mutate(hdd = factor(
+  case_when(
+    avg_air_temperature_celsius < 0 ~ 0,
+    avg_air_temperature_celsius < 15.5 ~ round(avg_air_temperature_celsius),
+    TRUE ~ 15
+  )),
+  temp_degree = factor(
     case_when(
       avg_air_temperature_celsius < 0 ~ 0,
       avg_air_temperature_celsius < 25.5 ~ round(avg_air_temperature_celsius),

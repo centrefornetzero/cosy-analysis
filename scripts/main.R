@@ -7,7 +7,7 @@ packages <- c(
   "knitr", "kableExtra", "did", "fixest", "data.table", "lubridate", 
   "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", 
   "forcats", "viridis",  "stringr", "stargazer", "panelView", "readxl","purrr",
-  "progress", "lfe", "tibble", "stringr", "didimputation", "ggtext"
+  "progress", "lfe", "tibble", "stringr", "didimputation", "ggtext", "MatchIt"
 )
 
 # Function to check if a package is installed, and if not, install it

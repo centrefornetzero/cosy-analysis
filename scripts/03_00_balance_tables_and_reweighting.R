@@ -38,8 +38,7 @@ setFixest_dict(c(total_consumption = "Consumption in kWh per period",
                  ev_charging = "EV Charging",
                  has_ev = "EV User"))
 
-# propensity score matching
-setwd("scripts")
+
 
 # cosy sample
 aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") 
@@ -333,64 +332,21 @@ matched_data2 <- match.data(match_obj2)
 
 
 # get consumption by period
-hp_installed_period <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
-  rename(total_consumption=total_read_value,
-         date = settlement_date) %>%
-  mutate(consumption_hh = ifelse(rate_period == "Other", 
-                                 total_consumption/30, total_consumption/6),
-         date = as.Date(date))
-
-# aggreate up to get overall
-hp_installed_daily <- hp_installed_period %>%
-  group_by(account_id, hashed_mpan, date) %>%
-  summarise(total_consumption = sum(total_consumption)) %>%
-  mutate(consumption_hh = total_consumption / 48,
-         rate_period = factor("Overall")) 
-
-# merge together to make regressions easier
-hp_installed <- full_join(hp_installed_period,
-                          hp_installed_daily) %>%
+hp_installed <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
+  group_by(account_id, settlement_date) %>%
+  summarise(total_consumption = sum(total_read_value)) %>%
+  mutate(consumption_hh = total_consumption / 48) %>%
   inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>%
-               distinct(account_id, .keep_all=TRUE), 
-             by=c("account_id","hashed_mpan"))
-
-# add daily weather data
-weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
-  rename_with(.cols = starts_with("weekly"), 
-              .fn = ~ sub("^weekly", "daily", .)) %>%
-  rename(tariff_gsp_group_id=gsp_group_id) %>%
-  mutate(date_day=as.Date(date_day, format = "%Y-%m-%d")) %>%
-  rename(date = date_day)
-
-# merge weather
-hp_installed <- hp_installed %>%
-  left_join(weather)
-
-
-rm(weather, hp_installed_daily, hp_installed_period)
-
-# hp_installed <- hp_installed %>%
-#   left_join(readRDS("data/scratch/ev_mpan.RDS")) %>%
-#   mutate(has_ev = ifelse(!is.na(ev_start), as.numeric(date >= ev_start), 0))
-
-# clean up
-hp_installed <- hp_installed %>%
-  mutate(date = as.Date(date),
-         is_hp_installed = as.numeric(installed_at <= date)) %>%
-  mutate(rate_period = factor(rate_period, levels = c("Morning Cosy",
-                                                      "Afternoon Cosy",
-                                                      "Peak Rate",
-                                                      "Other", 
-                                                      "Overall"))) %>%
+               distinct(account_id, .keep_all = TRUE),
+             by=c("account_id")) %>%
+  mutate(date = as.Date(settlement_date),
+         is_hp_installed = as.numeric(installed_at <= date))%>%
   group_by(account_id) %>%
-  distinct(account_id, date, rate_period, .keep_all = TRUE)
+  mutate(treated = max(is_hp_installed))  # identify treated versus not yet treated
 
 
 # Check number of accounts
-hp_installed %>% ungroup() %>% select(account_id) %>% distinct() %>% dim()
-
-# Load weather data
-weather <- fread("data/input/cosy_-_weather_weekly_2024_06_13.csv")
+hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% distinct() %>% dim()
 
 # Load and preprocess gas consumption data
 # previous 2024_06_13.csv
@@ -399,7 +355,6 @@ cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_users_gas_2024_06
   mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
          treated = max(is_hp_installed),
          min_settlement_week = min(settlement_week)) %>%
-  left_join(weather, by = c("gsp_group_id", "settlement_week" = "week_date")) %>%
   distinct(account_id, settlement_week, .keep_all = TRUE)
 
 # Create a sequence of weeks
@@ -415,34 +370,53 @@ all_combinations <- expand.grid(
 
 # Merge with original data
 merged_data <- all_combinations %>%
-  left_join(cosy_hp_install_gas_consumption %>% select(account_id, gsp_group_id, installed_at, min_settlement_week) %>% distinct()) %>%
-  left_join(cosy_hp_install_gas_consumption %>% select(account_id, settlement_week, weekly_consumption) %>% distinct()) %>%
+  left_join(cosy_hp_install_gas_consumption %>% 
+              distinct(account_id, settlement_week, weekly_consumption, 
+                       min_settlement_week, installed_at)) %>%
   filter(min_settlement_week < settlement_week) %>%
   mutate(
-    account_closed = ifelse(is.na(weekly_consumption), 1, 0),
     is_hp_installed = as.numeric(installed_at < settlement_week),
     weekly_consumption = ifelse(is.na(weekly_consumption), 0, weekly_consumption)
-  ) %>%
-  left_join(weather, by = c("gsp_group_id", "settlement_week" = "week_date")) 
+  ) 
 
 # Define overall_weekly by merging with electricity data
-library(lubridate)
 overall_weekly <- hp_installed %>%
-  filter(rate_period == "Overall") %>%
   mutate(settlement_week = floor_date(date, "week") + 1,
          is_hp_installed = as.numeric(installed_at <= settlement_week)) %>%
-  group_by(account_id, hashed_mpan, tariff_gsp_group_id, settlement_week, installed_at, is_hp_installed) %>%
+  group_by(account_id, hashed_mpan, tariff_gsp_group_id, settlement_week, treated, installed_at, is_hp_installed) %>%
   summarise(elec_consumption = sum(total_consumption)) %>%
-  rename(gsp_group_id = tariff_gsp_group_id) %>%
   left_join(merged_data %>%
               select(account_id, settlement_week, weekly_consumption) %>%
               rename(gas_consumption = weekly_consumption)) %>%
-  left_join(weather %>% rename(settlement_week = week_date)) %>%
   mutate(
     gas_consumption = 52.25 * gas_consumption,
     elec_consumption = 52.25 * elec_consumption,
     total_consumption = gas_consumption + elec_consumption
   ) 
+
+
+# add weather 
+weather_weekly <- fread("data/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
+  mutate(settlement_week = as.Date(week_date)) %>%
+  distinct(gsp_group_id, settlement_week, .keep_all = TRUE) %>%
+  select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius) %>%
+  rename(tariff_gsp_group_id = gsp_group_id)
+
+# merge with consumption data
+overall_weekly <- overall_weekly %>%
+  inner_join(weather_weekly) %>% 
+mutate(hdd = factor(
+  case_when(
+    avg_air_temperature_celsius < 0 ~ 0,
+    avg_air_temperature_celsius < 15.5 ~ round(avg_air_temperature_celsius),
+    TRUE ~ 15
+  )),
+  temp_degree = factor(
+    case_when(
+      avg_air_temperature_celsius < 0 ~ 0,
+      avg_air_temperature_celsius < 25.5 ~ round(avg_air_temperature_celsius),
+      TRUE ~ 25
+    )))
 
 rm(all_combinations, cosy_hp_install_gas_consumption, merged_data, weather, all_weeks, max_date, min_date)
 
@@ -541,7 +515,7 @@ fitstat_register("t_obs", function(x) {
 }, "Number of Time Periods")
 
 # Restricting
-ids <- fread("data/scratch/heatpump_ids.csv")
+ids <- fread("data/input/heatpump_ids.csv")
 
 # Fit the model
 max_week <- overall_weekly %>% filter(!is.na(gas_consumption))
@@ -579,7 +553,7 @@ rm(aggregated_data)
 # get consumption by period
 hp_details <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
   mutate(date = as.Date(settlement_date))  %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv"), by=c("account_id","hashed_mpan")) %>%
+  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv")  %>% distinct(account_id, .keep_all = TRUE), by=c("account_id","hashed_mpan")) %>%
   mutate(date = as.Date(date),
          is_hp_installed = as.numeric(installed_at <= date)) %>%
   group_by(account_id) %>%
@@ -898,7 +872,7 @@ stargazer(final_table_with_sd, type = "latex", summary = FALSE,
 # get consumption by period
 hp_details <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
   mutate(date = as.Date(settlement_date))  %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv"), by=c("account_id","hashed_mpan")) %>%
+  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv")  %>% distinct(account_id, .keep_all = TRUE), by=c("account_id","hashed_mpan")) %>%
   mutate(date = as.Date(date),
          is_hp_installed = as.numeric(installed_at <= date)) %>%
   group_by(account_id) %>%
