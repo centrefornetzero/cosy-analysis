@@ -187,7 +187,6 @@ rm(list = setdiff(ls(), list_env))
 source("scripts/02_06_lct_ownership_and_leavers.R")
 rm(list = setdiff(ls(), list_env))
 
-
 source("scripts/02_07_heterogeneity_analysis.R")
 rm(list = setdiff(ls(), list_env))
 gc()   
