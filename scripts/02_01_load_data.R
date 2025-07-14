@@ -1,8 +1,14 @@
+#  Create the main dataset for Cosy adoption analysis
+
+# This script is very long to run so I create a conditional close checking if the file has already been created
+
+# Delete file to rerun everything
+#file.remove("data/scratch/aggregated_data.RDS")
+
 ## Merging consumption and customers info datasets
 if(!file.exists("data/scratch/aggregated_data.RDS")) {
   
-  # agreement data
-  # run queries/Cosy - agreement data
+  # Extract earliest Cosy adoption using agreement data for each MPAN
   agreements <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
     filter(product_display_name == "Cosy Octopus") %>%
     arrange(hashed_mpan, agreement_valid_from) %>%
@@ -19,7 +25,7 @@ if(!file.exists("data/scratch/aggregated_data.RDS")) {
       .groups = 'drop'
     )
   
-  # files are created using 
+  # Load smart meter consumption data at the day - rate period level
   # queries/cosy - cosy electricity readings
   # queries/cosy - cosy electricity reading part 2 which I ran for different years seperately
   aggregated_data <- rbind(fread("data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26.csv"),
@@ -47,11 +53,11 @@ if(!file.exists("data/scratch/aggregated_data.RDS")) {
     ) %>%
     ungroup()
   
-  # join with the earliest adoption date
+  # Join with the earliest adoption date
   aggregated_data <- consumption_with_indicator %>%
     inner_join(agreements %>% select(-periods))
   
-  # add overall
+  # Caculate overall daily consumption
   aggregated_data <- rbind(
     aggregated_data, 
     aggregated_data %>% 
@@ -85,10 +91,10 @@ if(!file.exists("data/scratch/aggregated_data.RDS")) {
     filter(!hashed_mpan %in% duplicate_mpan$hashed_mpan) %>%
     inner_join(cosy_cosy_details_2024_06_25)
   
-  # add weather
+  # Add weather by GSP day 
   # queries/cosy analysis - weather
   weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
-    rename_with(.cols = starts_with("weekly"), 
+    rename_with(.cols = starts_with("weekly"),  # the data is actually at the day level - just naming error
                 .fn = ~ sub("^weekly", "daily", .)) %>%
     mutate(date_day=as.Date(date_day, format = "%Y-%m-%d")) %>%
     rename(date = date_day)
@@ -109,7 +115,7 @@ if(!file.exists("data/scratch/aggregated_data.RDS")) {
     filter(is_cosy) %>%
     slice_head(n=1)
   
-  # EPC
+  # Create EPC letters
   aggregated_data <- aggregated_data %>%
     mutate(epc_letter = case_when(
       energy_efficiency >= 91 ~ "A",
@@ -124,7 +130,7 @@ if(!file.exists("data/scratch/aggregated_data.RDS")) {
     eac_mwh = estimated_annual_consumption/1000) %>%
     left_join(Prev_contract) 
   
-  # Temperature
+  # Create categorical for average daily temperature ranging from 0 - 15 (confusingly named HDD but it is not)
   aggregated_data <- aggregated_data %>% 
     mutate(hdd = factor(
       case_when(

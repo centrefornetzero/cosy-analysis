@@ -363,7 +363,7 @@ ggsave("graphs/lct_combinaison.png",
        width = 16, height = 8, units = "cm")
 
 
-# Step 1: Calculate the share of each LCT
+#  Calculate the share of each LCT
 lct_summary <- survey_responses_filtered %>%
   summarise(
     `Home battery (%)` = mean(`Home battery`) * 100,

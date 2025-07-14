@@ -1,6 +1,7 @@
-# Heatpump & cosy reproduction files
+# Decarbonizing Heat: The Impact of Heat Pumps and a Time-of-Use Heat Pump Tariff on Energy Demand
+# Author of the files: Louise Bernard
+# Run "main.R" to replicate the full analysis
 
-# This script have everything needed for the heatpump and cosy reproduction
 
 # List packages to load
 packages <- c(

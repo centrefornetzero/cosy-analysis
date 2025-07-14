@@ -1,6 +1,8 @@
 
 
 ## Summary Statistics Tables and Graphs {#sec:sumstats}
+# Calculate the share on ToU tariff (is_charged_half_hourly) after adoption
+# confusingly called "is_variable"
 Next_contract <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
   arrange(hashed_mpan, desc(as.Date(agreement_valid_from))) %>%
   group_by(hashed_mpan) %>%
@@ -23,6 +25,7 @@ Next_contract <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
   mutate(share_is_variable = n/sum(n))
 
 # Contract before cosy
+# Calculate the share on ToU tariff (is_charged_half_hourly) before adoption
 first_cosy_contracts <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
   arrange(hashed_mpan, as.Date(agreement_valid_from)) %>%
   group_by(hashed_mpan) %>%
