@@ -1,4 +1,4 @@
-# Load data 
+source# Load data 
 
 # get consumption by period
 hp_installed <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
@@ -278,7 +278,7 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 17),
             color = flexible_color) +
   scale_linetype_manual(values = c("EPRI" = "solid", "Brattle" = "dashed")) +
   labs(
-    x = "Average Temperature in Degrees (°C)",
+    x = "Average Weekly Temperature in Degrees (°C)",
     y = "Estimated ratio of heat output \nto energy input",
     linetype = "Engineering Models of COP"
   ) +
