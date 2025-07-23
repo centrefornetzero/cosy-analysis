@@ -15,7 +15,7 @@ percent_marginal_consumers <- 0.5
 base_year <- 2024
 uk_gdp_as_proportion_of_global <- 0.032
 uk_tax_as_proportion_of_gdp <- 0.335
-datapath <- "/Users/NavyaKumar/Desktop/Heat Pump/MVPF data"
+datapath <- "data/input"
 # ______________________________________________________
 
 # ___________________ Heat pump numbers from paper __________________________________
@@ -777,7 +777,6 @@ p <- ggplot(data) +
   scale_x_discrete(labels = custom_labels) +  # Use custom labels
   coord_cartesian(ylim = c(0, max(ymax) + 0.02))  # Adjust y-axis limits to provide more space at the top
 
-p
 
 # Save the plot as a PNG file
 ggsave("MVPF_HP_Cosy_updated.png", plot = p, width = 10, height = 6, bg = 'transparent')
@@ -789,7 +788,7 @@ ggsave("MVPF_HP_Cosy_updated.png", plot = p, width = 10, height = 6, bg = 'trans
 
 # --------- change in electricity and gas usage by temperature -------------
 
-df_temp = read.csv("/Users/NavyaKumar/Desktop/Heat Pump/gas_electricity_by_temperature.csv")
+df_temp = read.csv("data/scratch/gas_electricity_by_temperature.csv")
 df_temp <- df_temp %>%
   select(daily_avg_air_temperature_celsius, lhs, Estimate, Std..Error) %>%
   pivot_wider(
@@ -909,7 +908,7 @@ Vat_boiler_change_heatpump <- -0.2 * implied_before_tax_cost_boiler
 sum <- whole_df_temp %>%
   group_by(temp) %>%
   summarise(
-    mean_change_elec = mean(change_elec),
+    mean_change_elec = mean(Electricity_price_change_heatpump),
     mean_gas_price_change = mean(Gas_price_change_heatpump)
   )
 
@@ -1190,19 +1189,18 @@ ggplot(MVPF_by_temp, aes(x = temp)) +
   
   scale_y_continuous(
     name = "MVPF",
-    sec.axis = sec_axis(~ . * scale_factor, name = "Cost per tonne", labels = scales::dollar_format(prefix = "$"))
+    sec.axis = sec_axis(~ . * scale_factor, name = "Cost per tonne", labels = scales::dollar_format(prefix = "£"))
   )  +
   labs(x = "Average Weekly Temperature in Degrees (°C)") +
   theme_minimal() +
   theme(
-    axis.text = element_text(size = 18),
-    axis.title = element_text(size = 18),
     plot.background = element_rect(fill = "white", color = NA),
-    axis.title.y = element_text(angle = 0, vjust = 0.9, hjust = 1, margin = margin(r = 10)),
-    axis.title.y.right = element_text(angle = 0, vjust = 0.9, size = 18, margin = margin(l = -50))
+    axis.title.y = element_text(angle = 0, vjust = 0.95, hjust = 1, margin = margin(r = 10)),
+    axis.title.y.right = element_text(angle = 0, vjust = 0.95, margin = margin(l = -50))
   ) +
-  geom_text(x = 2, y = 2, label = "MVPF", color = "#8B5FBF", vjust = -1, size = 5, alpha = 1) +
-  geom_text(x = 7.9, y = 0.5, label = "Government Cost per tonne", color = "#87B6F8", vjust = -1, size = 5, alpha = 1) +
-  geom_text(x = 14, y = -0.39, label = "Resource Cost per tonne", color = "#D5AFF2", vjust = -1, size = 5, alpha = 1) 
+  geom_text(x = 2, y = 2, label = "MVPF", color = "#8B5FBF", vjust = -1, alpha = 1) +
+  geom_text(x = 5, y = 0.5, label = "Government Cost per tonne", color = "#87B6F8", vjust = -1, alpha = 1) +
+  geom_text(x = 14, y = -0.1, label = "Resource Cost per tonne", color = "#D5AFF2", vjust = -1, alpha = 1) 
 
-ggsave("graphs/MVPF_temp.png")
+ggsave("graphs/MVPF_temp.png",
+       width = 16, height = 8, units = "cm")
