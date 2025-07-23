@@ -197,4 +197,7 @@ rm(list = setdiff(ls(), list_env))
 source("scripts/01_13_DiD_analysis_outputs.R")
 rm(list = setdiff(ls(), list_env))
 
+source("scripts/01_14_MVPF.R")
+rm(list = setdiff(ls(), list_env))
+
 
