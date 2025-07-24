@@ -1156,9 +1156,6 @@ ggplot(MVPF_by_temp, aes(x = temp, y = MVPF)) +
   )
 
 
-
-
-
 scale_factor <- max(
   MVPF_by_temp$government_cost_per_tonne_heatpump, 
   MVPF_by_temp$resource_cost_per_tonne_heatpump, 
@@ -1204,3 +1201,45 @@ ggplot(MVPF_by_temp, aes(x = temp)) +
 
 ggsave("graphs/MVPF_temp.png",
        width = 16, height = 8, units = "cm")
+                     
+                     
+ggplot(MVPF_by_temp, aes(x = temp)) +
+  # MVPF layer
+  geom_ribbon(aes(ymin = MVPF_lower, ymax = MVPF_upper), fill = "#8B5FBF", alpha = 0.2) +
+  geom_smooth(aes(y = MVPF), se = FALSE, color = "#8B5FBF", size = 1, method = "loess") +
+  geom_point(aes(y = MVPF), color = "#8B5FBF") +
+  
+  # resource cost layer (scaled down)
+  geom_ribbon(aes(
+    ymin = government_cost_per_tonne_lower / scale_factor,
+    ymax = government_cost_per_tonne_upper / scale_factor
+  ), fill = "#87B6F8", alpha = 0.2) +
+  geom_smooth(aes(y = government_cost_per_tonne_heatpump / scale_factor), se = FALSE, color = "#87B6F8", size = 1, method = "loess") +
+  geom_point(aes(y = government_cost_per_tonne_heatpump / scale_factor), color = "#87B6F8") +
+  
+  # gov cost layer (scaled down)
+  geom_ribbon(aes(
+    ymin = resource_cost_per_tonne_lower / scale_factor,
+    ymax = resource_cost_per_tonne_upper / scale_factor
+  ), fill = "#D5AFF2", alpha = 0.2) +
+  geom_smooth(aes(y = resource_cost_per_tonne_heatpump / scale_factor), se = FALSE, color = "#D5AFF2", size = 1, method = "loess") +
+  geom_point(aes(y = resource_cost_per_tonne_heatpump / scale_factor), color = "#D5AFF2") +
+  
+  scale_y_continuous(
+    name = "MVPF",
+    sec.axis = sec_axis(~ . * scale_factor, name = "Cost per tonne", labels = scales::dollar_format(prefix = "£"))
+  )  +
+  labs(x = "Average Weekly Temperature in Degrees (°C)",
+      title = "How welfare impacts of the BUS change with temperature") +
+  theme_minimal() +
+  theme(
+    plot.background = element_rect(fill = "white", color = NA),
+    axis.title.y = element_text(angle = 0, vjust = 0.95, hjust = 1, margin = margin(r = 10)),
+    axis.title.y.right = element_text(angle = 0, vjust = 0.95, margin = margin(l = -50))
+  ) +
+  geom_text(x = 2, y = 2, label = "MVPF", color = "#8B5FBF", vjust = -1, alpha = 1) +
+  geom_text(x = 5, y = 0.5, label = "Government Cost per tonne", color = "#87B6F8", vjust = -1, alpha = 1) +
+  geom_text(x = 14, y = -0.1, label = "Resource Cost per tonne", color = "#D5AFF2", vjust = -1, alpha = 1) 
+
+ggsave("graphs/MVPF_temp_blog_version.png",
+       width = 18, height = 7, units = "cm")

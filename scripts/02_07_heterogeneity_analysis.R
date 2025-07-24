@@ -41,22 +41,22 @@ m4_cold <- feols(consumption_hh ~ i(cosy_contract_active, ref=0)  |
 coefs <- rbind(
   coeftable(m1_cold) %>%
     data.frame() %>%
-    mutate(model = "< 0°C"),
+    mutate(model = "T < 0°C"),
   coeftable(m2_cold) %>%
     data.frame() %>%
-    mutate(model = "0-5°C"),
+    mutate(model = "0 ≤ T < 5°C"),
   coeftable(m3_cold) %>%
     data.frame() %>%
-    mutate(model = "5-10°C"),
+    mutate(model = "5 ≤ T < 10°C"),
   coeftable(m4_cold) %>%
     data.frame() %>%
-    mutate(model = ">10°C")) %>%
+    mutate(model = "T ≥ 10°C")) %>%
   mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
          upper_ci = Estimate + 1.96 * `Std..Error`,
-         `Average Daily Temperature` = factor(model, levels = c("< 0°C",
-                                                                "0-5°C",
-                                                                "5-10°C",
-                                                                ">10°C")),
+         `Average Daily Temperature` = factor(model, levels = c("T < 0°C",
+                                                                "0 ≤ T < 5°C",
+                                                                "5 ≤ T < 10°C",
+                                                                "T ≥ 10°C")),
          rate_period = factor(sample, levels = c("Morning Cosy",
                                                  "Afternoon Cosy",
                                                  "Peak Rate",
@@ -65,10 +65,10 @@ coefs <- rbind(
 
 
 # Define colors with increasing darkness
-colors <- c("< 0°C" = "#AFCBE3",  # Lightest blue
-            "0-5°C" = "#8AAFD4",  # Slightly darker
-            "5-10°C" = "#6694C6", # Medium blue
-            ">10°C" = "#466CA8")  # Darkest blue
+colors <- c("T < 0°C" = "#AFCBE3",  # Lightest blue
+            "0 ≤ T < 5°C" = "#8AAFD4",  # Slightly darker
+            "5 ≤ T < 10°C" = "#6694C6", # Medium blue
+            "T ≥ 10°C" = "#466CA8")  # Darkest blue
 
 # Create the ggplot
 ggplot(coefs %>% filter(rate_period != "Overall"), aes(x = `Average Daily Temperature`, 
@@ -78,7 +78,7 @@ ggplot(coefs %>% filter(rate_period != "Overall"), aes(x = `Average Daily Temper
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
   scale_y_continuous(name = "Estimate (kWh)") +  # Set y-axis label
   scale_fill_manual(values = colors) +  # Assign colors with increasing darkness
-  labs(fill = "Average Daily Temperature") +  # Remove x-axis label, keep legend title
+  labs(fill = "Avg. Daily Temperature") +  # Remove x-axis label, keep legend title
   theme_minimal() +  # Apply minimal theme
   facet_wrap(~ rate_period, scales = "free_y", ncol = 2) +  # Facet with 2 columns and free y-axis scales
   theme(
@@ -89,7 +89,30 @@ ggplot(coefs %>% filter(rate_period != "Overall"), aes(x = `Average Daily Temper
   )
 
 ggsave("graphs/cosy_temperature_binned.png",
-       width = 16, height = 8, units = "cm")
+       width = 17, height = 8, units = "cm")
+
+
+# Create the ggplot
+ggplot(coefs %>% filter(rate_period != "Overall"), aes(x = `Average Daily Temperature`, 
+                                                       y = Estimate, fill = `Average Daily Temperature`)) +
+  geom_col() +  # Use geom_col for pre-computed y values
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6, color = "grey") + 
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
+  scale_y_continuous(name = "Estimate (kWh)") +  # Set y-axis label
+  scale_fill_manual(values = colors) +  # Assign colors with increasing darkness
+  labs(fill = "Avg. Daily Temperature",
+      title = "Heat pump time-of-use tariff impacts by temperature") +  # Remove x-axis label, keep legend title
+  theme_minimal() +  # Apply minimal theme
+  facet_wrap(~ rate_period, scales = "free_y", ncol = 2) +  # Facet with 2 columns and free y-axis scales
+  theme(
+    axis.title.x = element_blank(),  # Remove x-axis title
+    axis.text.x = element_blank(),   # Remove x-axis text
+    axis.ticks.x = element_blank(),  # Remove x-axis ticks
+    legend.position = "bottom"       # Place legend at the bottom
+  )
+
+ggsave("graphs/cosy_temperature_binned_blog_version.png",
+       width = 17, height = 8, units = "cm")
 
 # Unique periods 
 periods <- unique(aggregated_data$rate_period)
