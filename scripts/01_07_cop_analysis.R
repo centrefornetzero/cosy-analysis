@@ -1,4 +1,4 @@
-source# Load data 
+# Load data 
 
 # get consumption by period
 hp_installed <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
@@ -173,6 +173,37 @@ ggplot(coefs %>% filter(as.numeric(daily_avg_air_temperature_celsius) <23),
 ggsave(paste0("graphs/hp_temperature_gas_elec.png"),
        width = 16, height = 8, units = "cm")
 
+
+# Plot gas and elec
+ggplot(coefs %>% filter(as.numeric(daily_avg_air_temperature_celsius) <23), 
+       aes(x = daily_avg_air_temperature_celsius, y = Estimate, group = lhs)) +
+  geom_point(aes(color = lhs, fill = lhs)) +
+  geom_line(aes(color = lhs)) +
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci, color = lhs), 
+                width = 0.2, alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(
+    x = "Average Weekly Temperature in Degrees (°C)",
+    y = "Estimate (Weekly kWh)",
+    color = NULL,
+    fill = NULL,
+    title = "How heat pumps affect gas & electricity use,  by temperature"
+  ) +
+  scale_color_manual(
+    values = c("elec_consumption" = hp_color, "gas_consumption" = not_hp_color),
+    labels = c("elec_consumption" = "Electricity", "gas_consumption" = "Gas")
+  ) +
+  scale_fill_manual(
+    values = c("elec_consumption" = hp_color, "gas_consumption" = not_hp_color),
+    labels = c("elec_consumption" = "Electricity", "gas_consumption" = "Gas")
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# Print the plot
+ggsave(paste0("graphs/hp_temperature_gas_elec_blog_version.png"),
+       width = 17, height = 8, units = "cm")
+
 # Calculate the average value for the dashed line
 avg_cop <- abs(m1$`lhs: gas_consumption`$coefficients / m1$`lhs: elec_consumption`$coefficients)
 
@@ -227,7 +258,9 @@ cop_boot <- bind_rows(results, .id = "bootstrap") %>%
     median = median(quasi_cop, na.rm = TRUE),
     .groups = "drop"
   )
-
+fwrite(cop_boot, "data/scratch/cop_boot.csv")
+cop_boot <- fread("data/scratch/cop_boot.csv")             
+    
 # ASHP COP data from the EPRI chart
 ashp_cop <- data.frame(
   temp_f = c(-20, -10, 0, 10, 20, 30, 40, 50, 60),
@@ -260,7 +293,7 @@ brattle_cop <- brattle_cop %>%
 cop_reference_lines <- bind_rows(ashp_interp_df, brattle_cop)
 
 # Your existing ggplot + ASHP COP overlay
-ggplot(cop_boot %>% filter(as.numeric(temp) < 17), 
+ggplot(cop_boot %>% filter(as.numeric(temp) < 16), 
        aes(x = as.numeric(as.character(temp)), y = median)) +
   geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
@@ -288,3 +321,33 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 17),
 # Print the plot
 ggsave(paste0("graphs/quasi_cop.png"),
        width = 16, height = 8, units = "cm")
+                         
+ggplot(cop_boot %>% filter(as.numeric(temp) < 16), 
+       aes(x = as.numeric(as.character(temp)), y = median)) +
+  geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
+  geom_hline(yintercept = 3.49, linetype = "dashed", color = hp_color) +
+  annotate("text", 
+           x = 2.5,
+           y = avg_cop + 1,
+           label = paste0("italic('Sample average ≈", 3.49, "')"),
+           parse = TRUE,
+           color = hp_color,
+           size = 4) +
+  # Overlay both COP reference lines with legend
+  geom_line(data = cop_reference_lines, 
+            aes(x = temp_c, y = cop, linetype = source), 
+            color = flexible_color) +
+  scale_linetype_manual(values = c("EPRI" = "solid", "Brattle" = "dashed")) +
+  labs(
+    title = "How the heat pump fuel substitution ratio varies by temperature",
+    x = "Average Weekly Temperature in Degrees (°C)",
+    y = "Estimated ratio of heat output \nto energy input",
+    linetype = "Engineering Models of COP"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom") 
+
+# Print the plot
+ggsave(paste0("graphs/quasi_cop_blog_version.png"),
+       width = 17, height = 8, units = "cm")
