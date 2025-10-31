@@ -22,13 +22,17 @@ install_if_needed <- function(package) {
 # Load (and install if needed) each package
 lapply(packages, install_if_needed)
 
+# Make sure working directory is "cosy-analysis"
+setwd("/home/jupyter/cosy-analysis")
+
 # Create folders
-dir.create("graphs", showWarnings = FALSE)
-dir.create("data", showWarnings = FALSE)
-dir.create("data/scratch", showWarnings = FALSE)
-dir.create("data/output", showWarnings = FALSE)
-dir.create("data/input", showWarnings = FALSE)
-dir.create("tables", showWarnings = FALSE)
+# dir.create("graphs", showWarnings = FALSE)
+# dir.create("data", showWarnings = FALSE)
+# dir.create("data/scratch", showWarnings = FALSE)
+# dir.create("data/output", showWarnings = FALSE)
+# dir.create("data/input", showWarnings = FALSE)
+# dir.create("tables", showWarnings = FALSE)
+
 
 # Load parameters
 flexible_color <- "#4C515C"  
@@ -51,15 +55,14 @@ red_palette <- c("#FF9999", "#FF8080", "#FF6666", "#FF4D4D", "#FF3333", "#FF1A1A
 random_subsample <- FALSE
 
 # Cosy reproduction
-source("scripts/02_00_cosy.R")
+# source("scripts/02_00_cosy.R")
 
 
 source("scripts/01_00_heatpump.R")
-rm(list = setdiff(ls(), c("random_subsample", "flexible_color", "cosy_color", "hp_color", 
-                          "not_hp_color", "rating_colors", "red_palette")))
-gc()
+# rm(list = setdiff(ls(), c("random_subsample", "flexible_color", "cosy_color", "hp_color", 
+#                           "not_hp_color", "rating_colors", "red_palette")))
+# gc()
 
+# source("scripts/03_00_balance_tables_and_reweighting.R")
 
-source("scripts/03_00_balance_tables_and_reweighting.R")
-
-source("scripts/04_00_half_hourly_analysis.R")
+# source("scripts/04_00_half_hourly_analysis.R")

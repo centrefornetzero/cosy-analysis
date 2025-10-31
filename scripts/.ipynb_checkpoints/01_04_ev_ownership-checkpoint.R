@@ -2,7 +2,7 @@
 
 # ev half hours 
 # Read the CSV file
-ev_charging <- fread("data/input/cosy_-_ev_detection_2024_07_04.csv") %>%
+ev_charging <- fread("../gcs/cosy2/input/cosy_-_ev_detection_2024_07_04.csv") %>%
   mutate(ev_charging = 1,
          date = as.Date(interval_start),
          interval_start = as.POSIXct(interval_start, format="%Y-%m-%d %H:%M:%S"),
