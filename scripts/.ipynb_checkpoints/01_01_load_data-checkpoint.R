@@ -4,11 +4,17 @@ hp_installed_period <- fread("../gcs/cosy2/input/cosy_-_hp_aggregated_up_2024_06
          date = settlement_date) %>%
   mutate(consumption_hh = ifelse(rate_period == "Other", 
                                  total_consumption/30, total_consumption/6),
-         date = as.Date(date))
+         date = as.Date(date)) %>%
+
+  # aggregate from mpan level up to account level 
+  group_by(account_id, date, rate_period) %>%
+  summarise(total_consumption = sum(total_consumption), 
+           consumption_hh = sum(consumption_hh)) %>%
+  ungroup()
 
 # aggreate up to get overall
 hp_installed_daily <- hp_installed_period %>%
-  group_by(account_id, hashed_mpan, date) %>%
+  group_by(account_id, date) %>%
   summarise(total_consumption = sum(total_consumption)) %>%
   mutate(consumption_hh = total_consumption / 48,
          rate_period = factor("Overall")) 
@@ -63,8 +69,10 @@ hp_installed <- hp_installed %>%
                                                       "Overall"))) %>%
   group_by(account_id) %>%
   mutate(treated = max(is_hp_installed)) %>% # identify treated versus not yet treated
-  ungroup() %>% 
-  distinct(account_id, date, rate_period, .keep_all = TRUE)
+  ungroup() 
+
+stopifnot(hp_installed %>% group_by(account_id, date, rate_period) %>% filter(n() > 1) %>% nrow() == 0)
+write_rds(hp_installed, "../gcs/cosy2/output/hp_installed.rds")
 
 # summary statistics
 summary(hp_installed)

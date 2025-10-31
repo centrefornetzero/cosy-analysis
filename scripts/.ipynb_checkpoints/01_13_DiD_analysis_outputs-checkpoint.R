@@ -3,11 +3,11 @@ elec_color <- hp_color
 gas_color <- not_hp_color
 
 # get consumption by period
-hp_installed <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
+hp_installed <- fread("../gcs/cosy2/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
   group_by(account_id, settlement_date) %>%
   summarise(total_consumption = sum(total_read_value)) %>%
   mutate(consumption_hh = total_consumption / 48) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>%
+  inner_join(fread("../gcs/cosy2/input/cosy_-_hp_details_2024_06_25.csv") %>%
                distinct(account_id, .keep_all = TRUE),
              by=c("account_id")) %>%
   mutate(date = as.Date(settlement_date),
@@ -15,34 +15,13 @@ hp_installed <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
   group_by(account_id) %>%
   mutate(treated = max(is_hp_installed))  # identify treated versus not yet treated
 
-# add daily weather data
-weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
-  rename_with(.cols = starts_with("weekly"), 
-              .fn = ~ sub("^weekly", "daily", .)) %>%
-  rename(tariff_gsp_group_id=gsp_group_id) %>%
-  mutate(date_day=as.Date(date_day, format = "%Y-%m-%d")) %>%
-  rename(date = date_day)
-
-# merge weather
-hp_installed <- hp_installed %>%
-  left_join(weather)
-
-# Round degrees Celsius 
-hp_installed <- hp_installed %>% mutate(hdd = factor(
-  case_when(
-    daily_avg_air_temperature_celsius < 0 ~ 0,
-    daily_avg_air_temperature_celsius < 15.5 ~ round(daily_avg_air_temperature_celsius),
-    TRUE ~ 15
-  )
-))
-
 
 # Check number of accounts
 hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% distinct() %>% dim()
 
 # Load and preprocess gas consumption data
 # previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
+cosy_hp_install_gas_consumption <- fread("../gcs/cosy2/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
   group_by(account_id) %>%
   mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
          treated = max(is_hp_installed),
@@ -87,6 +66,30 @@ overall_weekly <- hp_installed %>%
   ) 
 
 
+# add weather 
+weather_weekly <- fread("../gcs/cosy2/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
+  mutate(settlement_week = as.Date(week_date)) %>%
+  distinct(gsp_group_id, settlement_week, .keep_all = TRUE) %>%
+  select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius) %>%
+  rename(tariff_gsp_group_id = gsp_group_id)
+
+# merge with consumption data
+overall_weekly <- overall_weekly %>%
+  inner_join(weather_weekly) %>% 
+mutate(hdd = factor(
+  case_when(
+    avg_air_temperature_celsius < 0 ~ 0,
+    avg_air_temperature_celsius < 15.5 ~ round(avg_air_temperature_celsius),
+    TRUE ~ 15
+  )),
+  temp_degree = factor(
+    case_when(
+      avg_air_temperature_celsius < 0 ~ 0,
+      avg_air_temperature_celsius < 25.5 ~ round(avg_air_temperature_celsius),
+      TRUE ~ 25
+    )))
+
+
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
 did_data <- overall_weekly %>%
@@ -98,7 +101,6 @@ did_data <- overall_weekly %>%
   group_by(account_id) %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
-  select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
   filter(week <= 129, firstweek <= 129) 
 
 
@@ -182,9 +184,9 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
 
 # Example usage            
 rds_files <- list(
-  Overall =  "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly.RDS"
+  Overall =  "../gcs/cosy2/scratch/est_cs_total_weekly.RDS",
+  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly.RDS",
+  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly.RDS"
 )
                
 aggte_simple_overall <- aggte(readRDS(rds_files$Overall), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
@@ -325,9 +327,6 @@ plot_data <- data.frame(
   type = rep(c("Electricity", "Gas"), each = max_length)
 )
 
-# Define colors for electricity and gas
-elec_color <- hp_color
-gas_color <- not_hp_color
 
 # Create the ggplot for combined effect
 ggplot(plot_data, aes(x = as.Date(week_date), y = estimate, color = type)) +
@@ -359,16 +358,17 @@ ggplot(plot_data, aes(x = as.Date(week_date), y = estimate, color = type)) +
 file_name <- "graphs/hp_calendarplot_combined.png"
 
 # Save plot data to CSV
-write.csv(plot_data, "data/output/hp_calendarplot_combined.csv", row.names = FALSE)
+write.csv(plot_data, "../gcs/cosy2/output/hp_calendarplot_combined.csv", row.names = FALSE)
 
 # Save the plot
 ggsave(file_name, device = "png", width = 8, height = 6, dpi = 300)
 
 
+# UNIVERSAL BASE robustness checks
 rds_files <- list(
-  Overall =  "data/scratch/est_cs_total_weekly_robust_universal.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly_robust_universal.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly_robust_universal.RDS"
+  Overall =  "../gcs/cosy2/scratch/est_cs_total_weekly_robust_universal.RDS",
+  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly_robust_universal.RDS",
+  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly_robust_universal.RDS"
 )
 
 # Load the data
@@ -389,46 +389,46 @@ ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
 
 
 # Define paths and base filenames for each anticipation period
-output_base_path <- "data/scratch/"
+output_base_path <- "../gcs/cosy2/scratch/"
 output_filenames <- c("est_cs_elec_weekly", "est_cs_gas_weekly")
 anticipation_periods <- 0:10  # The range of anticipation periods
 
-# Initialize lists to store results
-results <- list()
-
-# Loop through each anticipation period and calculate the aggregate estimates
-for (anticipation_week in anticipation_periods) {
-  # Load the electricity and gas estimates for each anticipation period
-  elec_filename <- paste0(output_base_path, output_filenames[1], "_anticipation_", anticipation_week, ".RDS")
-  gas_filename <- paste0(output_base_path, output_filenames[2], "_anticipation_", anticipation_week, ".RDS")
+# Define a function to process each anticipation week
+process_week <- function(anticipation_week) {
+  # File paths
+  elec_file <- paste0(output_base_path, output_filenames[1], "_anticipation_", anticipation_week, ".RDS")
+  gas_file  <- paste0(output_base_path, output_filenames[2], "_anticipation_", anticipation_week, ".RDS")
   
-  # Calculate the simple aggregate estimate for electricity
-  aggte_simple_elec <- aggte(readRDS(elec_filename), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+  # Read and calculate aggregate estimates
+  elec_agg <- aggte(readRDS(elec_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+  gas_agg  <- aggte(readRDS(gas_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
   
-  # Calculate the simple aggregate estimate for gas
-  aggte_simple_gas <- aggte(readRDS(gas_filename), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
-  
-  # Store the estimates and confidence intervals for electricity
-  results[[length(results) + 1]] <- data.frame(
+  # Create data frames for each type
+  df_elec <- data.frame(
     anticipation_week = anticipation_week,
-    estimate = aggte_simple_elec$att.egt,
-    lower_ci = aggte_simple_elec$att.egt - 1.96 * aggte_simple_elec$se.egt,
-    upper_ci = aggte_simple_elec$att.egt + 1.96 * aggte_simple_elec$se.egt,
+    estimate = elec_agg$overall.att ,
+    lower_ci = elec_agg$overall.att  - 1.96 * elec_agg$overall.se,
+    upper_ci = elec_agg$overall.att  + 1.96 * elec_agg$overall.se,
     type = "Electricity"
   )
   
-  # Store the estimates and confidence intervals for gas
-  results[[length(results) + 1]] <- data.frame(
+  df_gas <- data.frame(
     anticipation_week = anticipation_week,
-    estimate = aggte_simple_gas$att.egt,
-    lower_ci = aggte_simple_gas$att.egt - 1.96 * aggte_simple_gas$se.egt,
-    upper_ci = aggte_simple_gas$att.egt + 1.96 * aggte_simple_gas$se.egt,
+    estimate = gas_agg$overall.att ,
+    lower_ci = gas_agg$overall.att  - 1.96 * gas_agg$overall.se,
+    upper_ci = gas_agg$overall.att  + 1.96 * gas_agg$overall.se,
     type = "Gas"
   )
+  
+  list(df_elec, df_gas)
 }
 
-# Combine results into a single data frame for plotting
-plot_data <- do.call(rbind, results)
+# Apply the function over anticipation weeks and combine results
+results_list <- lapply(anticipation_periods, process_week)
+
+# Flatten the list and bind rows into one data frame
+plot_data <- do.call(rbind, unlist(results_list, recursive = FALSE))
+
 
 # Plotting the results with confidence intervals
 ggplot(plot_data, aes(x = anticipation_week, y = estimate, color = type, fill = type)) +
@@ -453,9 +453,9 @@ ggsave("graphs/HP_anticipation.png")
 
 
 rds_files <- list(
-  Overall =  "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly_gas_only.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly.RDS"
+  Overall =  "../gcs/cosy2/scratch/est_cs_total_weekly.RDS",
+  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly_gas_only.RDS",
+  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly.RDS"
 )
 
 # Example usage
@@ -487,14 +487,14 @@ pre_treatment_averages <- as_tibble(
 models <- list(Electricity = aggte_simple_elec, Gas = aggte_simple_gas, Overall = aggte_simple_overall)
 headers <- c( "Electricity", "Gas", "Overall")
 title <- "Heat Pump Installation on Yearly Energy Consumption in kWh"
-file <- "tables/hp_did_overall_cs.tex"
-label <- "tab:hp-did-cs"
+file <- "tables/hp_did_overall_cs_gas_only.tex"
+label <- "tab:hp-did-cs-gas-only"
 note <- "We show estimates from three CS estimates of the impact of consumption on customers' electricity consumption (column 1), gas consumption (column 2), and overall (electricity plus gas) consumption (column 3). The latter two models' are from a subset of our full sample for customers with gas consumption before their heat pump installation."
 
 create_latex_table(models, headers, title, file, label, pre_treatment_averages, note)
 
 
-
+# Format the TWFE and CS comparison tex files
 CleanPreAverage <- function(file_path) {
   
   # Read the generated LaTeX file
@@ -594,11 +594,11 @@ fitstat_register("t_obs", function(x) {
 
 # Apply the TWFE models
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)
+            data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)
+            data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)
 m3 <- feols(total_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03", treated==1), cluster = ~ account_id)  
+            data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)  
 
 
 # Define the main periods
@@ -613,9 +613,9 @@ cs_nT <- list()
 
 # Define paths to the RDS files for CS estimates
 cs_files <- list(
-  Overall = "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly.RDS"
+  Overall = "../gcs/cosy2/scratch/est_cs_total_weekly.RDS",
+  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly.RDS",
+  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly.RDS"
 )
 
 
@@ -633,8 +633,8 @@ for(period in main_periods) {
 
 
 # Generate the initial LaTeX table with TWFE models
-etable(m2_overall, m3_overall, m1_overall, 
-       m2_overall, m3_overall, m1_overall,
+etable(m1, m2, m3,
+       m1, m2, m3,
        headers = list(list("TWFE" = 3, "CS" = 3),
                       list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
        depvar = FALSE,
@@ -678,7 +678,7 @@ new_se <- c(paste0("(", cs_se[["Electricity"]], ")"),
 coeff_line <- grep("Is HP Installed \\$=\\$ 1", file_content)
 se_line <- coeff_line + 1
 obs_line <- grep("Observations", file_content)
-sample_line <- grep("Size of the 'effective' sample", file_content)
+sample_line <- grep("Number of Households", file_content)
 periods_line <- grep("Number of Time Periods", file_content)
 hdd_line <- grep("HDD", file_content)
 mpan_line <- grep("Household", file_content)[1]
@@ -716,15 +716,34 @@ file_content <- append(file_content, new_row, after = sample_line)
 # Write the modified content back to the LaTeX file
 writeLines(file_content, file_path)
 
+# clean
+rm(m1,m2,m3)
+               
+# Create CS main results 
+start_date <- min(overall_weekly$settlement_week)
+did_data <- overall_weekly %>%
+  ungroup() %>%
+  mutate(
+    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
+  ) %>%
+  group_by(account_id) %>%
+  mutate(id = cur_group_id()) %>%
+  ungroup() %>%
+  filter(week <= 129) %>%
+  mutate(firstweek = ifelse(firstweek > 129, 0, firstweek))
 
 
 # Apply the TWFE models
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id)
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03", 
+                                             account_id %in% did_data$account_id), cluster = ~ account_id)
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id)
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03", 
+                                             account_id %in% did_data$account_id), cluster = ~ account_id)
 m3 <- feols(total_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = hp_installed %>% filter(settlement_week < "2024-06-03"), cluster = ~ account_id) 
+            data = overall_weekly %>% filter(settlement_week < "2024-06-03", 
+                                             account_id %in% did_data$account_id), cluster = ~ account_id) 
 
 # Initialize variables to store estimates and standard errors
 cs_estimates <- list()
@@ -735,9 +754,9 @@ cs_nT <- list()
 
 # Define paths to the RDS files for CS estimates
 cs_files <- list(
-  Overall = "data/scratch/est_cs_never_treated_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_never_treated_elec_weekly.RDS",
-  Gas = "data/scratch/est_cs_never_treated_gas_weekly.RDS"
+  Overall = "../gcs/cosy2/scratch/est_cs_never_treated_total_weekly.RDS",
+  Electricity = "../gcs/cosy2/scratch/est_cs_never_treated_elec_weekly.RDS",
+  Gas = "../gcs/cosy2/scratch/est_cs_never_treated_gas_weekly.RDS"
 )
 
 
@@ -754,8 +773,8 @@ for(period in main_periods) {
 }
 
 # Generate the initial LaTeX table with TWFE models
-etable(m2_overall, m3_overall, m1_overall, 
-       m2_overall, m3_overall, m1_overall,
+etable(m1, m2, m3, 
+       m1, m2, m3,
        headers = list(list("TWFE" = 3, "CS" = 3),
                       list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
        depvar = FALSE,
@@ -799,7 +818,7 @@ new_se <- c(paste0("(", cs_se[["Electricity"]], ")"),
 coeff_line <- grep("Is HP Installed \\$=\\$ 1", file_content)
 se_line <- coeff_line + 1
 obs_line <- grep("Observations", file_content)
-sample_line <- grep("Size of the 'effective' sample", file_content)
+sample_line <- grep("Number of Households", file_content)
 periods_line <- grep("Number of Time Periods", file_content)
 hdd_line <- grep("HDD", file_content)
 mpan_line <- grep("Household", file_content)[1]
