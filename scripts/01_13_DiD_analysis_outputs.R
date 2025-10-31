@@ -3,11 +3,11 @@ elec_color <- hp_color
 gas_color <- not_hp_color
 
 # get consumption by period
-hp_installed <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
+hp_installed <- fread("../gcs/cosy2/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
   group_by(account_id, settlement_date) %>%
   summarise(total_consumption = sum(total_read_value)) %>%
   mutate(consumption_hh = total_consumption / 48) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>%
+  inner_join(fread("../gcs/cosy2/input/cosy_-_hp_details_2024_06_25.csv") %>%
                distinct(account_id, .keep_all = TRUE),
              by=c("account_id")) %>%
   mutate(date = as.Date(settlement_date),
@@ -21,7 +21,7 @@ hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% dis
 
 # Load and preprocess gas consumption data
 # previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
+cosy_hp_install_gas_consumption <- fread("../gcs/cosy2/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
   group_by(account_id) %>%
   mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
          treated = max(is_hp_installed),
@@ -67,7 +67,7 @@ overall_weekly <- hp_installed %>%
 
 
 # add weather 
-weather_weekly <- fread("data/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
+weather_weekly <- fread("../gcs/cosy2/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
   mutate(settlement_week = as.Date(week_date)) %>%
   distinct(gsp_group_id, settlement_week, .keep_all = TRUE) %>%
   select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius) %>%
@@ -184,9 +184,9 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
 
 # Example usage            
 rds_files <- list(
-  Overall =  "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly.RDS"
+  Overall =  "../gcs/cosy2/scratch/est_cs_total_weekly.RDS",
+  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly.RDS",
+  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly.RDS"
 )
                
 aggte_simple_overall <- aggte(readRDS(rds_files$Overall), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
@@ -358,7 +358,7 @@ ggplot(plot_data, aes(x = as.Date(week_date), y = estimate, color = type)) +
 file_name <- "graphs/hp_calendarplot_combined.png"
 
 # Save plot data to CSV
-write.csv(plot_data, "data/output/hp_calendarplot_combined.csv", row.names = FALSE)
+write.csv(plot_data, "../gcs/cosy2/output/hp_calendarplot_combined.csv", row.names = FALSE)
 
 # Save the plot
 ggsave(file_name, device = "png", width = 8, height = 6, dpi = 300)
@@ -366,9 +366,9 @@ ggsave(file_name, device = "png", width = 8, height = 6, dpi = 300)
 
 # UNIVERSAL BASE robustness checks
 rds_files <- list(
-  Overall =  "data/scratch/est_cs_total_weekly_robust_universal.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly_robust_universal.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly_robust_universal.RDS"
+  Overall =  "../gcs/cosy2/scratch/est_cs_total_weekly_robust_universal.RDS",
+  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly_robust_universal.RDS",
+  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly_robust_universal.RDS"
 )
 
 # Load the data
@@ -389,7 +389,7 @@ ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
 
 
 # Define paths and base filenames for each anticipation period
-output_base_path <- "data/scratch/"
+output_base_path <- "../gcs/cosy2/scratch/"
 output_filenames <- c("est_cs_elec_weekly", "est_cs_gas_weekly")
 anticipation_periods <- 0:10  # The range of anticipation periods
 
@@ -453,9 +453,9 @@ ggsave("graphs/HP_anticipation.png")
 
 
 rds_files <- list(
-  Overall =  "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly_gas_only.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly.RDS"
+  Overall =  "../gcs/cosy2/scratch/est_cs_total_weekly.RDS",
+  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly_gas_only.RDS",
+  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly.RDS"
 )
 
 # Example usage
@@ -613,9 +613,9 @@ cs_nT <- list()
 
 # Define paths to the RDS files for CS estimates
 cs_files <- list(
-  Overall = "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly.RDS"
+  Overall = "../gcs/cosy2/scratch/est_cs_total_weekly.RDS",
+  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly.RDS",
+  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly.RDS"
 )
 
 
@@ -754,9 +754,9 @@ cs_nT <- list()
 
 # Define paths to the RDS files for CS estimates
 cs_files <- list(
-  Overall = "data/scratch/est_cs_never_treated_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_never_treated_elec_weekly.RDS",
-  Gas = "data/scratch/est_cs_never_treated_gas_weekly.RDS"
+  Overall = "../gcs/cosy2/scratch/est_cs_never_treated_total_weekly.RDS",
+  Electricity = "../gcs/cosy2/scratch/est_cs_never_treated_elec_weekly.RDS",
+  Gas = "../gcs/cosy2/scratch/est_cs_never_treated_gas_weekly.RDS"
 )
 
 
