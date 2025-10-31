@@ -1,5 +1,5 @@
 
-Cosy_hp_agreements_data_2024_07_05 <- fread("data/input/Cosy_-_hp_agreements_data_2024_07_05.csv") %>%
+Cosy_hp_agreements_data_2024_07_05 <- fread("../gcs/cosy2/input/Cosy_-_hp_agreements_data_2024_07_05.csv") %>%
   mutate(time_since_hp = round(as.numeric(difftime(agreement_valid_from, installed_at, units = "week"))/(4.43)),
          time_since_hp = case_when(time_since_hp < -15 ~ -15,
                                    time_since_hp > 15 ~ 15,

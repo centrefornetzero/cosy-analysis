@@ -1,4 +1,4 @@
-### Table A.15: External Validity by Area for Heat Pump Installation
+### Appendix A.15: External Validity by Area for Heat Pump Installation
 
 # Function to calculate weighted standard deviation
 weighted_sd <- function(x, w) {
@@ -106,8 +106,7 @@ avg_age <- fread("../gcs/cosy2/input/custom-filtered-2024-07-03T11_15_15Z.csv") 
 
 education <- fread("../gcs/cosy2/input/custom-filtered-2024-07-03T11_22_39Z.csv") %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
-  mutate(sum_obs = sum(Observation), 
-         `Share Level 4 Qualifications (%)` = 100 * Observation / sum_obs) %>%
+  mutate(sum_obs = sum(Observation), `Share Level 4 Qualifications (%)` = 100 * Observation / sum_obs) %>%
   filter(`Highest level of qualification (7 categories) Code` == 4)
 
 # Merge all datasets by `MSOA code` or `Middle layer Super Output Areas Code`
