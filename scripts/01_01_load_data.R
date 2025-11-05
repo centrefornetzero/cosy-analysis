@@ -7,26 +7,34 @@ hp_installed_period <- fread("../gcs/cosy2/input/cosy_-_hp_aggregated_up_2024_06
          date = as.Date(date)) %>%
 
   # aggregate from mpan level up to account level 
+  # install_date is at the account level 
   group_by(account_id, date, rate_period) %>%
   summarise(total_consumption = sum(total_consumption), 
            consumption_hh = sum(consumption_hh)) %>%
   ungroup()
 
-# aggreate up to get overall
+# aggreate up to get overall consumption
 hp_installed_daily <- hp_installed_period %>%
   group_by(account_id, date) %>%
   summarise(total_consumption = sum(total_consumption)) %>%
   mutate(consumption_hh = total_consumption / 48,
          rate_period = factor("Overall")) 
 
-# merge together to make regressions easier
+# read in household covariates
+# for hhs where there are multiple mpans for one account, take covariates associated
+# with largest EAC
+covariates <- 
+  fread("../gcs/cosy2/input/cosy_-_hp_details_2024_06_25.csv") %>%
+  group_by(account_id) %>%
+  arrange(-estimated_annual_consumption) %>%
+  filter(row_number() == 1)
+
+
+# bind period-level and overall consumption data to make regressions easier
+# and join in covariates 
 hp_installed <- 
   bind_rows(hp_installed_period, hp_installed_daily) %>%
-
-  # merge in household covariates 
-  inner_join(fread("../gcs/cosy2/input/cosy_-_hp_details_2024_06_25.csv") %>%
-               distinct(account_id, hashed_mpan, .keep_all = TRUE),
-             by=c("account_id","hashed_mpan"))
+  inner_join(covariates, by=c("account_id"))
 
 # add daily weather data
 weather <- fread("../gcs/cosy2/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
@@ -50,7 +58,7 @@ hp_installed <- hp_installed %>% mutate(hdd = factor(
 ))
 
 # check there are no duplicated rows
-stopifnot(group_by(hp_installed, account_id, hashed_mpan, date, rate_period) %>% filter(n() > 1) %>% nrow() == 0)
+stopifnot(group_by(hp_installed, account_id, date, rate_period) %>% filter(n() > 1) %>% nrow() == 0)
 
 rm(weather, hp_installed_daily, hp_installed_period)
 

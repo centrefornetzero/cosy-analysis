@@ -143,15 +143,15 @@ source("scripts/01_01_load_data.R")
 # List objects in the environment
 list_env <- c(ls(), "list_env")
 
-## Summary statistics 
-source("scripts/01_02_summary_graphs.R")
+# # Summary statistics 
+# source("scripts/01_02_summary_graphs.R")
 
-# Remove all objects in the environment except for those in list_env
-rm(list = setdiff(ls(), list_env))
+# # Remove all objects in the environment except for those in list_env
+# rm(list = setdiff(ls(), list_env))
 
 
-source("scripts/01_03_balance_table.R")
-rm(list = setdiff(ls(), list_env))
+# source("scripts/01_03_balance_table.R")
+# rm(list = setdiff(ls(), list_env))
 
 # source("scripts/01_04_ev_ownership.R")
 # rm(list = setdiff(ls(), list_env))
@@ -185,8 +185,8 @@ rm(list = setdiff(ls(), list_env))
 
 
 
-# source("scripts/01_11_event_study.R")
-# rm(list = setdiff(ls(), list_env))
+source("scripts/01_11_event_study.R")
+rm(list = setdiff(ls(), list_env))
 
 # source("scripts/01_12_DiD_analysis.R")
 # rm(list = setdiff(ls(), list_env))
