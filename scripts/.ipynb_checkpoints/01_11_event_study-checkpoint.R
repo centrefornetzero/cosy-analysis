@@ -57,7 +57,7 @@ ggplot(coefs, aes(x = weeks_since_hp, y = Estimate, color = post)) +
 ggsave(paste0("graphs/hp_event_study_overall.png"),
        width = 16, height = 8, units = "cm")
 
-rm(m_event_study, hp_installed)
+rm(m_event_study)
 
 
 m_event_study <- feols(consumption_hh ~ i(weeks_since_hp, ref=-1) | account_id + hdd + date, 
