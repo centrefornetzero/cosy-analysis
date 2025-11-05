@@ -6,7 +6,7 @@
 # List packages to load
 packages <- c(
   "knitr", "kableExtra", "did", "fixest", "data.table", "lubridate", 
-  "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", 
+  "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", "readr",
   "forcats", "viridis",  "stringr", "stargazer", "panelView", "readxl","purrr",
   "progress", "lfe", "tibble", "stringr", "didimputation", "ggtext", "MatchIt"
 )
