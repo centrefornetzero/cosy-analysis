@@ -99,4 +99,3 @@ if (random_subsample) {
     filter(account_id %in% sampled_accounts)
   gc()
 }
-
