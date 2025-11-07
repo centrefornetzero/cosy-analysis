@@ -33,6 +33,18 @@ full <-
     settlement_week = seq(min(settlement_week), max(settlement_week), by = "week")
   )
 
+full <- 
+  select(hp_installed_weekly, account_id, settlement_week) %>%
+  mutate(type = "elec") %>%
+  bind_rows(select(cosy_hp_install_gas_consumption, account_id, settlement_week)) %>%
+  mutate(type = replace_na(type, "gas")) %>%
+  distinct() %>%
+  group_by(account_id, type) %>%
+  summarise(min = min(settlement_week), 
+           max = max(settlement_week)) %>%
+  pivot_wider(names_from = "type", values_from = c("min", "max"))
+
+
 
 # Make it balanced: for each account_id, include all weeks from min to max date 
 hp_weekly_balanced <- 
@@ -124,17 +136,17 @@ did_data <- overall_weekly %>%
   ungroup() %>%
   select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption)
 
-check = fastdid::fastdid(data = did_data, 
-       result_type = "simple", 
-       outcomevar = "gas_consumption", 
-       timevar = "week", 
-       unitvar = "id", 
-       cohortvar = "firstweek", 
-       base_period = "varying", 
-        boot = TRUE,
-       clustervar = "id", 
-               allow_unbalance_panel = TRUE)
-stop()
+# check = fastdid::fastdid(data = did_data, 
+#        result_type = "simple", 
+#        outcomevar = "gas_consumption", 
+#        timevar = "week", 
+#        unitvar = "id", 
+#        cohortvar = "firstweek", 
+#        base_period = "varying", 
+#         boot = TRUE,
+#        clustervar = "id", 
+#                allow_unbalance_panel = TRUE)
+
 # ---------------------- Create CS main results ---------------------
 
 
