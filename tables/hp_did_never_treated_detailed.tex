@@ -1,0 +1,36 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:hp-did-overall-conso-detailed} HP Installation on Yearly Energy Consumption in kWh}
+   \centering
+   \begin{tabular}{lcccccc}
+      \tabularnewline \midrule \midrule
+       & \multicolumn{3}{c}{TWFE} & \multicolumn{3}{c}{CS} \\ 
+                                     & Electricity     & Gas               & Overall          & Electricity     & Gas               & Overall \\   
+      Model:                         & (1)             & (2)               & (3)              & (4)             & (5)               & (6)\\  
+      \midrule
+      \emph{Variables}\\
+      Is HP Installed $=$ 1           &  3,003.3$^{***}$  &  -11,049.6$^{***}$  &  -7,648.5$^{***}$  & 2,884.0$^{***}$ & -8,795.8$^{***}$ & -5,676.9$^{***}$ \\
+                                      &  (114.0)          &  (414.0)            &  (320.1)           & (119.8) & (320.9) & (334.7) \\
+      \midrule
+\emph{Pre-Treatment Average}\\
+      Yearly Consumption             & 5,120.66        & 10,177.69         & 15,193.31        & 5,120.66        & 10,177.69         & 15,193.31\\  
+\midrule
+      \emph{Fixed-effects}\\
+      Household                       &  Yes              &  Yes                &  Yes               &  &  &  \\
+      HDD                             &  Yes              &  Yes                &  Yes               &  &  &  \\
+      Week                            &  Yes              &  Yes                &  Yes               &  &  &  \\
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                    &  162,158          &  109,310            &  109,310           &  &  &  \\
+      Number of Households  &  1,932            &  1,523              &  1,523             & 1,544 & 1,942 & 1,544 \\
+Number of cohorts (CS) & & & & 101 & 99 & 99 \\
+      Number of Time Periods          &  129              &  129                &  129               & 129 & 129 & 129 \\
+      R$^2$                           &  0.64158          &  0.76160            &  0.77731           &  &  &  \\
+      \midrule \midrule
+\multicolumn{10}{l}{\emph{Clustered (Household) standard-errors in parentheses for TWFE}}\\
+\multicolumn{10}{l}{\emph{Clustered cohort (Week of adoption) standard-errors in parentheses for CS}}\\
+      \multicolumn{7}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+
