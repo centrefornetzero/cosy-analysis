@@ -138,7 +138,7 @@ fitstat_register("t_obs", function(x) {
 }, "Number of Time Periods")
 
 # Load data
-source("scripts/01_01_load_data.R")
+# source("scripts/01_01_load_data.R")
 
 # List objects in the environment
 list_env <- c(ls(), "list_env")
@@ -185,8 +185,8 @@ list_env <- c(ls(), "list_env")
 
 
 
-source("scripts/01_11_event_study.R")
-rm(list = setdiff(ls(), list_env))
+# source("scripts/01_11_event_study.R")
+# rm(list = setdiff(ls(), list_env))
 
 # source("scripts/01_12_DiD_analysis.R")
 # rm(list = setdiff(ls(), list_env))
