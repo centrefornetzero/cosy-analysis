@@ -113,90 +113,90 @@ output_filenames <- c(
 # Define the corresponding variable names
 yname_vars <- c("total_consumption", "elec_consumption", "gas_consumption")
 
-# # Estimate and save the results for the main analysis (not yet treated control group)
-# for (i in seq_along(yname_vars)) {
-#   yname <- yname_vars[i]
-#   filename <- output_filenames[i]
+# Estimate and save the results for the main analysis (not yet treated control group)
+for (i in seq_along(yname_vars)) {
+  yname <- yname_vars[i]
+  filename <- output_filenames[i]
   
-#   message("Estimating treatment effect for ", yname, " and saving to ", filename)
+  message("Estimating treatment effect for ", yname, " and saving to ", filename)
   
-#   est_cs <- att_gt(yname = yname,
-#                    tname = "week",
-#                    idname = "id",
-#                    gname = "firstweek",
-#                    data = did_data,
-#                    anticipation = 1,
-#                    clustervars = "id",
-#                    control_group = c("notyettreated"),
-#                    allow_unbalanced_panel = TRUE,
-#                    base_period = "varying")
+  est_cs <- att_gt(yname = yname,
+                   tname = "week",
+                   idname = "id",
+                   gname = "firstweek",
+                   data = did_data,
+                   anticipation = 1,
+                   clustervars = "id",
+                   control_group = c("notyettreated"),
+                   allow_unbalanced_panel = TRUE,
+                   base_period = "varying")
   
-#   saveRDS(est_cs, filename)
-#   message("Saved: ", filename)
-# }
+  saveRDS(est_cs, filename)
+  message("Saved: ", filename)
+}
 
 
-# # Robustness check with base_period = "universal"
-# robust_output_filenames <- gsub("\\.RDS$", "_robust_universal.RDS", output_filenames)
+# Robustness check with base_period = "universal"
+robust_output_filenames <- gsub("\\.RDS$", "_robust_universal.RDS", output_filenames)
 
-# for (i in seq_along(yname_vars)) {
-#   yname <- yname_vars[i]
-#   filename <- robust_output_filenames[i]
+for (i in seq_along(yname_vars)) {
+  yname <- yname_vars[i]
+  filename <- robust_output_filenames[i]
   
-#   message("Estimating treatment effect for ", yname, " with universal base period and saving to ", filename)
+  message("Estimating treatment effect for ", yname, " with universal base period and saving to ", filename)
   
-#   est_cs <- att_gt(yname = yname,
-#                    tname = "week",
-#                    idname = "id",
-#                    gname = "firstweek",
-#                    data = did_data,
-#                    anticipation = 1,
-#                    clustervars = "id",
-#                    control_group = c("notyettreated"),
-#                    allow_unbalanced_panel = TRUE,
-#                    base_period = "universal")
+  est_cs <- att_gt(yname = yname,
+                   tname = "week",
+                   idname = "id",
+                   gname = "firstweek",
+                   data = did_data,
+                   anticipation = 1,
+                   clustervars = "id",
+                   control_group = c("notyettreated"),
+                   allow_unbalanced_panel = TRUE,
+                   base_period = "universal")
   
-#   saveRDS(est_cs, filename)
-#   message("Saved: ", filename)
-# }
+  saveRDS(est_cs, filename)
+  message("Saved: ", filename)
+}
 
-# # Step 3: Estimate CS models for the "never treated" control group
+# Step 3: Estimate CS models for the "never treated" control group
 
-# never_treated_output_filenames <- gsub("est_cs_", "est_cs_never_treated_", output_filenames)
+never_treated_output_filenames <- gsub("est_cs_", "est_cs_never_treated_", output_filenames)
 
-# did_data <- overall_weekly %>%
-#   ungroup() %>%
-#   mutate(
-#     week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
-#     firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
-#   ) %>%
-#   group_by(account_id) %>%
-#   mutate(id = cur_group_id(),
-#          firstweek = ifelse(firstweek>129, 0, firstweek)) %>%
-#   ungroup() %>%
-#   select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
-#   filter(week <= 129) 
+did_data <- overall_weekly %>%
+  ungroup() %>%
+  mutate(
+    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
+  ) %>%
+  group_by(account_id) %>%
+  mutate(id = cur_group_id(),
+         firstweek = ifelse(firstweek>129, 0, firstweek)) %>%
+  ungroup() %>%
+  select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
+  filter(week <= 129) 
 
-# for (i in seq_along(yname_vars)) {
-#   yname <- yname_vars[i]
-#   filename <- never_treated_output_filenames[i]
+for (i in seq_along(yname_vars)) {
+  yname <- yname_vars[i]
+  filename <- never_treated_output_filenames[i]
   
-#   message("Estimating treatment effect for ", yname, " with 'never treated' control group and saving to ", filename)
+  message("Estimating treatment effect for ", yname, " with 'never treated' control group and saving to ", filename)
   
-#   est_cs <- att_gt(yname = yname,
-#                    tname = "week",
-#                    idname = "id",
-#                    gname = "firstweek",
-#                    data = did_data,
-#                    anticipation = 1,
-#                    clustervars = "id",
-#                    control_group = c("notyettreated", "nevertreated"),
-#                    allow_unbalanced_panel = TRUE,
-#                    base_period = "varying")
+  est_cs <- att_gt(yname = yname,
+                   tname = "week",
+                   idname = "id",
+                   gname = "firstweek",
+                   data = did_data,
+                   anticipation = 1,
+                   clustervars = "id",
+                   control_group = c("notyettreated", "nevertreated"),
+                   allow_unbalanced_panel = TRUE,
+                   base_period = "varying")
   
-#   saveRDS(est_cs, filename)
-#   message("Saved: ", filename)
-# }
+  saveRDS(est_cs, filename)
+  message("Saved: ", filename)
+}
 
 # Step 4: Estimate CS models for the gas-only subset
 start_date <- min(overall_weekly$settlement_week)

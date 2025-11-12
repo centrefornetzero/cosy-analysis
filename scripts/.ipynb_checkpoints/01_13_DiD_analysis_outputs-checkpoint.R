@@ -6,7 +6,8 @@ overall_weekly <- read_rds("../gcs/cosy2/output/overall_weekly.rds")
 
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
-did_data <- overall_weekly %>%
+did_data <- 
+  overall_weekly %>%
   ungroup() %>%
   mutate(
     week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
