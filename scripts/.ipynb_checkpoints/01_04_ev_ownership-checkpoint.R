@@ -1,5 +1,9 @@
 ## Table A.3: HP Installation on Electricity Consumption Controlling for EV Ownership 
 
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# --------------------- Data Cleaning --------------------------
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ev half hours 
 # Read the CSV file
 ev_charging <- fread("../gcs/cosy2/input/cosy_-_ev_detection_2024_07_04.csv") %>%
@@ -15,15 +19,15 @@ ev_charging <- fread("../gcs/cosy2/input/cosy_-_ev_detection_2024_07_04.csv") %>
          )
   )
 
-# Aggregate at the account id, mpan, date and rate period level
-ev_charging_agg <- rbind(ev_charging %>%
-                           group_by(account_id,  hashed_mpan, date, rate_period) %>%
-                           tally(),
-                         ev_charging %>%
-                           group_by(account_id,  hashed_mpan, date) %>%
-                           tally() %>% 
-                           mutate(rate_period="Overall")) %>%
-  rename(ev_charging=n)
+# Count number of charging events during each period
+ev_charging_agg <- 
+  ev_charging %>%
+  group_by(account_id, date, rate_period) %>%
+  tally() %>%
+  bind_rows(group_by(ev_charging, account_id, date) %>% tally()) %>%
+  rename(ev_charging=n) %>%
+  mutate(rate_period = replace_na(rate_period, "Overall"))
+
 
 # EV users details
 ev_users <- ev_charging %>%
@@ -31,7 +35,8 @@ ev_users <- ev_charging %>%
   summarise(is_ev_detected= min(as.Date(interval_start)))
 
 # Update hp_installed with the new ev_charging values using case_when
-hp_installed <- hp_installed %>%
+hp_installed <- 
+  read_rds("../gcs/cosy2/output/hp_installed.rds") %>%
   left_join(ev_charging_agg) %>%
   mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging),
          ev_charging = case_when(
@@ -44,7 +49,9 @@ hp_installed <- hp_installed %>%
   mutate(has_ev = as.numeric(is_ev_detected <= date),
          has_ev = ifelse(is.na(has_ev), 0, has_ev))
 
-# Fit the model
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# --------- Consumption impacts by EV ownership --------------
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 m1 <- feols(total_consumption ~ i(is_hp_installed, ref=0)  |
               hdd + account_id + date, 
             data = hp_installed %>% 
@@ -67,41 +74,36 @@ etable(m1, m1c, tex = TRUE, title = "HP Installation on Electricity Consumption 
        fitstat = ~ N + g + pre_avg + t_obs + r2, 
        file = "tables/hp_did_ev.tex", replace = TRUE, label = "tab:hp-did-ev")
 
+
 CleanPreAverage("tables/hp_did_ev.tex")
 
 
 
 
-
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Table A.4: HP Installation on Probability of Charging EV by Period
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ev_charging_balanced <- 
+  ev_charging %>%
+  # get all unique account_id-date combinations
+  distinct(account_id, date) %>%
+  # cross with all possible rate_period values
+  crossing(rate_period = unique(ev_charging$rate_period)) 
 
-# Identify the period with the highest EV charging for each mpan and date
-ev_charging_max <- ev_charging %>%
-  group_by(account_id, hashed_mpan, date, rate_period) %>%
-  summarise(ev_charging = sum(ev_charging, na.rm = TRUE)) %>%
-  group_by(account_id, hashed_mpan, date) %>%
-  filter(ev_charging == max(ev_charging)) %>%
-  mutate(highest_ev_charging = 1) %>%
-  ungroup()
-
-ev_charging_max <- ev_charging_max %>%
-  left_join(hp_installed %>% select(account_id, hashed_mpan, date, is_hp_installed) %>% distinct())
-
-# Create dummy variables for rate periods
-ev_charging_max <- ev_charging_max %>%
-  mutate(
-    Morning_Cosy = ifelse(rate_period == "Morning Cosy", 1, 0),
-    Afternoon_Cosy = ifelse(rate_period == "Afternoon Cosy", 1, 0),
-    Peak_Rate = ifelse(rate_period == "Peak Rate", 1, 0),
-    Other = ifelse(rate_period == "Other", 1, 0)
-  )
+# For each day-period, identify if charging occured 
+ev_charging_probability <- ev_charging %>%
+  group_by(account_id, date, rate_period) %>%
+  summarise(ev_charging = sum(ev_charging, na.rm = TRUE) > 0) %>%
+  right_join(ev_charging_balanced) %>%
+  mutate(ev_charging = replace_na(ev_charging, 0))%>%
+  pivot_wider(id_cols = c(account_id, date), names_from = "rate_period", values_from = "ev_charging")  %>%
+  left_join(select(hp_installed, account_id, date, is_hp_installed)) 
 
 # Run the fixed effects models
-m_charging1 <- feols(Morning_Cosy ~ i(is_hp_installed) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-m_charging2 <- feols(Afternoon_Cosy ~ i(is_hp_installed) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-m_charging3 <- feols(Peak_Rate ~ i(is_hp_installed) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-m_charging4 <- feols(Other ~ i(is_hp_installed) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-
+m_charging1 <- feols(`Morning Cosy` ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
+m_charging2 <- feols(`Afternoon Cosy` ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
+m_charging3 <- feols(`Peak Rate` ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
+m_charging4 <- feols(Other ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
 
 # Generate the LaTeX table with the dependent variable named "Charging EV"
 etable(m_charging1, m_charging2, m_charging3, m_charging4, 
