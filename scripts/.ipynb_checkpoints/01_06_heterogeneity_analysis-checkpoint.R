@@ -1,8 +1,13 @@
 ## Heterogeneity analysis
 
-### Figure 6: Impact of Heat Pump Installation by Outside Temperature (and Figure A.2 to A.5)
 
-rm(m1, m1c, m_solar, ev_charging, ev_users, ev_charging_agg)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+### Figure 6: Impact of Heat Pump Installation by Outside 
+# Temperature (and Figure A.2 to A.5)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+rm(m1, m1c, ev_charging, ev_users, ev_charging_agg)
 
 # Fit the model
 m1 <- feols(consumption_hh ~ i(is_hp_installed) | hdd + account_id + date, 
@@ -26,6 +31,7 @@ tempreg <- feols(consumption_hh ~ i(is_hp_installed, temp_degree, ref=0) |
                      ))),
                  split = ~ rate_period,
                  cluster = ~account_id)
+
 for (i in 1:5) {
   
   # Find model
@@ -69,7 +75,9 @@ for (i in 1:5) {
 }
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Figure A.6: Impact of Heat Pump Installation by EPC Rating 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 rm(tempreg)
 
@@ -167,7 +175,12 @@ for (i in 1:5) {
 rm(m2a)
 
 
-## Figure A.10: Impact of Heat Pump Installation by Previous Heat Source
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Figure A.10: Impact of Heat Pump Installation by Previous 
+# Heat Source
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 m_sources <- feols(consumption_hh ~ i(is_hp_installed, hp_survey_outcome_existing_heat_source, ref=0)  | 
                      hdd + account_id + date,
                    data = hp_installed %>% filter(treated == 1, !hp_survey_outcome_existing_heat_source==""), 
@@ -248,20 +261,21 @@ for (i in 1:5) {
 rm(m_sources)
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Figure 7: Impact of Heat Pump Installation by MSOA Income
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 # Load and preprocess the cosy_hp_details data
-
-cosy_hp_details <- fread("data/input/cosy_-_hp_details_2024_07_03.csv") %>%
+cosy_hp_details <- fread("../gcs/cosy2/input/cosy_-_hp_details_2024_07_03.csv") %>%
   inner_join(hp_installed %>% filter(treated == 1) %>% select(account_id) %>% distinct()) %>%
   filter(!postcode=="") %>%
   select(account_id, postcode)
 
-postcode_msoa <- fread("data/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
+postcode_msoa <- fread("../gcs/cosy2/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
   left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
   select(msoa21cd, pcds) %>%
   distinct(pcds, .keep_all = TRUE)
 
-income <- readxl::read_excel("data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
+income <- readxl::read_excel("../gcs/cosy2/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct() %>%
   inner_join(postcode_msoa, by=c("MSOA code"="msoa21cd")) %>%
@@ -269,7 +283,7 @@ income <- readxl::read_excel("data/input/saiefy1920finalqaddownload280923.xlsx",
 
 
 # Create unique breaks for predicted_heatloss_watts
-income_dist <- readxl::read_excel("data/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
+income_dist <- readxl::read_excel("../gcs/cosy2/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) 
 
 
@@ -466,9 +480,11 @@ for (i in 1:5) {
 
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Figure A.8: Impact of Heat Pump Installation by Heat Loss Decile
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 hp_installed <- hp_installed %>%
-  left_join(fread("data/input/cosy_-_hp_details_2024_07_03.csv") %>%
+  left_join(fread("../gcs/cosy2/input/cosy_-_hp_details_2024_07_03.csv") %>%
               distinct(account_id, latest_survey_heat_loss) %>% filter(!is.na(latest_survey_heat_loss)))
 
 # Create unique breaks for predicted_heatloss_watts
@@ -535,9 +551,10 @@ for (i in 1:5) {
 }
 
 
-
-
-### Figure A.9: Impact of Heat Pump Installation on Half-Hourly Electricity Consumption by
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+### Figure A.9: Impact of Heat Pump Installation on Half-Hourly 
+# Electricity Consumption by region
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 m_region <- feols(consumption_hh ~ i(is_hp_installed, region, ref =0) | 
                     account_id + hdd + date,
                   data = hp_installed %>% filter(!is.na(region), !region=="", rate_period == "Overall"),
@@ -591,8 +608,9 @@ ggsave("graphs/hp_region_combined.png", device = "png", width = 16, height = 12,
 
 
 
-
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### Figure A.7: Impact of Heat Pump Installation by Floor Area
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 # Create unique breaks for total_floor_area
 breaks <- unique(quantile(hp_installed[!is.na(hp_installed$total_floor_area),]$total_floor_area, 
                           probs = seq(0, 1, by = 0.1)))
