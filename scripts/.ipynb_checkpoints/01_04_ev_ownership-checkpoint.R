@@ -114,7 +114,7 @@ etable(m_charging1, m_charging2, m_charging3, m_charging4,
        fitstat = ~ N + g + pre_avg + r2, 
        file = "tables/hp_ev_charging.tex", 
        replace = TRUE, 
-       label = "tab:hp-ev-charging",
+       label = "tab:hp-ev-charging", 
        dict = c(Morning_Cosy = "Charging EV", 
                 Afternoon_Cosy = "Charging EV", 
                 Peak_Rate = "Charging EV", 
@@ -127,15 +127,16 @@ file_path <- "tables/hp_ev_charging.tex"
 file_content <- readLines(file_path)
 
 # Find the lines with the pre-treatment average and remove them
-if (length(grep("Charging EV", file_content))==1) {F
-  pre_avg_line_index <- grep("Charging EV", file_content)
+if (length(grep("Yearly Consumption", file_content))==1) {
+  pre_avg_line_index <- grep("Yearly Consumption", file_content)
 } else {
-  pre_avg_line_index <- grep("Charging EV", file_content)[2]
+  pre_avg_line_index <- grep("Yearly Consumption", file_content)[2]
 }
 
 # Find the lines with the pre-treatment average and remove them
 pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
 file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
+pre_avg_lines <- str_replace(pre_avg_lines, "Yearly Consumption", "Charging EV")
 
 # Find the position just after the coefficients
 coeff_end_index <- grep("Is HP Installed", file_content)[length(grep("Is HP Installed", file_content))] + 2
