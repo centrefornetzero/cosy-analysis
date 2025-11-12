@@ -97,12 +97,13 @@ ev_charging_probability <- ev_charging %>%
   right_join(ev_charging_balanced) %>%
   mutate(ev_charging = replace_na(ev_charging, 0))%>%
   pivot_wider(id_cols = c(account_id, date), names_from = "rate_period", values_from = "ev_charging")  %>%
-  left_join(select(hp_installed, account_id, date, is_hp_installed)) 
+  left_join(select(hp_installed, account_id, date, is_hp_installed)) %>%
+  rename_all(~str_replace(.x, "\\s", "_"))
 
 # Run the fixed effects models
-m_charging1 <- feols(`Morning Cosy` ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
-m_charging2 <- feols(`Afternoon Cosy` ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
-m_charging3 <- feols(`Peak Rate` ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
+m_charging1 <- feols(Morning_Cosy ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
+m_charging2 <- feols(Afternoon_Cosy ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
+m_charging3 <- feols(Peak_Rate ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
 m_charging4 <- feols(Other ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
 
 # Generate the LaTeX table with the dependent variable named "Charging EV"
