@@ -133,7 +133,10 @@ temperature_levels <- levels(coefs$daily_avg_air_temperature_celsius)
 results <- vector("list", B)
 pb <- progress_bar$new(total = B, format = "Bootstrapping [:bar] :percent ETA: :eta")
 
+                         
 for (b in 1:B) {
+  print(b)
+    
   pb$tick()
   
   # Resample account_ids with replacement
@@ -159,7 +162,7 @@ for (b in 1:B) {
   boot_coefs <- coeftable(boot_model) %>%
     data.frame() %>%
     separate(coefficient, 
-             into = c("is_hp_installed", "remove1", "temp", "remove2"), sep = "::") %>%fffxxxxxxxxxxxxxxxxxxxxxxxxxxdfddffddddddddddfff
+             into = c("is_hp_installed", "remove1", "temp", "remove2"), sep = "::") %>%
     select(lhs, Estimate, temp) %>%
     pivot_wider(names_from = lhs, values_from = Estimate) %>%
     mutate(quasi_cop = abs(gas_consumption / elec_consumption)) %>%
