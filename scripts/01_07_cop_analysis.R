@@ -1,4 +1,6 @@
-# read in elec + gas consumption data
+# ====================================================================
+# --------- read in elec + gas consumption data ---------
+# ====================================================================
 overall_weekly <- 
   read_rds("../gcs/cosy2/output/overall_weekly.rds") %>%
   mutate_at(vars(elec_consumption, gas_consumption, total_consumption), 
@@ -157,7 +159,7 @@ for (b in 1:B) {
   boot_coefs <- coeftable(boot_model) %>%
     data.frame() %>%
     separate(coefficient, 
-             into = c("is_hp_installed", "remove1", "temp", "remove2"), sep = "::") %>%
+             into = c("is_hp_installed", "remove1", "temp", "remove2"), sep = "::") %>%fffxxxxxxxxxxxxxxxxxxxxxxxxxxdfddffddddddddddfff
     select(lhs, Estimate, temp) %>%
     pivot_wider(names_from = lhs, values_from = Estimate) %>%
     mutate(quasi_cop = abs(gas_consumption / elec_consumption)) %>%
@@ -180,7 +182,7 @@ fwrite(cop_boot, "../gcs/cosy2/scratch/cop_boot.csv")
 cop_boot <- fread("../gcs/cosy2/scratch/cop_boot.csv")             
   
 stop() 
-                         
+                          frd
 # ASHP COP data from the EPRI chart
 ashp_cop <- data.frame(
   temp_f = c(-20, -10, 0, 10, 20, 30, 40, 50, 60),
