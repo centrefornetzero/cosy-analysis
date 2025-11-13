@@ -125,7 +125,10 @@ ggsave(paste0("graphs/hp_temperature_gas_elec_blog_version.png"),
 # --------- Figure 5: COP - Energy Demand Ratio --------------
 # ====================================================================  
 # Calculate the average value for the dashed line
-avg_cop <- abs(m1$`lhs: gas_consumption`$coefficients / m1$`lhs: elec_consumption`$coefficients)
+avg_cop <- round(abs(m1$`lhs: gas_consumption`$coefficients / m1$`lhs: elec_consumption`$coefficients), digits = 2)
+
+# the average COP inferred from CS estimation (Table A1) is 3.02
+avg_cop <- 3.02
 
 set.seed(123)  # for reproducibility
 B <- 500  # number of bootstrap samples
@@ -133,10 +136,10 @@ temperature_levels <- levels(coefs$daily_avg_air_temperature_celsius)
 results <- vector("list", B)
 pb <- progress_bar$new(total = B, format = "Bootstrapping [:bar] :percent ETA: :eta")
 
-                         
+                
 for (b in 1:B) {
-  print(b)
     
+  start <- Sys.time()
   pb$tick()
   
   # Resample account_ids with replacement
@@ -146,17 +149,11 @@ for (b in 1:B) {
   boot_data <- overall_weekly %>%
     filter(treated == 1) %>%
     semi_join(data.frame(account_id = sampled_ids), by = "account_id")
-  
-  # Refit model
-  boot_model <- tryCatch({
-    feols(c(elec_consumption, gas_consumption) ~ 
+    
+  boot_model <- feols(c(elec_consumption, gas_consumption) ~ 
             i(is_hp_installed, temp_degree, ref = 0) |
             account_id + temp_degree + settlement_week,
           data = boot_data, cluster = ~account_id, lean=TRUE)
-  }, error = function(e) return(NULL))
-  
-  # If failed, skip
-  if (is.null(boot_model)) next
   
   # Extract estimates
   boot_coefs <- coeftable(boot_model) %>%
@@ -169,7 +166,10 @@ for (b in 1:B) {
     select(temp, quasi_cop)
   
   results[[b]] <- boot_coefs
+    
+  print(paste0(b, ": ", Sys.time() - start))
 }
+
 
 # Combine bootstrap results
 cop_boot <- bind_rows(results, .id = "bootstrap") %>%
@@ -184,9 +184,7 @@ cop_boot <- bind_rows(results, .id = "bootstrap") %>%
 fwrite(cop_boot, "../gcs/cosy2/scratch/cop_boot.csv")
 cop_boot <- fread("../gcs/cosy2/scratch/cop_boot.csv")             
   
-stop() 
-                          frd
-# ASHP COP data from the EPRI chart
+                          # ASHP COP data from the EPRI chart
 ashp_cop <- data.frame(
   temp_f = c(-20, -10, 0, 10, 20, 30, 40, 50, 60),
   cop = c(1.8, 1.8, 1.9, 2.1, 2.4, 2.7, 3.1, 3.5, 3.9)
@@ -226,7 +224,8 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 16),
   annotate("text", 
            x = 2.5,
            y = avg_cop + 1,
-           label = paste0("italic('Sample average ≈", 3.49, "')"),
+           label = paste0("italic('Sample average ≈", 
+                          avg_cop, "')"),
            parse = TRUE,
            color = hp_color,
            size = 4) +
@@ -243,6 +242,7 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 16),
   theme_minimal() +
   theme(legend.position = "bottom") 
 
+
 # Print the plot
 ggsave(paste0("graphs/quasi_cop.png"),
        width = 16, height = 8, units = "cm")
@@ -251,11 +251,12 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 16),
        aes(x = as.numeric(as.character(temp)), y = median)) +
   geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
-  geom_hline(yintercept = 3.49, linetype = "dashed", color = hp_color) +
+  geom_hline(yintercept = round(avg_cop, digits = 2), linetype = "dashed", color = hp_color) +
   annotate("text", 
            x = 2.5,
            y = avg_cop + 1,
-           label = paste0("italic('Sample average ≈", 3.49, "')"),
+           label = paste0("italic('Sample average ≈", 
+                          avg_cop, "')"),
            parse = TRUE,
            color = hp_color,
            size = 4) +
