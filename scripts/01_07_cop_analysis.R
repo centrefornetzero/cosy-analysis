@@ -2,7 +2,7 @@
 # --------- read in elec + gas consumption data ---------
 # ====================================================================
 overall_weekly <- 
-  read_rds("../gcs/cosy2/output/overall_weekly.rds") %>%
+  read_rds(file.path(datapath, "output/overall_weekly.rds")) %>%
   mutate_at(vars(elec_consumption, gas_consumption, total_consumption), 
             ~.x / 52.25) %>% 
   mutate(treated = max(is_hp_installed)) %>%
@@ -65,7 +65,7 @@ coefs <- coeftable(tempreg) %>%
          upper_ci_ATE = `/% ATE` + 1.96 * (`Std..Error` / avg_ate * 100)
   ) %>%
   filter(lhs != "total_consumption") 
-fwrite(coefs, "../gcs/cosy2/scratch/gas_electricity_by_temperature.csv")
+fwrite(coefs, file.path(datapath, "scratch/gas_electricity_by_temperature.csv"))
 
 
 coefs_wider <- coefs  %>%
@@ -181,8 +181,8 @@ cop_boot <- bind_rows(results, .id = "bootstrap") %>%
     median = median(quasi_cop, na.rm = TRUE),
     .groups = "drop"
   )
-fwrite(cop_boot, "../gcs/cosy2/scratch/cop_boot.csv")
-cop_boot <- fread("../gcs/cosy2/scratch/cop_boot.csv")             
+fwrite(cop_boot, file.path(datapath, "scratch/cop_boot.csv"))
+cop_boot <- fread(file.path(datapath, "scratch/cop_boot.csv") )            
   
                           # ASHP COP data from the EPRI chart
 ashp_cop <- data.frame(

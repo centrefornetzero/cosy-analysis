@@ -71,13 +71,21 @@ fitstat_register("pre_avg_rest", function(x) {
 # ================================================================
 # Fit the model
 # ================================================================
+hp_installed <- 
+  read_rds(file.path(datapath, "output/hp_installed.rds")) %>%
+  filter(treated == 1) %>%
+  mutate(total_consumption=365.25*total_consumption, 
+         rate_period = factor(rate_period, 
+                              levels = c("Morning Cosy", "Afternoon Cosy", 
+                                         "Peak Rate", "Other", "Overall"))) 
+  
+
 m_solar <- feols(total_consumption ~ i(is_hp_installed) + i(is_hp_installed, hp_survey_is_solar_present, ref = 0) |
                    hdd + account_id + date,
-                 data = hp_installed %>% filter(treated == 1) %>% ungroup()  %>%
-                   mutate(total_consumption=365.25*total_consumption,   rate_period = factor(rate_period, levels = c("Morning Cosy",                                                                                                             "Afternoon Cosy","Peak Rate","Other", "Overall"))),
+                 data = hp_installed,
                  cluster = ~account_id,
                  split = ~ rate_period)
-stop()
+
 # Generate the initial LaTeX table
 etable(m_solar,  tex = TRUE, title = "HP Installation and Solar PV on Electricity Consumption ",
        fitstat = ~ N + g + pre_avg_rest + pre_avg_solar +t_obs + r2,

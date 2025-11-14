@@ -1,5 +1,5 @@
 # get consumption by period
-hp_installed_period <- fread("../gcs/cosy2/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
+hp_installed_period <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_18.csv")) %>%
   rename(total_consumption=total_read_value,
          date = settlement_date) %>%
   mutate(consumption_hh = ifelse(rate_period == "Other", 
@@ -24,7 +24,7 @@ hp_installed_daily <- hp_installed_period %>%
 # for hhs where there are multiple mpans for one account, take covariates associated
 # with largest EAC
 covariates <- 
-  fread("../gcs/cosy2/input/cosy_-_hp_details_2024_06_25.csv") %>%
+  fread(fiel.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>%
   group_by(account_id) %>%
   arrange(-estimated_annual_consumption) %>%
   filter(row_number() == 1)
@@ -37,7 +37,7 @@ hp_installed <-
   inner_join(covariates, by=c("account_id"))
 
 # add daily weather data
-weather <- fread("../gcs/cosy2/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
+weather <- fread(file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.csv")) %>% 
   rename_with(.cols = starts_with("weekly"), 
               .fn = ~ sub("^weekly", "daily", .)) %>%
   rename(tariff_gsp_group_id=gsp_group_id) %>%
@@ -62,10 +62,6 @@ stopifnot(group_by(hp_installed, account_id, date, rate_period) %>% filter(n() >
 
 rm(weather, hp_installed_daily, hp_installed_period)
 
-# hp_installed <- hp_installed %>%
-#   left_join(readRDS("../gcs/cosy2/scratch/ev_mpan.RDS")) %>%
-#   mutate(has_ev = ifelse(!is.na(ev_start), as.numeric(date >= ev_start), 0))
-
 # clean up
 hp_installed <- hp_installed %>%
   mutate(date = as.Date(date),
@@ -82,13 +78,13 @@ hp_installed <- hp_installed %>%
 # check that data is unique at the account-date-period level
 stopifnot(hp_installed %>% group_by(account_id, date, rate_period) %>% filter(n() > 1) %>% nrow() == 0)
 
-write_rds(hp_installed, "../gcs/cosy2/output/hp_installed.rds")
+write_rds(hp_installed, file.path(datapath, "output/hp_installed.rds"))
 
 # summary statistics
 summary(hp_installed)
 
 # HP deals and installation
-deals_and_installations <- fread("../gcs/cosy2/input/cosy_-_hp_deals_and_installation_2025_06_06.csv") %>%
+deals_and_installations <- fread(file.path(datapath, "/input/cosy_-_hp_deals_and_installation_2025_06_06.csv")) %>%
   distinct(account_id, .keep_all = TRUE)
 
 # Run on a subsample of the data for faster processing
@@ -122,7 +118,7 @@ hp_installed_weekly <-
 
 # ------------------- Load gas consumption data ----------------
 # previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread("../gcs/cosy2/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
+cosy_hp_install_gas_consumption <- fread(file.path(datapath, "input/cosy_-_hp_users_gas_2024_06_13.csv")) %>%
   group_by(account_id) %>%
   distinct(account_id, settlement_week, .keep_all = TRUE) %>%
   mutate(min_settlement_week = min(settlement_week))
@@ -162,7 +158,7 @@ overall_weekly <-
      
 
 # add weather 
-weather_weekly <- fread("../gcs/cosy2/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
+weather_weekly <- fread(file.path(datapath, "input/cosy_-_weather_weekly_2024_06_13.csv")) %>%
   mutate(settlement_week = as.Date(week_date)) %>%
   distinct(gsp_group_id, settlement_week, .keep_all = TRUE) %>%
   select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius) %>%
@@ -184,6 +180,6 @@ overall_weekly <- overall_weekly %>%
       TRUE ~ 25
     )))
             
-write_rds(overall_weekly, "../gcs/cosy2/output/overall_weekly.rds")
+write_rds(overall_weekly, file.path(datapath, "output/overall_weekly.rds"))
 
             

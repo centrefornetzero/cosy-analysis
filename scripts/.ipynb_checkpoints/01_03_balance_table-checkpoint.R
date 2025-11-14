@@ -1,4 +1,4 @@
-### Appendix A.15: External Validity by Area for Heat Pump Installation
+### Table A.15: External Validity by Area for Heat Pump Installation
 
 # Function to calculate weighted standard deviation
 weighted_sd <- function(x, w) {
@@ -54,9 +54,9 @@ summarize_and_test <- function(data, var_name, weight_name) {
 }
 
 # Read and process each dataset
-population2022 <- read_excel("../gcs/cosy2/input/sapemsoasyoatablefinal.xlsx", sheet = "Mid-2022 MSOA 2021", skip = 3)
+population2022 <- read_excel(file.path(datapath, "input/sapemsoasyoatablefinal.xlsx"), sheet = "Mid-2022 MSOA 2021", skip = 3)
 
-cosy_hp_details <- fread("../gcs/cosy2/input/cosy_-_hp_details_2024_07_03.csv") %>%
+cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_hp_details_2024_07_03.csv")) %>%
   inner_join(hp_installed %>% filter(treated == 1) %>% select(account_id) %>% distinct()) %>%
   select(account_id, postcode) %>%
   distinct() %>%
@@ -64,49 +64,50 @@ cosy_hp_details <- fread("../gcs/cosy2/input/cosy_-_hp_details_2024_07_03.csv") 
   tally() %>%
   filter(!postcode == "")
 
-postcode_msoa <- fread("../gcs/cosy2/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
+postcode_msoa <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv")) %>%
   left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
   mutate(n = ifelse(is.na(n), 0, 1)) %>%
   select(msoa21cd, n) %>%
   group_by(msoa21cd) %>%
   summarise(treated = sum(n))
 
-income <- readxl::read_excel("../gcs/cosy2/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
+income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct() 
 
-net_income <- readxl::read_excel("../gcs/cosy2/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Net annual income", skip = 4) %>%
+net_income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Net annual income", skip = 4) %>%
   select(`MSOA code`, `Net annual income (£)`) %>%
   distinct() 
 
-net_housing_income <- readxl::read_excel("../gcs/cosy2/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Net income after housing costs", skip = 4) %>%
+net_housing_income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Net income after housing costs", skip = 4) %>%
   select(`MSOA code`, `Net annual income after housing costs (£)`) %>%
   distinct()
 
 # Load and preprocess the property_prices data
-property_prices <- read_excel("../gcs/cosy2/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls", 
+property_prices <- read_excel(file.path(datapath, "/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls"), 
                               sheet = "1a", skip = 4) %>%
   select(`MSOA code`, `Year ending Mar 2023`) %>%
   rename(msoa21cd = `MSOA code`, `Property price (£)` = `Year ending Mar 2023`)
 
-hh_size <- fread("../gcs/cosy2/input/custom-filtered-2024-07-03T10_58_30Z.csv") %>%
+hh_size <- fread(file.path(datapath, "input/custom-filtered-2024-07-03T10_58_30Z.csv")) %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
   mutate(sum_obs = sum(Observation), weight = Observation / sum_obs) %>%
   summarise(`Average HH Size` = sum(weight * `Household size (9 categories) Code`))
 
-hh_deprivaton <- fread("../gcs/cosy2/input/custom-filtered-2024-07-03T10_43_12Z.csv") %>%
+hh_deprivaton <- fread(file.path(datapath, "input/custom-filtered-2024-07-03T10_43_12Z.csv")) %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
   mutate(sum_obs = sum(Observation), `HH Not Deprived in Any Dim. (%)` = 100 * Observation / sum_obs) %>%
   filter(`Household deprivation (6 categories) Code` == 1)
 
-avg_age <- fread("../gcs/cosy2/input/custom-filtered-2024-07-03T11_15_15Z.csv") %>%
+avg_age <- fread(file.path(datapath, "input/custom-filtered-2024-07-03T11_15_15Z.csv")) %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
   mutate(sum_obs = sum(Observation), weight = Observation / sum_obs) %>%
   summarise(`Average Age` = sum(weight * `Age (101 categories) Code`))
 
-education <- fread("../gcs/cosy2/input/custom-filtered-2024-07-03T11_22_39Z.csv") %>%
+education <- fread(file.path(datapath, "input/custom-filtered-2024-07-03T11_22_39Z.csv")) %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
-  mutate(sum_obs = sum(Observation), `Share Level 4 Qualifications (%)` = 100 * Observation / sum_obs) %>%
+  mutate(sum_obs = sum(Observation), 
+         `Share Level 4 Qualifications (%)` = 100 * Observation / sum_obs) %>%
   filter(`Highest level of qualification (7 categories) Code` == 4)
 
 # Merge all datasets by `MSOA code` or `Middle layer Super Output Areas Code`
