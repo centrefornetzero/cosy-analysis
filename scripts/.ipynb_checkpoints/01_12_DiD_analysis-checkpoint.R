@@ -1,5 +1,5 @@
 # read in elec + gas consumption data
-overall_weekly <- read_rds("../gcs/cosy2/output/overall_weekly.rds") 
+overall_weekly <- read_rds(file.path(datapath, "output/overall_weekly.rds"))
 
 # create a dataset that fits the needs of did() function
 start_date <- min(overall_weekly$settlement_week)
@@ -23,9 +23,9 @@ did_data <- overall_weekly %>%
 
 # Define the output filenames for the main analysis
 output_filenames <- c(
-  "../gcs/cosy2/scratch/est_cs_total_weekly.RDS",
-  "../gcs/cosy2/scratch/est_cs_elec_weekly.RDS",
-  "../gcs/cosy2/scratch/est_cs_gas_weekly.RDS"
+  "scratch/est_cs_total_weekly.RDS",
+  "scratch/est_cs_elec_weekly.RDS",
+  "scratch/est_cs_gas_weekly.RDS"
 )
 
 # Define the corresponding variable names
@@ -34,7 +34,7 @@ yname_vars <- c("total_consumption", "elec_consumption", "gas_consumption")
 # Estimate and save the results for the main analysis (not yet treated control group)
 for (i in seq_along(yname_vars)) {
   yname <- yname_vars[i]
-  filename <- output_filenames[i]
+  filename <- file.path(datapath, output_filenames[i])
   
   message("Estimating treatment effect for ", yname, " and saving to ", filename)
   
@@ -59,7 +59,7 @@ robust_output_filenames <- gsub("\\.RDS$", "_robust_universal.RDS", output_filen
 
 for (i in seq_along(yname_vars)) {
   yname <- yname_vars[i]
-  filename <- robust_output_filenames[i]
+  filename <- file.path(datapath, robust_output_filenames[i])
   
   message("Estimating treatment effect for ", yname, " with universal base period and saving to ", filename)
   
@@ -97,7 +97,7 @@ did_data <- overall_weekly %>%
 
 for (i in seq_along(yname_vars)) {
   yname <- yname_vars[i]
-  filename <- never_treated_output_filenames[i]
+  filename <- file.path(datapath, never_treated_output_filenames[i])
   
   message("Estimating treatment effect for ", yname, " with 'never treated' control group and saving to ", filename)
   
@@ -132,7 +132,7 @@ did_data <- overall_weekly %>%
   select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
   filter(week <= 129, firstweek <= 129)  
 
-gas_only_output_filename <- "../gcs/cosy2/scratch/est_cs_elec_weekly_gas_only.RDS"
+gas_only_output_filename <- "scratch/est_cs_elec_weekly_gas_only.RDS"
 
 message("Estimating treatment effect for electricity consumption in gas-only sample and saving to ", gas_only_output_filename)
 

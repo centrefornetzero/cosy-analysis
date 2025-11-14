@@ -25,6 +25,9 @@ lapply(packages, install_if_needed)
 # Make sure working directory is "cosy-analysis"
 setwd("/home/jupyter/cosy-analysis")
 
+# establish the home directory
+datapath <- "../gcs/cosy2"
+
 # Create folders
 # dir.create("graphs", showWarnings = FALSE)
 # dir.create("data", showWarnings = FALSE)

@@ -265,17 +265,17 @@ rm(m_sources)
 ## Figure 7: Impact of Heat Pump Installation by MSOA Income
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 # Load and preprocess the cosy_hp_details data
-cosy_hp_details <- fread("../gcs/cosy2/input/cosy_-_hp_details_2024_07_03.csv") %>%
+cosy_hp_details <- fread(file.path(datapath,  "input/cosy_-_hp_details_2024_07_03.csv")) %>%
   inner_join(hp_installed %>% filter(treated == 1) %>% select(account_id) %>% distinct()) %>%
   filter(!postcode=="") %>%
   select(account_id, postcode)
 
-postcode_msoa <- fread("../gcs/cosy2/input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv") %>%
+postcode_msoa <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv")) %>%
   left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
   select(msoa21cd, pcds) %>%
   distinct(pcds, .keep_all = TRUE)
 
-income <- readxl::read_excel("../gcs/cosy2/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
+income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct() %>%
   inner_join(postcode_msoa, by=c("MSOA code"="msoa21cd")) %>%
@@ -283,7 +283,7 @@ income <- readxl::read_excel("../gcs/cosy2/input/saiefy1920finalqaddownload28092
 
 
 # Create unique breaks for predicted_heatloss_watts
-income_dist <- readxl::read_excel("../gcs/cosy2/input/saiefy1920finalqaddownload280923.xlsx", sheet = "Total annual income", skip = 4) %>%
+income_dist <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) 
 
 
@@ -484,7 +484,7 @@ for (i in 1:5) {
 ## Figure A.8: Impact of Heat Pump Installation by Heat Loss Decile
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 hp_installed <- hp_installed %>%
-  left_join(fread("../gcs/cosy2/input/cosy_-_hp_details_2024_07_03.csv") %>%
+  left_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_07_03.csv")) %>%
               distinct(account_id, latest_survey_heat_loss) %>% filter(!is.na(latest_survey_heat_loss)))
 
 # Create unique breaks for predicted_heatloss_watts

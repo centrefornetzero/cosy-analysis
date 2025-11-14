@@ -72,7 +72,7 @@ fitstat_register("pre_avg_rest", function(x) {
 # Fit the model
 # ================================================================
 hp_installed <- 
-  read_rds("../gcs/cosy2/output/hp_installed.rds") %>%
+  read_rds(file.path(datapath, "output/hp_installed.rds")) %>%
   filter(treated == 1) %>%
   mutate(total_consumption=365.25*total_consumption, 
          rate_period = factor(rate_period, 

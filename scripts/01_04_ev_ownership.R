@@ -6,7 +6,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ev half hours 
 # Read the CSV file
-ev_charging <- fread("../gcs/cosy2/input/cosy_-_ev_detection_2024_07_04.csv") %>%
+ev_charging <- fread(file.path(datapath, "input/cosy_-_ev_detection_2024_07_04.csv")) %>%
   mutate(ev_charging = 1,
          date = as.Date(interval_start),
          interval_start = as.POSIXct(interval_start, format="%Y-%m-%d %H:%M:%S"),
@@ -36,7 +36,7 @@ ev_users <- ev_charging %>%
 
 # Update hp_installed with the new ev_charging values using case_when
 hp_installed <- 
-  read_rds("../gcs/cosy2/output/hp_installed.rds") %>%
+  read_rds(file.path(datapath, "output/hp_installed.rds")) %>%
   left_join(ev_charging_agg) %>%
   mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging),
          ev_charging = case_when(

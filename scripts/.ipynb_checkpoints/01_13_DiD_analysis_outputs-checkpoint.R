@@ -2,7 +2,7 @@
 elec_color <- hp_color 
 gas_color <- not_hp_color
 
-overall_weekly <- read_rds("../gcs/cosy2/output/overall_weekly.rds")
+overall_weekly <- read_rds(file.path(datapath, "/output/overall_weekly.rds"))
 
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
@@ -99,9 +99,9 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
 
 # Example usage            
 rds_files <- list(
-  Overall =  "../gcs/cosy2/scratch/est_cs_total_weekly.RDS",
-  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly.RDS",
-  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly.RDS"
+  Overall =  file.path(datapath, "/scratch/est_cs_total_weekly.RDS"),
+  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly.RDS"),
+  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly.RDS")
 )
                
 aggte_simple_overall <- aggte(readRDS(rds_files$Overall), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
@@ -273,7 +273,7 @@ ggplot(plot_data, aes(x = as.Date(week_date), y = estimate, color = type)) +
 file_name <- "graphs/hp_calendarplot_combined.png"
 
 # Save plot data to CSV
-write.csv(plot_data, "../gcs/cosy2/output/hp_calendarplot_combined.csv", row.names = FALSE)
+write.csv(plot_data, file.path(datapath, "/output/hp_calendarplot_combined.csv"), row.names = FALSE)
 
 # Save the plot
 ggsave(file_name, device = "png", width = 8, height = 6, dpi = 300)
@@ -281,9 +281,9 @@ ggsave(file_name, device = "png", width = 8, height = 6, dpi = 300)
 
 # UNIVERSAL BASE robustness checks
 rds_files <- list(
-  Overall =  "../gcs/cosy2/scratch/est_cs_total_weekly_robust_universal.RDS",
-  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly_robust_universal.RDS",
-  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly_robust_universal.RDS"
+  Overall =  file.path(datapath, "/scratch/est_cs_total_weekly_robust_universal.RDS"),
+  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly_robust_universal.RDS"),
+  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly_robust_universal.RDS")
 )
 
 # Load the data
@@ -304,7 +304,7 @@ ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
 
 
 # Define paths and base filenames for each anticipation period
-output_base_path <- "../gcs/cosy2/scratch/"
+output_base_path <- file.path(datapath, "/scratch/")
 output_filenames <- c("est_cs_elec_weekly", "est_cs_gas_weekly")
 anticipation_periods <- 0:10  # The range of anticipation periods
 
@@ -368,9 +368,9 @@ ggsave("graphs/HP_anticipation.png")
 
 
 rds_files <- list(
-  Overall =  "../gcs/cosy2/scratch/est_cs_total_weekly.RDS",
-  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly_gas_only.RDS",
-  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly.RDS"
+  Overall =  file.path(datapath, "/scratch/est_cs_total_weekly.RDS"),
+  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly_gas_only.RDS"),
+  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly.RDS")
 )
 
 # Example usage
@@ -528,9 +528,9 @@ cs_nT <- list()
 
 # Define paths to the RDS files for CS estimates
 cs_files <- list(
-  Overall = "../gcs/cosy2/scratch/est_cs_total_weekly.RDS",
-  Electricity = "../gcs/cosy2/scratch/est_cs_elec_weekly.RDS",
-  Gas = "../gcs/cosy2/scratch/est_cs_gas_weekly.RDS"
+  Overall = file.path(datapath, "/scratch/est_cs_total_weekly.RDS"),
+  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly.RDS"),
+  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly.RDS")
 )
 
 
@@ -669,9 +669,9 @@ cs_nT <- list()
 
 # Define paths to the RDS files for CS estimates
 cs_files <- list(
-  Overall = "../gcs/cosy2/scratch/est_cs_never_treated_total_weekly.RDS",
-  Electricity = "../gcs/cosy2/scratch/est_cs_never_treated_elec_weekly.RDS",
-  Gas = "../gcs/cosy2/scratch/est_cs_never_treated_gas_weekly.RDS"
+  Overall = file.path(datapath, "/scratch/est_cs_never_treated_total_weekly.RDS"),
+  Electricity = file.path(datapath, "/scratch/est_cs_never_treated_elec_weekly.RDS"),
+  Gas = file.path(datapath, "/scratch/est_cs_never_treated_gas_weekly.RDS")
 )
 
 

@@ -3,10 +3,10 @@
 # =======================
 # 1. Data Preparation & Regression
 # =======================
-hp_installed <- read_rds("../gcs/cosy2/output/hp_installed.rds")
+hp_installed <- read_rds(file.path(datapath, "/output/hp_installed.rds"))
 
 # Installer FE
-installers <- fread("../gcs/cosy2/input/cosy_-_hp_engineers_2025_03_17.csv") %>%
+installers <- fread(file.path(datapath, "/input/cosy_-_hp_engineers_2025_03_17.csv")) %>%
   inner_join(distinct(filter(hp_installed, treated == 1), account_id, deal_created_at)) %>%
   filter(hp_engineer != "") %>%
   group_by(hp_engineer) %>%
@@ -248,7 +248,7 @@ rm(results)
 # DELETE?
 # ====================================================================
 # Installer FE
-installers <- fread("../gcs/cosy2/input/cosy_-_hp_engineers_2025_03_17.csv") 
+installers <- fread(file.path(datapath, "/input/cosy_-_hp_engineers_2025_03_17.csv")) 
 
 # Unique periods 
 periods <- unique(hp_installed$rate_period)
