@@ -6,104 +6,87 @@
 #file.remove("data/scratch/aggregated_data.RDS")
 
 ## Merging consumption and customers info datasets
-if(!file.exists("data/scratch/aggregated_data.RDS")) {
-  
-  # Extract earliest Cosy adoption using agreement data for each MPAN
-  agreements <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
-    filter(product_display_name == "Cosy Octopus") %>%
-    arrange(hashed_mpan, agreement_valid_from) %>%
-    mutate(
-      from = as.Date(agreement_valid_from),
-      to = as.Date(agreement_valid_to)
-    ) %>%
-    select(hashed_mpan, from, to) %>%
-    group_by(hashed_mpan) %>%
-    summarise(
-      periods = list(data.frame(from, to)),
-      first_adoption = min(from),  # Get the earliest agreement date for 'adoption'
-      first_week = format(min(from), "%Y-%U"),  # Format the first adoption date as year-week
-      .groups = 'drop'
-    )
-  
+if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
+
   # Load smart meter consumption data at the day - rate period level
   # queries/cosy - cosy electricity readings
   # queries/cosy - cosy electricity reading part 2 which I ran for different years seperately
-  aggregated_data <- rbind(fread("data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26.csv"),
-                           fread("data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (1).csv"),
-                           fread("data/input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (2).csv")) %>%
+  aggregated_data <- rbind(fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26.csv")),
+                           fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (1).csv")),
+                           fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (2).csv"))) %>%
     rename(total_consumption = total_read_value,
            consumption_hh = mean_read_value) %>%
     mutate(date = as.Date(settlement_date)) %>% 
     filter(!is.na(date))     %>%
-    select(-c(settlement_date))
+    select(-c(settlement_date)) 
   
-  # Function to check if a date falls within any period
-  check_active_contract <- function(date, periods) {
-    any(sapply(1:nrow(periods[[1]]), function(i) date >= periods[[1]][i, "from"] && (date <= periods[[1]][i, "to"] | is.na(periods[[1]][i, "to"]))))
-  }
-  
-  # Add indicator without heavy merging
-  consumption_with_indicator <- aggregated_data %>%
-    rowwise() %>%
-    mutate(
-      cosy_contract_active = {
-        periods <- agreements$periods[agreements$hashed_mpan == hashed_mpan]
-        if (length(periods) == 0) 0 else as.integer(check_active_contract(date, periods))
-      }
-    ) %>%
+               
+  print('checkpoint 1')    
+
+  # ------------ Add indicator if customer is on Cosy -------------------
+  # first create panel data that shows which dates cosy is active for each mpan
+  # also add in earliest Cosy adoption date 
+  agreements_active <- 
+    fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
+    filter(product_display_name == "Cosy Octopus") %>%
+    mutate(to = as_date(replace_na(agreement_valid_to, ymd(20240724))),
+           from = as_date(agreement_valid_from)) %>%
+    select(hashed_mpan, from, to) %>%
+    mutate(id = row_number(), 
+           date = map2(from, to, seq, by = "day")) %>%
+    unnest(date) %>%
+    mutate(cosy_contract_active = TRUE) %>%
+    distinct(hashed_mpan, date, cosy_contract_active) %>%
+    group_by(hashed_mpan) %>%
+    mutate(first_adoption = min(date)) %>%
     ungroup()
-  
-  # Join with the earliest adoption date
-  aggregated_data <- consumption_with_indicator %>%
-    inner_join(agreements %>% select(-periods))
-  
-  # Caculate overall daily consumption
-  aggregated_data <- rbind(
-    aggregated_data, 
+    
+    print('checkpoint 2')
+    
+  # merge panel of active cosy dates to consumption data
+  aggregated_data <- 
+    aggregated_data %>%
+    left_join(agreements_active) %>%
+    mutate(cosy_contract_active = replace_na(cosy_contract_active, FALSE))
+    
+  # -------------------- Caculate overall daily consumption --------------------
+  aggregate_daily <- 
     aggregated_data %>% 
-      group_by(account_id, hashed_mpan, date, cosy_contract_active, first_adoption, first_week) %>%
+      group_by(account_id, hashed_mpan, date, cosy_contract_active, first_adoption) %>%
       summarise(total_consumption = sum(total_consumption)) %>%
       mutate(rate_period = "Overall",
-             consumption_hh = total_consumption/48)) %>%
+             consumption_hh = total_consumption/48)
+    
+  aggregated_data <- 
+    rbind(aggregated_data, aggregate_daily) %>%
     mutate(rate_period = factor(rate_period, levels = c("Morning Cosy",
                                                         "Afternoon Cosy",
                                                         "Peak Rate",
                                                         "Other", 
                                                         "Overall")), 
-           weeks_since_cosy = floor(as.numeric(difftime(date, first_adoption, units = "weeks")))) 
-  
-  # Remove the ~ 50 mpans with 2 account id
-  duplicate_mpan <- aggregated_data %>%
-    select(account_id, hashed_mpan) %>%    # Selecting the necessary columns
-    distinct() %>%                         # Removing completely identical rows
-    count(hashed_mpan) %>%                 # Count occurrences of each hashed_mpan
-    filter(n > 1) %>%                      # Keep only those with more than one occurrence
-    left_join(aggregated_data %>% group_by(account_id, hashed_mpan) %>% summarise(min_date = min(date), max_date = max(date)), by = "hashed_mpan") %>%
-    arrange(hashed_mpan, account_id)       # Arrange for better visibility
-  
-  # add customers characteristics
+           weeks_since_cosy = floor(as.numeric(difftime(date, first_adoption, units = "weeks")))) %>%
+      # Remove the ~ 50 mpans with 2 account id
+    group_by(hashed_mpan) %>%
+    filter(n_distinct(account_id) == 1) %>%
+    ungroup
+    
+    print('checkpoint 3')
+  # ------------------------- Add in covariates ----------------------------
+  # let's add in covariates 
+    # add customers characteristics
   # from queries/cosy - cosy details
-  cosy_cosy_details_2024_06_25 <- fread("data/input/cosy_-_cosy_details_2024_06_25.csv") %>%
+  cosy_cosy_details_2024_06_25 <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_06_25.csv"))  %>%
     distinct()
-  
-  # Remove moan associated with two accounts !
-  merged_data <- aggregated_data %>%
-    filter(!hashed_mpan %in% duplicate_mpan$hashed_mpan) %>%
-    inner_join(cosy_cosy_details_2024_06_25)
   
   # Add weather by GSP day 
   # queries/cosy analysis - weather
-  weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
+  weather <- fread(file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.csv")) %>% 
     rename_with(.cols = starts_with("weekly"),  # the data is actually at the day level - just naming error
                 .fn = ~ sub("^weekly", "daily", .)) %>%
     mutate(date_day=as.Date(date_day, format = "%Y-%m-%d")) %>%
     rename(date = date_day)
   
-  aggregated_data <- merged_data %>%
-    left_join(weather, by =c("gsp_group_id", "date"))
-  
-  
-  Prev_contract <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
+  Prev_contract <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
     arrange(hashed_mpan, as.Date(agreement_valid_from)) %>%
     group_by(hashed_mpan) %>%
     mutate(
@@ -113,10 +96,14 @@ if(!file.exists("data/scratch/aggregated_data.RDS")) {
       is_cosy = product_display_name == "Cosy Octopus"
     ) %>%
     filter(is_cosy) %>%
-    slice_head(n=1)
+    slice_head(n=1) %>%
+    select(hashed_mpan, starts_with("previous"))
   
   # Create EPC letters
-  aggregated_data <- aggregated_data %>%
+  aggregated_data <- 
+    aggregated_data <- aggregated_data %>%
+    inner_join(cosy_cosy_details_2024_06_25) %>%
+    left_join(weather, by =c("gsp_group_id", "date")) %>%
     mutate(epc_letter = case_when(
       energy_efficiency >= 91 ~ "A",
       energy_efficiency >= 81 & energy_efficiency <= 90 ~ "B",
@@ -140,11 +127,11 @@ if(!file.exists("data/scratch/aggregated_data.RDS")) {
       )
     ))
   
-  saveRDS(aggregated_data, "data/scratch/aggregated_data.RDS")
+  saveRDS(aggregated_data, file.path(datapath, "scratch/aggregated_data.RDS"))
   
   rm(weather, adoption, consumption_with_indicator, agreements)
 } else {
-  aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") 
+  aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS")) 
 }
 
 # Run on a subsample of the data for faster processing
