@@ -15,7 +15,7 @@ percent_marginal_consumers <- 0.5
 base_year <- 2024
 uk_gdp_as_proportion_of_global <- 0.032
 uk_tax_as_proportion_of_gdp <- 0.335
-datapath <- "data/input"
+datapath <- "../gcs/cosy2"
 # ______________________________________________________
 
 # ___________________ Heat pump numbers from paper __________________________________
@@ -75,7 +75,7 @@ gas_unit_rate_octopus <- 0.0604
 # ------------ import all the data from different sources about social cost of carbon, carbon intensity, etc --------
 
 # _____________ UK GDP deflator data __________________________
-deflator_df <- read.csv(file.path(datapath, "GDP deflator.csv"))
+deflator_df <- read.csv(file.path(datapath, "input/GDP deflator.csv"))
 # Keep only the desired columns
 deflator_df <- deflator_df[, c(8, 9)]
 # remove empty rows
@@ -92,7 +92,7 @@ gdp_deflator_2022 <- as.numeric(deflator_df %>% filter(Year == 2022) %>% pull(De
 gdp_deflator_2023 <- as.numeric(deflator_df %>% filter(Year == 2023) %>% pull(Deflator))
 
 # ____________________ Air quality data __________________________
-air_quality_df <- read.csv(file.path(datapath, "Air quality.csv"))
+air_quality_df <- read.csv(file.path(datapath, "input/Air quality.csv"))
 # clean csv
 air_quality_df <- as.data.frame(t(air_quality_df)) 
 # Make row 2 the column names (the type of fuel)
@@ -112,7 +112,7 @@ air_quality_df$Gas_air_quality <- air_quality_df$Gas_air_quality  * gdp_deflator
 air_quality_df$Elec_air_quality <- air_quality_df$Elec_air_quality * gdp_deflator_2023 / gdp_deflator_2022
 
 # ______________ UK carbon intensity data DEFRA kg/kWh carbon intensity for gas _____________
-defra_df <- read.csv(file.path(datapath, "Defra gas and elec carbon intensity.csv"))
+defra_df <- read.csv(file.path(datapath, "input/Defra gas and elec carbon intensity.csv"))
 # Make row 2 the column names (the type of fuel)
 colnames(defra_df) <- defra_df[6, ]
 # remove irrelevant rows
@@ -128,7 +128,7 @@ defra_df$Carbon_intensity_gas_heatpump <- as.numeric(as.character(defra_df$Carbo
 defra_df$Carbon_intensity_gas_heatpump <- defra_df$Carbon_intensity_gas_heatpump/1000
 
 # ____________________ UK carbon intensity data for electricity ____________________
-desnz_df <- read.csv(file.path(datapath, "DESNZ elec carbon intensity.csv"))
+desnz_df <- read.csv(file.path(datapath, "input/DESNZ elec carbon intensity.csv"))
 # domestic consumption based long run marginal carbon intensity
 # Make row 12 the column names (the type of fuel)
 colnames(desnz_df) <- desnz_df[12, ]
@@ -144,7 +144,7 @@ desnz_df$Carbon_intensity_electricity_heatpump <- as.numeric(as.character(desnz_
 desnz_df$Carbon_intensity_electricity_heatpump <- desnz_df$Carbon_intensity_electricity_heatpump/1000
 
 # ____________________ MCS cost data  ____________________
-mcs_cost_df <- read.csv(file.path(datapath, "MCS cost data.csv"))
+mcs_cost_df <- read.csv(file.path(datapath, "input/MCS cost data.csv"))
 # Make row 2 the column names 
 colnames(mcs_cost_df) <- mcs_cost_df[2, ]
 # find average installation cost
@@ -155,10 +155,10 @@ total_installation_cost_heatpump <- mean(mcs_cost_df$`Average installation cost 
 private_cost_heatpump <- total_installation_cost_heatpump - gov_subsidy_heatpump
 
 # ____________________ NGESO carbon intensity data for ____________________
-ngeso_df <- read.csv(file.path(datapath, "NGESO carbon intensity.csv"))
+ngeso_df <- read.csv(file.path(datapath, "input/NGESO carbon intensity.csv"))
 
 # ____________________ Retail price data energy ____________________
-retail_prices_df <- read.csv(file.path(datapath, "Retail energy prices forecast.csv"))
+retail_prices_df <- read.csv(file.path(datapath, "input/Retail energy prices forecast.csv"))
 # use retail prices forecast - its in 2022 currency and in pence
 # Make row 8 the column names 
 colnames(retail_prices_df) <- retail_prices_df[8, ]
@@ -176,7 +176,7 @@ retail_prices_df <- retail_prices_df[, c("Gas_prices", "Electricity_prices", "Ye
 retail_prices_df$Year <- as.numeric(as.character(retail_prices_df$Year))
 
 # __________ UK social cost of carbon data ____________________
-scc_hmg_df <- read.csv(file.path(datapath, "SCC HMG.csv"))
+scc_hmg_df <- read.csv(file.path(datapath, "input/SCC HMG.csv"))
 # Make row 3 the column names 
 colnames(scc_hmg_df) <- scc_hmg_df[3, ]
 # remove empty rows
@@ -189,7 +189,7 @@ scc_hmg_df$Social_cost_carbon_uk_gov <- as.numeric(as.character(scc_hmg_df$Socia
 scc_hmg_df$Social_cost_carbon_uk_gov <- scc_hmg_df$Social_cost_carbon_uk_gov * gdp_deflator_2023 / gdp_deflator_2020
 
 # ____________ USA social cost of carbon data ________________
-scc_iwf_df <- read.csv(file.path(datapath, "SCC IWG.csv"))
+scc_iwf_df <- read.csv(file.path(datapath, "input/SCC IWG.csv"))
 # Make row 3 the column names 
 colnames(scc_iwf_df) <- scc_iwf_df[2, ]
 # remove empty rows
@@ -205,7 +205,7 @@ scc_iwf_df$Year <- as.numeric(as.character(scc_iwf_df$Year))
 scc_iwf_df$Social_cost_carbon_usa_gov <- scc_iwf_df$Social_cost_carbon_usa_gov * gdp_deflator_2023 / gdp_deflator_2021
 
 # _________________ System price data _____________________________
-system_price_df <- read.csv(file.path(datapath, "System price.csv"))
+system_price_df <- read.csv(file.path(datapath, "input/System price.csv"))
 # Make row 3 the column names 
 colnames(system_price_df) <- system_price_df[3, ]
 system_price_df <- system_price_df[-c(1:3), ]
@@ -275,7 +275,7 @@ normal_price_2024_cosy <- (system_price_df %>%
   pull(avg_price) )/1000
 
 # _______ UK emissions trading scheme average prices ____________________
-uk_ets_df <- read.csv(file.path(datapath, "UK ETS.csv"))
+uk_ets_df <- read.csv(file.path(datapath, "input/UK ETS.csv"))
 # Make row 5 the column names 
 colnames(uk_ets_df) <- uk_ets_df[5, ]
 # remove empty rows
@@ -286,7 +286,7 @@ uk_ets_df <- uk_ets_df[, c("Carbon_trading_permit_prices", "Year"), drop = FALSE
 uk_ets_df$Year <- as.numeric(as.character(uk_ets_df$Year))
 
 # ____________________ WattTime marginal carbon intensity ___________________________
-watt_time_df <- read.csv(file.path(datapath, "WattTime marginal carbon intensity.csv"))
+watt_time_df <- read.csv(file.path(datapath, "input/WattTime marginal carbon intensity.csv"))
 # in g/kWh so divide by 1000
 watt_time_df <- as.data.frame(t(watt_time_df)) 
 # Make row 8 the column names 
@@ -788,7 +788,7 @@ ggsave("MVPF_HP_Cosy_updated.png", plot = p, width = 10, height = 6, bg = 'trans
 
 # --------- change in electricity and gas usage by temperature -------------
 
-df_temp = read.csv("data/scratch/gas_electricity_by_temperature.csv")
+df_temp = read.csv(file.path(datapath, "scratch/gas_electricity_by_temperature.csv"))
 df_temp <- df_temp %>%
   select(daily_avg_air_temperature_celsius, lhs, Estimate, Std..Error) %>%
   pivot_wider(
@@ -1162,7 +1162,8 @@ scale_factor <- max(
   na.rm = TRUE
 ) / max(MVPF_by_temp$MVPF, na.rm = TRUE)
 
-ggplot(MVPF_by_temp, aes(x = temp)) +
+p_MVPF_temp <- 
+  ggplot(MVPF_by_temp, aes(x = temp)) +
   # MVPF layer
   geom_ribbon(aes(ymin = MVPF_lower, ymax = MVPF_upper), fill = "#8B5FBF", alpha = 0.2) +
   geom_smooth(aes(y = MVPF), se = FALSE, color = "#8B5FBF", size = 1, method = "loess") +
@@ -1203,43 +1204,9 @@ ggsave("graphs/MVPF_temp.png",
        width = 16, height = 8, units = "cm")
                      
                      
-ggplot(MVPF_by_temp, aes(x = temp)) +
-  # MVPF layer
-  geom_ribbon(aes(ymin = MVPF_lower, ymax = MVPF_upper), fill = "#8B5FBF", alpha = 0.2) +
-  geom_smooth(aes(y = MVPF), se = FALSE, color = "#8B5FBF", size = 1, method = "loess") +
-  geom_point(aes(y = MVPF), color = "#8B5FBF") +
-  
-  # resource cost layer (scaled down)
-  geom_ribbon(aes(
-    ymin = government_cost_per_tonne_lower / scale_factor,
-    ymax = government_cost_per_tonne_upper / scale_factor
-  ), fill = "#87B6F8", alpha = 0.2) +
-  geom_smooth(aes(y = government_cost_per_tonne_heatpump / scale_factor), se = FALSE, color = "#87B6F8", size = 1, method = "loess") +
-  geom_point(aes(y = government_cost_per_tonne_heatpump / scale_factor), color = "#87B6F8") +
-  
-  # gov cost layer (scaled down)
-  geom_ribbon(aes(
-    ymin = resource_cost_per_tonne_lower / scale_factor,
-    ymax = resource_cost_per_tonne_upper / scale_factor
-  ), fill = "#D5AFF2", alpha = 0.2) +
-  geom_smooth(aes(y = resource_cost_per_tonne_heatpump / scale_factor), se = FALSE, color = "#D5AFF2", size = 1, method = "loess") +
-  geom_point(aes(y = resource_cost_per_tonne_heatpump / scale_factor), color = "#D5AFF2") +
-  
-  scale_y_continuous(
-    name = "MVPF",
-    sec.axis = sec_axis(~ . * scale_factor, name = "Cost per tonne", labels = scales::dollar_format(prefix = "£"))
-  )  +
+p_MVPF_temp + 
   labs(x = "Average Weekly Temperature in Degrees (°C)",
-      title = "How welfare impacts of the BUS change with temperature") +
-  theme_minimal() +
-  theme(
-    plot.background = element_rect(fill = "white", color = NA),
-    axis.title.y = element_text(angle = 0, vjust = 0.95, hjust = 1, margin = margin(r = 10)),
-    axis.title.y.right = element_text(angle = 0, vjust = 0.95, margin = margin(l = -50))
-  ) +
-  geom_text(x = 2, y = 2, label = "MVPF", color = "#8B5FBF", vjust = -1, alpha = 1) +
-  geom_text(x = 5, y = 0.5, label = "Government Cost per tonne", color = "#87B6F8", vjust = -1, alpha = 1) +
-  geom_text(x = 14, y = -0.1, label = "Resource Cost per tonne", color = "#D5AFF2", vjust = -1, alpha = 1) 
+      title = "How welfare impacts of the BUS change with temperature") 
 
 ggsave("graphs/MVPF_temp_blog_version.png",
        width = 18, height = 7, units = "cm")
