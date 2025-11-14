@@ -3,10 +3,11 @@
 # This script is very long to run so I create a conditional close checking if the file has already been created
 
 # Delete file to rerun everything
-#file.remove("data/scratch/aggregated_data.RDS")
+# file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
 
 ## Merging consumption and customers info datasets
 if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
+  start <- Sys.time()
 
   # Load smart meter consumption data at the day - rate period level
   # queries/cosy - cosy electricity readings
@@ -70,7 +71,9 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     filter(n_distinct(account_id) == 1) %>%
     ungroup
     
-    print('checkpoint 3')
+    print(paste('checkpoint 3', Sys.time() - start))
+    start <- Sys.time()
+    
   # ------------------------- Add in covariates ----------------------------
   # let's add in covariates 
     # add customers characteristics
@@ -86,6 +89,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     mutate(date_day=as.Date(date_day, format = "%Y-%m-%d")) %>%
     rename(date = date_day)
   
+  # details about previous contract
   Prev_contract <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
     arrange(hashed_mpan, as.Date(agreement_valid_from)) %>%
     group_by(hashed_mpan) %>%
@@ -98,6 +102,9 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     filter(is_cosy) %>%
     slice_head(n=1) %>%
     select(hashed_mpan, starts_with("previous"))
+    
+    print(paste('checkpoint 4', Sys.time() - start))
+    start <- Sys.time()
   
   # Create EPC letters
   aggregated_data <- 
