@@ -81,3 +81,24 @@ hp_installed %>%
 
 ggsave("graphs/monthly_installation.png", width = 12, height = 8, dpi = 300)
 
+
+# ==============================================================================
+# ------------ graph of smart meter data availability ------------
+# ==============================================================================
+plot_panel <- panelview(consumption_hh ~ is_hp_installed + daily_avg_heating_degree, 
+                        data = hp_installed %>% filter(rate_period=="Overall") %>% select(consumption_hh, account_id, date, is_hp_installed, daily_avg_heating_degree) %>% distinct(), index = c("account_id","date"), 
+                        xlab = "Time", 
+                        ylab = "MPAN", 
+                        by.timing = TRUE, 
+                        pre.post = TRUE, 
+                        gridOff = TRUE, 
+                        axis.lab.gap = c(100),
+                        main = "Smart Meter Data Availability",
+                        background = "white",
+                        color = c("grey", not_hp_color, hp_color, "white"),
+                        legend.labs = c("Never Treated (Installation in Future)", 
+                                        "Before HP Installation", "After HP Installation", 
+                                        "No smart meter data"), collapse.history = "TRUE")
+
+ggsave("graphs/hp_data_availability.png", 
+       width = 16, height = 8, units = "cm")
