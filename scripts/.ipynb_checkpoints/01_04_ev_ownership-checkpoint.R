@@ -19,16 +19,6 @@ ev_charging <- fread(file.path(datapath, "input/cosy_-_ev_detection_2024_07_04.c
          )
   )
 
-# Count number of charging events during each period
-ev_charging_agg <- 
-  ev_charging %>%
-  group_by(account_id, date, rate_period) %>%
-  tally() %>%
-  bind_rows(group_by(ev_charging, account_id, date) %>% tally()) %>%
-  rename(ev_charging=n) %>%
-  mutate(rate_period = replace_na(rate_period, "Overall"))
-
-
 # EV users details
 ev_users <- ev_charging %>%
   group_by(account_id) %>%
@@ -37,14 +27,6 @@ ev_users <- ev_charging %>%
 # Update hp_installed with the new ev_charging values using case_when
 hp_installed <- 
   read_rds(file.path(datapath, "output/hp_installed.rds")) %>%
-  left_join(ev_charging_agg) %>%
-  mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging),
-         ev_charging = case_when(
-           rate_period == "Overall" ~ ev_charging / 48,
-           rate_period == "Other" ~ ev_charging / 30,
-           TRUE ~ ev_charging / 6
-         )
-  ) %>%
   left_join(ev_users) %>%
   mutate(has_ev = as.numeric(is_ev_detected <= date),
          has_ev = ifelse(is.na(has_ev), 0, has_ev))
