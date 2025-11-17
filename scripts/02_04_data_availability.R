@@ -1,4 +1,3 @@
-
 ## Availability of smart meter data
 
 ### Figure A.19: Smart Meter Data Availability for Cosy Adopters
@@ -19,5 +18,3 @@
   ggsave("graphs/data_availability.png", 
          width = 16, height = 8, units = "cm")
 # }
-
-
