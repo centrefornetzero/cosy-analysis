@@ -3,7 +3,7 @@
 ### Figure 2: Cosy Rate by Period
 
 # Load the prices
-rates <- fread("data/input/cosy_-_rate_analysis_2024_07_15.csv")  %>%
+rates <- fread(file.path(datapath, "input/cosy_-_rate_analysis_2024_07_15.csv"))  %>%
   mutate(valid_from = as.Date(valid_from),
          valid_to = as.Date(valid_to),
          valid_from = ifelse(is.na(valid_from), as.Date("2022-12-13"), valid_from),
@@ -118,7 +118,7 @@ ggsave("graphs/Cosy Tariff.png", width = 10, height = 4, dpi = 300)
 
 
 # Load the prices
-rates <- fread("data/input/cosy_-_rate_analysis_2024_07_15.csv")  %>%
+rates <- fread(file.path(datapath, "input/cosy_-_rate_analysis_2024_07_15.csv"))  %>%
   mutate(valid_from = as.Date(valid_from),
          valid_to = as.Date(valid_to),
          valid_from = ifelse(is.na(valid_from), as.Date("2022-12-13"), valid_from),
