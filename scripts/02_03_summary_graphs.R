@@ -2,8 +2,7 @@
 
 ## Summary Statistics Tables and Graphs {#sec:sumstats}
 # Calculate the share on ToU tariff (is_charged_half_hourly) after adoption
-# confusingly called "is_variable"
-Next_contract <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
+Next_contract <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
   arrange(hashed_mpan, desc(as.Date(agreement_valid_from))) %>%
   group_by(hashed_mpan) %>%
   mutate(na_flag = ifelse(is.na(agreement_valid_to), 1, 0),
@@ -13,20 +12,13 @@ Next_contract <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
   ungroup()%>%
   group_by(hashed_mpan) %>%
   slice(1) %>%
-  mutate(is_variable = ifelse(product_display_name %in% 
-                                c("Co-op Flexible",
-                                  "Flexible Avro",
-                                  "Flexible Octopus",
-                                  "Flexible Octopus Smart Pay as You Go",
-                                  "Loyal Flexible Octopus Smart Pay as You Go"), FALSE, is_variable)) %>%
-  group_by(is_charged_half_hourly) %>%
-  tally() %>%
   ungroup() %>%
+  count(is_charged_half_hourly) %>%
   mutate(share_is_variable = n/sum(n))
 
 # Contract before cosy
 # Calculate the share on ToU tariff (is_charged_half_hourly) before adoption
-first_cosy_contracts <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
+first_cosy_contracts <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
   arrange(hashed_mpan, as.Date(agreement_valid_from)) %>%
   group_by(hashed_mpan) %>%
   mutate(
@@ -52,10 +44,15 @@ first_cosy_contracts <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv")
   arrange(share)
 
 
-### Figure 3: Weekly Adoption of the Cosy tariff
+# =============================================================================
+###------------ Figure 3: Weekly Adoption of the Cosy tariff ------------
+# =============================================================================
 # Prepare the data
-weekly_adoptions <- aggregated_data %>%
-  ungroup() %>%
+aggregated_data <- read_rds(file.path(datapath, "scratch/aggregated_data.RDS"))
+
+weekly_adoptions <- 
+  aggregated_data %>%
+  filter(!is.na(first_adoption)) %>%
   select(hashed_mpan, first_adoption) %>%
   distinct() %>%
   mutate(first_week = floor_date(first_adoption, "week")) %>%
@@ -94,8 +91,8 @@ ggsave("graphs/weekly_adoptions.png", width = 16, height = 8, units = "cm")
 
 
 # Analyze contracts
-contract_analysis <- fread("data/input/Cosy_-_agreement_data_2024_07_24.csv") %>%
-  inner_join(aggregated_data %>% distinct(account_id, hashed_mpan)) %>%
+contract_analysis <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
+  inner_join(distinct(aggregated_data, account_id, hashed_mpan)) %>%
   filter(product_display_name == "Cosy Octopus") %>%
   arrange(account_id, hashed_mpan, agreement_valid_from) %>%
   mutate(
