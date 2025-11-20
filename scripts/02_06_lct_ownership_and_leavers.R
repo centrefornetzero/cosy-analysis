@@ -49,7 +49,7 @@ etable(m1c, tex = TRUE, title = "Cosy Adoption on Electricity Consumption Contro
        fitstat = ~ N + g + pre_avg + t_obs + r2, 
        file = "tables/did_ev.tex", replace = TRUE, label = "tab:hp-did-ev")
 CleanPreAverage("tables/did_ev.tex")
-stop()
+
 # NOTE THAT YEARLY CONSUMPTION CLEARLY ISN"T WORKING - ITS NAN RIGHT NOW
 
 # =================================================================

@@ -61,7 +61,7 @@ random_subsample <- FALSE
 # source("scripts/02_00_cosy.R")
 
 
-source("scripts/01_00_heatpump.R")
+# source("scripts/01_00_heatpump.R")
 # rm(list = setdiff(ls(), c("random_subsample", "flexible_color", "cosy_color", "hp_color", 
 #                           "not_hp_color", "rating_colors", "red_palette")))
 # gc()
