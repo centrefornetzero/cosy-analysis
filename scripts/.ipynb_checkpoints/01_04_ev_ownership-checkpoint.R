@@ -80,7 +80,7 @@ ev_charging_probability <- ev_charging %>%
   mutate(ev_charging = replace_na(ev_charging, 0))%>%
   pivot_wider(id_cols = c(account_id, date), names_from = "rate_period", values_from = "ev_charging")  %>%
   left_join(select(hp_installed, account_id, date, is_hp_installed)) %>%
-  rename_all(~str_replace(.x, "\\s", "_"))
+  rename_all(~str_replace(.x, "\\s", "_")) 
 
 # Run the fixed effects models
 m_charging1 <- feols(Morning_Cosy ~ i(is_hp_installed) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)

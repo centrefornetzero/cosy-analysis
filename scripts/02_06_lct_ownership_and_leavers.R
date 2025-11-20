@@ -42,14 +42,14 @@ m1c <- feols(consumption_hh ~ i(cosy_contract_active, ref=0) + has_ev + i(cosy_c
              cluster = ~account_id, 
              split = ~ rate_period)
 
-etable( m1c, cluster = ~ account_id + date)
+etable(m1c, fitstat = ~ N + g + pre_avg + t_obs + r2)
 
 # Generate the initial LaTeX table
 etable(m1c, tex = TRUE, title = "Cosy Adoption on Electricity Consumption Controlling for EV Charging", 
        fitstat = ~ N + g + pre_avg + t_obs + r2, 
        file = "tables/did_ev.tex", replace = TRUE, label = "tab:hp-did-ev")
 CleanPreAverage("tables/did_ev.tex")
-
+stop()
 # NOTE THAT YEARLY CONSUMPTION CLEARLY ISN"T WORKING - ITS NAN RIGHT NOW
 
 # =================================================================
@@ -69,35 +69,15 @@ ev_charging_probability <- ev_charging %>%
   right_join(ev_charging_balanced) %>%
   mutate(ev_charging = replace_na(ev_charging, 0))%>%
   pivot_wider(id_cols = c(account_id, date), names_from = "rate_period", values_from = "ev_charging")  %>%
-  left_join(distinct(aggregated, account_id, hashed_mpan, date, cosy_contract_active)) 
+  left_join(distinct(aggregated_data, account_id, hashed_mpan, date, cosy_contract_active)) %>%
+  rename_all(~str_replace(.x, "\\s", "_"))
 
-
-# Identify the period with the highest EV charging for each mpan and date
-ev_charging_max <- ev_charging %>%
-  group_by(account_id, hashed_mpan, date, rate_period) %>%
-  summarise(ev_charging = sum(ev_charging, na.rm = TRUE)) %>%
-  group_by(account_id, hashed_mpan, date) %>%
-  filter(ev_charging == max(ev_charging)) %>%
-  mutate(highest_ev_charging = 1) %>%
-  ungroup()
-
-ev_charging_max <- ev_charging_max %>%
-  left_join(aggregated_data %>% select(account_id, hashed_mpan, date, cosy_contract_active) %>% distinct()) 
-
-# Create dummy variables for rate periods
-ev_charging_max <- ev_charging_max %>%
-  mutate(
-    Morning_Cosy = ifelse(rate_period == "Morning Cosy", 1, 0),
-    Afternoon_Cosy = ifelse(rate_period == "Afternoon Cosy", 1, 0),
-    Peak_Rate = ifelse(rate_period == "Peak Rate", 1, 0),
-    Other = ifelse(rate_period == "Other", 1, 0)
-  )
 
 # Run the fixed effects models
-m_charging1 <- feols(Morning_Cosy ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-m_charging2 <- feols(Afternoon_Cosy ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-m_charging3 <- feols(Peak_Rate ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
-m_charging4 <- feols(Other ~ i(cosy_contract_active) | account_id + date, data = ev_charging_max, cluster = ~ account_id)
+m_charging1 <- feols(Morning_Cosy ~ i(cosy_contract_active) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
+m_charging2 <- feols(Afternoon_Cosy ~ i(cosy_contract_active) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
+m_charging3 <- feols(Peak_Rate ~ i(cosy_contract_active) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
+m_charging4 <- feols(Other ~ i(cosy_contract_active) | account_id + date, data = ev_charging_probability, cluster = ~ account_id)
 
 
 # Generate the LaTeX table with the dependent variable named "Charging EV"
@@ -120,10 +100,10 @@ file_path <- "tables/ev_charging.tex"
 file_content <- readLines(file_path)
 
 # Find the lines with the pre-treatment average and remove them
-if (length(grep("Charging EV", file_content))==1) {
-  pre_avg_line_index <- grep("Charging EV", file_content)
+if (length(grep("Half Hourly Consumption", file_content))==1) {
+  pre_avg_line_index <- grep("Half Hourly Consumption", file_content)
 } else {
-  pre_avg_line_index <- grep("Charging EV", file_content)[2]
+  pre_avg_line_index <- grep("Half Hourly Consumption", file_content)[2]
 }
 
 pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
@@ -145,7 +125,7 @@ file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of H
 
 # Modify the name of the dependent in pre-treatment averages
 var_line <- grep("Half Hourly Consumption", file_content)
-file_content[sample_line] <- gsub("Half Hourly Consumption", "Charging EV", file_content[var_line])
+file_content[var_line] <-  gsub("Half Hourly Consumption", "Charging EV", file_content[var_line])
 
 # Add note
 note <- "\\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} We show the results of four OLS models where the dependent variable is whether a charging event occurred in the period of interest – morning \\textit{Cosy} 4am-7am (column 1), afternoon \\textit{Cosy} 1pm-4pm (column 2), peak 4pm-7pm (column 3), and all other hours of the day (column 4). The sample is 127,789 charging events among 1,743 \\textit{Cosy} adopters for whom we detect evidence of EV charging. Where a charging events stretches across multiple periods, we attribute it to the period that comprises the \\textit{majority} of the event (in minutes). We see that among these EV owning \\textit{Cosy} adopters, \\textit{Cosy} adoption is associated with more charging the off-peak period and less in the peak and other periods.}"
@@ -155,7 +135,9 @@ file_content <- append(file_content, note, after = grep("\\centering", file_cont
 # Write the modified content back to the LaTeX file
 writeLines(file_content, file_path)
 
+# =================================================================
 ### Table A.10: Impact of Cosy for Leavers
+# =================================================================
 # Function to create the ggplot for each period
 create_ggplot <- function(period_data, period_name) {
   # Extract coefficients, standard errors, and event time

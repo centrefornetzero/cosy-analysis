@@ -121,25 +121,25 @@ fitstat_register("t_obs", function(x) {
 CleanPreAverage <- function(file_path) {
   
   # Read the generated LaTeX file
-  file_content <- readLines(file_path)
+  raw_file <- readLines(file_path)
   
   # Find the lines with the pre-treatment average and remove them
-  if (length(grep("Half Hourly Consumption", file_content))==1) {
-    pre_avg_line_index <- grep("Half Hourly Consumption", file_content)
+  if (length(grep("Half Hourly Consumption", raw_file))==1) {
+    pre_avg_line_index <- grep("Half Hourly Consumption", raw_file)
   } else {
-    pre_avg_line_index <- grep("Half Hourly Consumption", file_content)[2]
+    pre_avg_line_index <- grep("Half Hourly Consumption", raw_file)[2]
   }
   
-  pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
-  file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
-  
+  pre_avg_lines <- raw_file[pre_avg_line_index:(pre_avg_line_index)]
+  file_content <- raw_file[-c(pre_avg_line_index, pre_avg_line_index)]
+      
   # Find the position just after the coefficients
   coeff_end_index <- grep("Fixed-effects", file_content) -2
   
   # Insert the pre-treatment average row after the coefficients
   file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
   file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
-  
+    
   # Add a \midrule after the pre-treatment average
   file_content <- append(file_content, "\\midrule", after = coeff_end_index)
   
@@ -147,6 +147,8 @@ CleanPreAverage <- function(file_path) {
   sample_line <- grep("Size of the 'effective' sample", file_content)
   file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
   
+
+  print(file_content)
   # Write the modified content back to the LaTeX file
   writeLines(file_content, file_path)
 }
@@ -162,43 +164,43 @@ as.Date <- function(x, ...) {
   }
 }
 
-# -----------------------------
-# Data processing
-# -----------------------------
+# # -----------------------------
+# # Data processing
+# # -----------------------------
 
-source("scripts/02_01_load_data.R")
+# source("scripts/02_01_load_data.R")
 
-# List objects in the environment
-list_env <- c(ls(), "list_env")
+# # List objects in the environment
+# list_env <- c(ls(), "list_env")
 
-source("scripts/02_02_rate_graphs.R")
-rm(list = setdiff(ls(), list_env))
+# source("scripts/02_02_rate_graphs.R")
+# rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_03_summary_graphs.R")
-list_env <- c(list_env, "contract_analysis")
-rm(list = setdiff(ls(), list_env))
+# source("scripts/02_03_summary_graphs.R")
+# list_env <- c(list_env, "contract_analysis")
+# rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_04_data_availability.R")
-rm(list = setdiff(ls(), list_env))
+# source("scripts/02_04_data_availability.R")
+# rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_05_balance_table.R")
-rm(list = setdiff(ls(), list_env))
+# source("scripts/02_05_balance_table.R")
+# rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_06_lct_ownership_and_leavers.R")
-rm(list = setdiff(ls(), list_env))
+# source("scripts/02_06_lct_ownership_and_leavers.R")
+# rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_07_heterogeneity_analysis.R")
-rm(list = setdiff(ls(), list_env))
-gc()   
+# source("scripts/02_07_heterogeneity_analysis.R")
+# rm(list = setdiff(ls(), list_env))
+# gc()   
 
-source("scripts/02_08_cosy_and_hp_coadoption.R")
-rm(list = setdiff(ls(), list_env))
-gc()  
+# source("scripts/02_08_cosy_and_hp_coadoption.R")
+# rm(list = setdiff(ls(), list_env))
+# gc()  
 
-source("scripts/02_09_structural_winner.R")
-rm(list = setdiff(ls(), list_env))
-gc()  
+# source("scripts/02_09_structural_winner.R")
+# rm(list = setdiff(ls(), list_env))
+# gc()  
 
-source("scripts/02_10_DiD_analysis.R")
-rm(list = setdiff(ls(), list_env))
-gc()  
+# source("scripts/02_10_DiD_analysis.R")
+# rm(list = setdiff(ls(), list_env))
+# gc()  
