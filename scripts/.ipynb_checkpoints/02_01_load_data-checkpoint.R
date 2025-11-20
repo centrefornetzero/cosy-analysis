@@ -3,18 +3,20 @@
 # This script is very long to run so I create a conditional close checking if the file has already been created
 
 # Delete file to rerun everything
-# file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
+file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
 
 ## Merging consumption and customers info datasets
 if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
   start <- Sys.time()
+    print('hello')
 
   # Load smart meter consumption data at the day - rate period level
   # queries/cosy - cosy electricity readings
   # queries/cosy - cosy electricity reading part 2 which I ran for different years seperately
-  aggregated_data <- rbind(fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26.csv")),
-                           fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (1).csv")),
-                           fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (2).csv"))) %>%
+  aggregated_data <- 
+    rbind(fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26.csv")),
+          fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (1).csv")),
+          fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (2).csv"))) %>%
     rename(total_consumption = total_read_value,
            consumption_hh = mean_read_value) %>%
     mutate(date = as.Date(settlement_date)) %>% 
@@ -48,7 +50,8 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
   aggregated_data <- 
     aggregated_data %>%
     left_join(agreements_active) %>%
-    mutate(cosy_contract_active = replace_na(cosy_contract_active, FALSE))
+    mutate(cosy_contract_active = replace_na(cosy_contract_active, FALSE)) %>%
+    inner_join(distinct(agreements_active, hashed_mpan))
     
   # -------------------- Caculate overall daily consumption --------------------
   aggregate_daily <- 
