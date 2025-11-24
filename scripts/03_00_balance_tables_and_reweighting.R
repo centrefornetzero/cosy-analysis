@@ -41,8 +41,8 @@ setFixest_dict(c(total_consumption = "Consumption in kWh per period",
 
 
 # cosy sample
-aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") 
-cosy_hp_details <- fread("data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
+aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
+cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_24.csv")) %>%
   inner_join(aggregated_data %>% select(hashed_mpan, account_id) %>% distinct()) %>%
   distinct() 
 cosy_hp_details <- cosy_hp_details %>% 
@@ -52,23 +52,23 @@ cosy_hp_details <- cosy_hp_details %>%
 
 
 # heat pump sample
-hp_details <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
+hp_details <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_18.csv")) %>%
   distinct(account_id) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>% distinct(account_id, .keep_all = TRUE), by=c("account_id")) %>%
+  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>% distinct(account_id, .keep_all = TRUE), by=c("account_id")) %>%
   filter(installed_at <= "2024-05-29") %>% 
   filter(!is.na(property_value), !is.na(floor_area), !is.na(energy_efficiency)) %>%
   select(account_id, energy_efficiency, property_value, floor_area)  %>%
   mutate(sample = "HP")
 
 # random sample
-random_domus_sample <- fread("data/input/cosy_-_random_sample_details_2024_08_23.csv") %>% 
+random_domus_sample <- fread(file.path(datapath, "input/cosy_-_random_sample_details_2024_08_23.csv")) %>% 
   filter(!is.na(property_value), !is.na(floor_area), !is.na(energy_efficiency)) %>%
   filter(!account_id %in% cosy_hp_details$account_id, !account_id %in% hp_details$account_id) %>%
   select(account_id, energy_efficiency, property_value, floor_area) %>%
   mutate(sample = "Random")
 
 # latest eac
-latest_eac <- fread("data/input/latest_eac.csv") %>%
+latest_eac <- fread(file.path(dataptah, "input/latest_eac.csv")) %>%
   distinct(account_id, .keep_all = TRUE)
   
 # MERGE 
@@ -332,11 +332,11 @@ matched_data2 <- match.data(match_obj2)
 
 
 # get consumption by period
-hp_installed <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
+hp_installed <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_18.csv")) %>%
   group_by(account_id, settlement_date) %>%
   summarise(total_consumption = sum(total_read_value)) %>%
   mutate(consumption_hh = total_consumption / 48) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>%
+  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>%
                distinct(account_id, .keep_all = TRUE),
              by=c("account_id")) %>%
   mutate(date = as.Date(settlement_date),
@@ -350,7 +350,7 @@ hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% dis
 
 # Load and preprocess gas consumption data
 # previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
+cosy_hp_install_gas_consumption <- fread(file.path(datapath, "input/cosy_-_hp_users_gas_2024_06_13.csv")) %>%
   group_by(account_id) %>%
   mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
          treated = max(is_hp_installed),
@@ -396,7 +396,7 @@ overall_weekly <- hp_installed %>%
 
 
 # add weather 
-weather_weekly <- fread("data/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
+weather_weekly <- fread(file.path(datapath, "input/cosy_-_weather_weekly_2024_06_13.csv")) %>%
   mutate(settlement_week = as.Date(week_date)) %>%
   distinct(gsp_group_id, settlement_week, .keep_all = TRUE) %>%
   select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius) %>%
@@ -515,7 +515,7 @@ fitstat_register("t_obs", function(x) {
 }, "Number of Time Periods")
 
 # Restricting
-ids <- fread("data/input/heatpump_ids.csv")
+ids <- fread(file.path(datapath, "input/heatpump_ids.csv"))
 
 # Fit the model
 max_week <- overall_weekly %>% filter(!is.na(gas_consumption))
@@ -542,8 +542,8 @@ CleanPreAverage("tables/matching_hp.tex")
 
 
 # Balance tables
-aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") 
-cosy_hp_details <- fread("data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
+aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
+cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_24.csv")) %>%
   inner_join(aggregated_data %>% select(hashed_mpan) %>% distinct()) %>%
   distinct() 
 cosy_hp_details <- cosy_hp_details %>% 
@@ -551,9 +551,9 @@ cosy_hp_details <- cosy_hp_details %>%
 rm(aggregated_data)
 
 # get consumption by period
-hp_details <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
+hp_details <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_18.csv")) %>%
   mutate(date = as.Date(settlement_date))  %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv")  %>% distinct(account_id, .keep_all = TRUE), by=c("account_id","hashed_mpan")) %>%
+  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv"))  %>% distinct(account_id, .keep_all = TRUE), by=c("account_id","hashed_mpan")) %>%
   mutate(date = as.Date(date),
          is_hp_installed = as.numeric(installed_at <= date)) %>%
   group_by(account_id) %>%
@@ -561,7 +561,7 @@ hp_details <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
   distinct(account_id, treated, property_value, floor_area, energy_efficiency,  estimated_annual_consumption) %>%
   filter(treated==1, !is.na(property_value), !is.na(floor_area), !is.na(energy_efficiency), !is.na(estimated_annual_consumption))
 
-random_domus_sample <- fread("data/input/cosy_-_random_sample_details_2024_08_23.csv") %>% 
+random_domus_sample <- fread(file.path(datapath, "input/cosy_-_random_sample_details_2024_08_23.csv")) %>% 
   filter(!is.na(property_value), !is.na(floor_area), !is.na(energy_efficiency), !is.na(estimated_annual_consumption))
 
 
@@ -664,16 +664,16 @@ stargazer(final_table_with_sd, type = "latex", summary = FALSE,
 
 
 # Load data
-aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") 
+aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
 
 # Download details for 1000 surveyed
-survey_selection <- fread("data/input/cosy_survey_ids.csv")
+survey_selection <- fread(file.path(datapath, "input/cosy_survey_ids.csv"))
 
 # Gather all responders
-responders <- fread("data/input/survey_ids.csv")
+responders <- fread(file.path(datapath, "input/survey_ids.csv"))
 
 # Download domus variables
-cosy_hp_details <- fread("data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
+cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_24.csv")) %>%
   inner_join(aggregated_data %>% distinct(hashed_mpan, account_id))
 
 # Separate survey responders and non-responders
@@ -772,10 +772,10 @@ stargazer(final_table_with_sd, type = "latex", summary = FALSE,
 
 
 # Load data
-aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") 
+aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS") )
 
 # Download domus variables
-cosy_hp_details <- fread("data/input/cosy_-_cosy_details_2024_07_24.csv") %>%
+cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_24.csv")) %>%
   inner_join(aggregated_data %>% distinct(hashed_mpan, account_id, first_adoption)) %>%
   distinct(account_id, .keep_all = TRUE) %>%
   ungroup() %>%
@@ -870,9 +870,9 @@ stargazer(final_table_with_sd, type = "latex", summary = FALSE,
 
 
 # get consumption by period
-hp_details <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
+hp_details <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_18.csv")) %>%
   mutate(date = as.Date(settlement_date))  %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv")  %>% distinct(account_id, .keep_all = TRUE), by=c("account_id","hashed_mpan")) %>%
+  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv"))  %>% distinct(account_id, .keep_all = TRUE), by=c("account_id","hashed_mpan")) %>%
   mutate(date = as.Date(date),
          is_hp_installed = as.numeric(installed_at <= date)) %>%
   group_by(account_id) %>%
