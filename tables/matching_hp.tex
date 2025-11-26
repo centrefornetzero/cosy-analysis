@@ -1,0 +1,36 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:hp-matching} TWFE using Matching Weights (Heatpump)}
+   \centering
+   \begin{tabular}{lccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variables:           & Monthly Electricity Consumption (kWh) & Monthly Gas Consumption (kWh) & Consumption in kWh per period\\  
+       & \multicolumn{3}{c}{Electricity} \\ 
+       & \multicolumn{3}{c}{Gas} \\ 
+       & \multicolumn{3}{c}{Total} \\ 
+      Model:                         & (1)                                   & (2)                           & (3)\\  
+      \midrule
+      \emph{Variables}\\
+      Is HP Installed $=$ 1          & 3,284.2$^{***}$                       & -11,323.7$^{***}$             & -7,701.3$^{***}$\\   
+                                     & (135.5)                               & (545.6)                       & (430.5)\\   
+      \midrule
+\emph{Pre-Treatment Average}\\
+      Yearly Consumption             & 4,596.51                              & 10,313.85                     & 14,726.44\\  
+\midrule
+      \emph{Fixed-effects}\\
+      HDD                            & Yes                                   & Yes                           & Yes\\  
+      Household                      & Yes                                   & Yes                           & Yes\\  
+      Week                           & Yes                                   & Yes                           & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                   & 64,933                                & 43,589                        & 43,589\\  
+      Number of Households & 609                                   & 524                           & 524\\  
+      Number of Time Periods         & 129                                   & 129                           & 129\\  
+      R$^2$                          & 0.65964                               & 0.76446                       & 0.78707\\  
+      \midrule \midrule
+      \multicolumn{4}{l}{\emph{Clustered (Household) standard-errors in parentheses}}\\
+      \multicolumn{4}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+

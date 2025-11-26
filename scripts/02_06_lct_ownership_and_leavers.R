@@ -246,7 +246,7 @@ ggplot(grouped_data, aes(x = as.factor(leavers), y = proportion, fill = as.facto
 ggsave(filename= "graphs/leavers_ev.png",width = 10, height = 8, dpi = 300)
 
 ### Table A.11: Impact of Cosy by LCTs Ownership
-survey_responses <- fread("data/input/cosy_-_smart_tariff_survey_2024_09_12.csv")
+survey_responses <- fread(file.path(datapath, "input/cosy_-_smart_tariff_survey_2024_09_12.csv"))
 
 # Step 1: Clean and split 'all_lcts' column without modifying original data
 cleaned_lcts <- survey_responses$all_lcts %>%

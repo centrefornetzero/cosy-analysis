@@ -1,18 +1,18 @@
 # Half hourly analysis for HP installation and Cosy
 
 # Read the CSV file for EV charging events
-ev_charging <- fread("data/input/cosy_-_ev_detection_2024_07_04.csv") %>%
+ev_charging <- fread(file.path(datapath, "input/cosy_-_ev_detection_2024_07_04.csv")) %>%
   mutate(ev_charging = 1)
 
 head(ev_charging)
 
 
 # Read the files (HP Installation, Cosy Adoption and Daily Weather)
-hp <- fread("data/input/cosy_-_half_hourly_data_for_hp_sample_2024_09_26.csv") %>%
+hp <- fread(file.path(datapath, "input/cosy_-_half_hourly_data_for_hp_sample_2024_09_26.csv")) %>%
   rename(interval_start = adjusted_interval_start)
 
 # weather data
-weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
+weather <- fread(file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.csv")) %>% 
   rename_with(.cols = starts_with("weekly"), 
               .fn = ~ sub("^weekly", "daily", .)) %>%
   rename(tariff_gsp_group_id=gsp_group_id) %>%
@@ -25,7 +25,7 @@ weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>%
 # Create Treatment dummy and Settlement Categorical
 hp <- hp %>%
   #filter(account_id %in% sample_selection) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>% 
+  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>% 
                distinct(hashed_mpan, .keep_all=TRUE), by=c("hashed_mpan")) %>%
   mutate(settlement_date = as.Date(interval_start),
          installed_at = as.Date(installed_at),
@@ -63,14 +63,14 @@ gc()
 
 
 # load cosy first adoption
-first_adoption <- readRDS("data/scratch/aggregated_data.RDS") %>%
+first_adoption <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS")) %>%
   ungroup() %>%
   select(hashed_mpan, first_adoption, account_id, tariff_gsp_group_id) %>%
   distinct(hashed_mpan, first_adoption, .keep_all=TRUE)
 
 # Read the files (Cosy Adoption)
 # prev file: _half_hourly_data_for_cosy_sample_2024_10_29.csv
-cosy <- fread("data/input/cosy_-_half_hourly_data_for_cosy_sample_2025_07_07.csv") %>%
+cosy <- fread(file.path(datapath, "input/cosy_-_half_hourly_data_for_cosy_sample_2025_07_07.csv")) %>%
   rename(interval_start = adjusted_interval_start)
 
 # Select some random mpans
@@ -214,17 +214,17 @@ ggsave("graphs/combined_impact_hourly_consumption.png", width = 10, height = 6, 
 
 
 # Read the files (HP Installation, Cosy Adoption and Daily Weather)
-#hp <- rbind(fread("data/input/cosy_-_half_hourly_data_for_hp_sample_(no_half_hourly_charged_restrictions)_2025_11_12.csv"),
-#            fread("data/input/cosy_-#_half_hourly_data_for_hp_sample_(no_half_hourly_charged_restrictions)_2024_11_12 (1).csv"),
-#            fread("data/input/cosy_-#_half_hourly_data_for_hp_sample_(no_half_hourly_charged_restrictions)_2024_11_12 (2).csv"))
+#hp <- rbind(fread("input/cosy_-_half_hourly_data_for_hp_sample_(no_half_hourly_charged_restrictions)_2025_11_12.csv"),
+#            fread("input/cosy_-#_half_hourly_data_for_hp_sample_(no_half_hourly_charged_restrictions)_2024_11_12 (1).csv"),
+#            fread("input/cosy_-#_half_hourly_data_for_hp_sample_(no_half_hourly_charged_restrictions)_2024_11_12 (2).csv"))
 
 
 # Read the files (HP Installation, Cosy Adoption and Daily Weather)
-hp <- fread("data/input/cosy_-_half_hourly_data_for_hp_sample_(no_half_hourly_charged_restrictions)_2025_07_07.csv") %>%
+hp <- fread(file.path(datapath, "input/cosy_-_half_hourly_data_for_hp_sample_(no_half_hourly_charged_restrictions)_2025_07_07.csv")) %>%
   mutate(interval_start = with_tz(as.POSIXct(interval_start, tz = "UTC")))
 
 # weather data
-weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
+weather <- fread(file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.csv")) %>% 
   rename_with(.cols = starts_with("weekly"), 
               .fn = ~ sub("^weekly", "daily", .)) %>%
   rename(tariff_gsp_group_id=gsp_group_id) %>%
@@ -237,7 +237,7 @@ weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>%
 # Create Treatment dummy and Settlement Categorical
 hp <- hp %>%
   #filter(account_id %in% sample_selection) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>% 
+  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>% 
                distinct(hashed_mpan, .keep_all=TRUE), by=c("hashed_mpan")) %>%
   mutate(settlement_date = as.Date(interval_start),
          installed_at = as.Date(installed_at),
@@ -295,11 +295,11 @@ rm(cosy)
 gc()
 
 # Read the files (HP Installation, Cosy Adoption and Daily Weather)
-hp <- fread("data/input/cosy_-_half_hourly_data_for_hp_sample_2024_09_26.csv") %>%
+hp <- fread(file.path(datapath, "input/cosy_-_half_hourly_data_for_hp_sample_2024_09_26.csv")) %>%
   rename(interval_start = adjusted_interval_start)
 
 # weather data
-weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
+weather <- fread(file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.csv")) %>% 
   rename_with(.cols = starts_with("weekly"), 
               .fn = ~ sub("^weekly", "daily", .)) %>%
   rename(tariff_gsp_group_id=gsp_group_id) %>%
@@ -312,7 +312,7 @@ weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>%
 # Create Treatment dummy and Settlement Categorical
 hp <- hp %>%
   #filter(account_id %in% sample_selection) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>% distinct(hashed_mpan, .keep_all=TRUE), by=c("hashed_mpan")) %>%
+  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>% distinct(hashed_mpan, .keep_all=TRUE), by=c("hashed_mpan")) %>%
   mutate(settlement_date = as.Date(interval_start),
          installed_at = as.Date(installed_at),
          settlement_time = format(as.POSIXct(interval_start),
@@ -458,11 +458,11 @@ ggsave("graphs/combined_impact_hourly_consumption_weekend.png", width = 10, heig
 
 # same thing for temperature
 # Read the files (HP Installation, Cosy Adoption and Daily Weather)
-hp <- fread("data/input/cosy_-_half_hourly_data_for_hp_sample_2024_09_26.csv") %>%
+hp <- fread(file.path(datapath, "input/cosy_-_half_hourly_data_for_hp_sample_2024_09_26.csv")) %>%
   rename(interval_start = adjusted_interval_start)
 
 # weather data
-weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
+weather <- fread(file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.csv")) %>% 
   rename_with(.cols = starts_with("weekly"), 
               .fn = ~ sub("^weekly", "daily", .)) %>%
   rename(tariff_gsp_group_id=gsp_group_id) %>%
@@ -475,7 +475,7 @@ weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>%
 # Create Treatment dummy and Settlement Categorical
 hp <- hp %>%
   #filter(account_id %in% sample_selection) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>% distinct(hashed_mpan, .keep_all=TRUE), by=c("hashed_mpan")) %>%
+  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>% distinct(hashed_mpan, .keep_all=TRUE), by=c("hashed_mpan")) %>%
   mutate(settlement_date = as.Date(interval_start),
          installed_at = as.Date(installed_at),
          settlement_time = format(as.POSIXct(interval_start),
@@ -517,13 +517,13 @@ gc()
 
 
 # load cosy first adoption
-first_adoption <- readRDS("data/scratch/aggregated_data.RDS") %>%
+first_adoption <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS")) %>%
   ungroup() %>%
   select(hashed_mpan, first_adoption, account_id, tariff_gsp_group_id) %>%
   distinct(hashed_mpan, first_adoption, .keep_all=TRUE)
 
 # Read the files (Cosy Adoption)
-cosy <- fread("data/input/cosy_-_half_hourly_data_for_cosy_sample_2024_10_29.csv") %>%
+cosy <- fread(file.path(datapath, "input/cosy_-_half_hourly_data_for_cosy_sample_2024_10_29.csv")) %>%
   rename(interval_start = adjusted_interval_start)
 
 # Select some random mpans
@@ -699,11 +699,11 @@ rm(cosy)
 gc()
 
 # Read the files (HP Installation, Cosy Adoption and Daily Weather)
-hp <- fread("data/input/cosy_-_half_hourly_data_for_hp_sample_2024_09_26.csv") %>%
+hp <- fread(file.path(datapath, "input/cosy_-_half_hourly_data_for_hp_sample_2024_09_26.csv")) %>%
   rename(interval_start = adjusted_interval_start)
 
 # weather data
-weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>% 
+weather <- fread(file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.csv")) %>% 
   rename_with(.cols = starts_with("weekly"), 
               .fn = ~ sub("^weekly", "daily", .)) %>%
   rename(tariff_gsp_group_id=gsp_group_id) %>%
@@ -716,7 +716,7 @@ weather <- fread("data/input/Cosy Analysis Weather Mar 26 daily.csv") %>%
 # Create Treatment dummy and Settlement Categorical
 hp <- hp %>%
   #filter(account_id %in% sample_selection) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>% distinct(hashed_mpan, .keep_all=TRUE), by=c("hashed_mpan")) %>%
+  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>% distinct(hashed_mpan, .keep_all=TRUE), by=c("hashed_mpan")) %>%
   mutate(settlement_date = as.Date(interval_start),
          installed_at = as.Date(installed_at),
          settlement_time = format(as.POSIXct(interval_start),

@@ -1,6 +1,8 @@
 ## Figure A.13: Event Study - Heat Pump Installation on Daily Average of Customers’
 
 # create df
+hp_installed <- read_rds(file.path(datapath, "output/hp_installed.rds"))
+
 event_study_df <- hp_installed %>%
   mutate(weeks_since_hp = as.numeric(difftime(date, installed_at, units = "weeks")) %/% 1 + 1,
          weeks_since_hp = case_when(
@@ -9,7 +11,6 @@ event_study_df <- hp_installed %>%
            TRUE ~ weeks_since_hp)) %>%
   select(account_id, weeks_since_hp, consumption_hh, hdd, date, rate_period)
 
-rm(hp_installed)
 gc()
 
 m_event_study <- feols(consumption_hh ~ i(weeks_since_hp, ref=-1) | account_id + hdd + date, 

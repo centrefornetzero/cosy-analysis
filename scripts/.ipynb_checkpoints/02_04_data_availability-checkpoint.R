@@ -7,6 +7,7 @@
                           data = aggregated_data %>% filter(rate_period=="Overall", 
                                                             !is.na(date), 
                                                             !is.na(hashed_mpan)) %>% 
+                            mutate(cosy_contract_active = as.numeric(cosy_contract_active)) %>%
                             select(consumption_hh, hashed_mpan, date, cosy_contract_active, hdd) %>% distinct(), index = c("hashed_mpan","date"), 
                           xlab = "Time", ylab = "hashed_mpan", by.timing = TRUE, 
                           pre.post = TRUE, gridOff = TRUE, axis.lab.gap = c(100),
