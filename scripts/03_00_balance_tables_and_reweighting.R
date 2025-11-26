@@ -68,7 +68,7 @@ random_domus_sample <- fread(file.path(datapath, "input/cosy_-_random_sample_det
   mutate(sample = "Random")
 
 # latest eac
-latest_eac <- fread(file.path(dataptah, "input/latest_eac.csv")) %>%
+latest_eac <- fread(file.path(datapath, "input/latest_eac.csv")) %>%
   distinct(account_id, .keep_all = TRUE)
   
 # MERGE 

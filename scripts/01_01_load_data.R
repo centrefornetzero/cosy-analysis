@@ -24,7 +24,7 @@ hp_installed_daily <- hp_installed_period %>%
 # for hhs where there are multiple mpans for one account, take covariates associated
 # with largest EAC
 covariates <- 
-  fread(fiel.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>%
+  fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>%
   group_by(account_id) %>%
   arrange(-estimated_annual_consumption) %>%
   filter(row_number() == 1)

@@ -3,7 +3,7 @@
 # This script is very long to run so I create a conditional close checking if the file has already been created
 
 # Delete file to rerun everything
-# file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
+file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
 
 ## Merging consumption and customers info datasets
 if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
@@ -38,7 +38,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     mutate(id = row_number(), 
            date = map2(from, to, seq, by = "day")) %>%
     unnest(date) %>%
-    mutate(cosy_contract_active = TRUE) %>%
+    mutate(cosy_contract_active = 1) %>%
     distinct(hashed_mpan, date, cosy_contract_active) %>%
     group_by(hashed_mpan) %>%
     mutate(first_adoption = min(date)) %>%
@@ -50,7 +50,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
   aggregated_data <- 
     aggregated_data %>%
     left_join(agreements_active) %>%
-    mutate(cosy_contract_active = replace_na(cosy_contract_active, FALSE)) %>%
+    mutate(cosy_contract_active = replace_na(cosy_contract_active, 0)) %>%
     inner_join(distinct(agreements_active, hashed_mpan))
     
   # -------------------- Caculate overall daily consumption --------------------

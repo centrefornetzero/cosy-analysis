@@ -138,58 +138,58 @@ fitstat_register("t_obs", function(x) {
 }, "Number of Time Periods")
 
 # Load data
-# source("scripts/01_01_load_data.R")
+source("scripts/01_01_load_data.R")
 
 # List objects in the environment
 list_env <- c(ls(), "list_env")
 
-# Summary statistics 
-source("scripts/01_02_summary_graphs.R")
+# # Summary statistics 
+# source("scripts/01_02_summary_graphs.R")
 
-# Remove all objects in the environment except for those in list_env
-rm(list = setdiff(ls(), list_env))
-
-
-source("scripts/01_03_balance_table.R")
-rm(list = setdiff(ls(), list_env))
-
-source("scripts/01_04_ev_ownership.R")
-rm(list = setdiff(ls(), list_env))
+# # Remove all objects in the environment except for those in list_env
+# rm(list = setdiff(ls(), list_env))
 
 
-source("scripts/01_05_switch_to_smart_tariff.R")
-rm(list = setdiff(ls(), list_env))
+# source("scripts/01_03_balance_table.R")
+# rm(list = setdiff(ls(), list_env))
+
+# source("scripts/01_04_ev_ownership.R")
+# rm(list = setdiff(ls(), list_env))
 
 
-
-## Heterogeneity analysis
-source("scripts/01_06_heterogeneity_analysis.R")
-rm(list = setdiff(ls(), list_env))
-gc()
-
-
-source("scripts/01_07_cop_analysis.R")
-rm(list = setdiff(ls(), list_env))
-gc()
-
-source("scripts/01_08_engineer_variance_analysis.R")
-rm(list = setdiff(ls(), list_env))
-
-
-source("scripts/01_09_solar_PV_analysis.R")
-rm(list = setdiff(ls(), list_env))
-
-
-source("scripts/01_10_data_availability.R")
-rm(list = setdiff(ls(), list_env))
+# source("scripts/01_05_switch_to_smart_tariff.R")
+# rm(list = setdiff(ls(), list_env))
 
 
 
-source("scripts/01_11_event_study.R")
-rm(list = setdiff(ls(), list_env))
+# ## Heterogeneity analysis
+# source("scripts/01_06_heterogeneity_analysis.R")
+# rm(list = setdiff(ls(), list_env))
+# gc()
 
-source("scripts/01_12_DiD_analysis.R")
-rm(list = setdiff(ls(), list_env))
+
+# source("scripts/01_07_cop_analysis.R")
+# rm(list = setdiff(ls(), list_env))
+# gc()
+
+# source("scripts/01_08_engineer_variance_analysis.R")
+# rm(list = setdiff(ls(), list_env))
+
+
+# source("scripts/01_09_solar_PV_analysis.R")
+# rm(list = setdiff(ls(), list_env))
+
+
+# source("scripts/01_10_data_availability.R")
+# rm(list = setdiff(ls(), list_env))
+
+
+
+# source("scripts/01_11_event_study.R")
+# rm(list = setdiff(ls(), list_env))
+
+# source("scripts/01_12_DiD_analysis.R")
+# rm(list = setdiff(ls(), list_env))
 
 source("scripts/01_13_DiD_analysis_outputs.R")
 rm(list = setdiff(ls(), list_env))

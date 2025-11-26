@@ -6,26 +6,26 @@
       \tabularnewline \midrule \midrule
       Dependent Variable: & \multicolumn{10}{c}{consumption\_hh}\\
        & \multicolumn{5}{c}{TWFE} & \multicolumn{5}{c}{CS} \\ 
-                                        & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall        & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall \\   
-      Model:                            & (1)            & (2)            & (3)             & (4)             & (5)            & (6)            & (7)            & (8)             & (9)             & (10)\\  
+                                     & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall        & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall \\   
+      Model:                         & (1)            & (2)            & (3)             & (4)             & (5)            & (6)            & (7)            & (8)             & (9)             & (10)\\  
       \midrule
       \emph{Variables}\\
-      cosy\_contract\_active $=$ TRUE   & 0.5831$^{***}$ & 0.3387$^{***}$ & -0.1599$^{***}$ & -0.1306$^{***}$ & 0.0154$^{***}$ & 0.5831$^{***}$ & 0.3387$^{***}$ & -0.1599$^{***}$ & -0.1306$^{***}$ & 0.0154$^{***}$\\   
-                                        & (0.0121)       & (0.0076)       & (0.0045)        & (0.0041)        & (0.0029)       & (0.0121)       & (0.0076)       & (0.0045)        & (0.0041)        & (0.0029)\\   
+      cosy\_contract\_active $=$ 1   & 0.5831$^{***}$ & 0.3387$^{***}$ & -0.1599$^{***}$ & -0.1306$^{***}$ & 0.0154$^{***}$ & 0.5831$^{***}$ & 0.3387$^{***}$ & -0.1599$^{***}$ & -0.1306$^{***}$ & 0.0154$^{***}$\\   
+                                     & (0.0121)       & (0.0076)       & (0.0045)        & (0.0041)        & (0.0029)       & (0.0121)       & (0.0076)       & (0.0045)        & (0.0041)        & (0.0029)\\   
 \midrule
 \emph{Pre-Treatment Average}\\
-      Half Hourly Consumption           & 0.3952         & 0.3300         & 0.4262          & 0.3980          & 0.3922         & 0.3952         & 0.3300         & 0.4262          & 0.3980          & 0.3922\\  
+      Half Hourly Consumption        & 0.3952         & 0.3300         & 0.4262          & 0.3980          & 0.3922         & 0.3952         & 0.3300         & 0.4262          & 0.3980          & 0.3922\\  
       \midrule
       \emph{Fixed-effects}\\
-      hdd                               & Yes            & Yes            & Yes             & Yes             & Yes            & Yes            & Yes            & Yes             & Yes             & Yes\\  
-      account\_id                       & Yes            & Yes            & Yes             & Yes             & Yes            & Yes            & Yes            & Yes             & Yes             & Yes\\  
-      date                              & Yes            & Yes            & Yes             & Yes             & Yes            & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      hdd                            & Yes            & Yes            & Yes             & Yes             & Yes            & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      account\_id                    & Yes            & Yes            & Yes             & Yes             & Yes            & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      date                           & Yes            & Yes            & Yes             & Yes             & Yes            & Yes            & Yes            & Yes             & Yes             & Yes\\  
       \midrule
       \emph{Fit statistics}\\
-      Observations                      & 3,148,934      & 3,149,497      & 3,149,470       & 3,154,106       & 3,154,108      & 3,148,934      & 3,149,497      & 3,149,470       & 3,154,106       & 3,154,108\\  
-      Number of Households    & 6,656          & 6,656          & 6,656           & 6,656           & 6,656          & 6,656          & 6,656          & 6,656           & 6,656           & 6,656\\  
-      Number of Time Periods            & 916            & 916            & 916             & 916             & 916            & 916            & 916            & 916             & 916             & 916\\  
-      R$^2$                             & 0.57299        & 0.48652        & 0.48917         & 0.61656         & 0.66839        & 0.57299        & 0.48652        & 0.48917         & 0.61656         & 0.66839\\  
+      Observations                   & 3,148,934      & 3,149,497      & 3,149,470       & 3,154,106       & 3,154,108      & 3,148,934      & 3,149,497      & 3,149,470       & 3,154,106       & 3,154,108\\  
+      Number of Households & 6,656          & 6,656          & 6,656           & 6,656           & 6,656          & 6,656          & 6,656          & 6,656           & 6,656           & 6,656\\  
+      Number of Time Periods         & 916            & 916            & 916             & 916             & 916            & 916            & 916            & 916             & 916             & 916\\  
+      R$^2$                          & 0.57299        & 0.48652        & 0.48917         & 0.61656         & 0.66839        & 0.57299        & 0.48652        & 0.48917         & 0.61656         & 0.66839\\  
       \midrule \midrule
       \multicolumn{11}{l}{\emph{Clustered (account\_id) standard-errors in parentheses}}\\
       \multicolumn{11}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\

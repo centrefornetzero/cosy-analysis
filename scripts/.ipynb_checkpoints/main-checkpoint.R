@@ -58,16 +58,13 @@ red_palette <- c("#FF9999", "#FF8080", "#FF6666", "#FF4D4D", "#FF3333", "#FF1A1A
 random_subsample <- FALSE
 
 # Cosy reproduction
-# source("scripts/02_00_cosy.R")
+#source("scripts/02_00_cosy.R")
+
+#source("scripts/01_00_heatpump.R")
 
 
-# source("scripts/01_00_heatpump.R")
-# rm(list = setdiff(ls(), c("random_subsample", "flexible_color", "cosy_color", "hp_color", 
-#                           "not_hp_color", "rating_colors", "red_palette")))
-# gc()
+source("scripts/03_00_balance_tables_and_reweighting.R")
 
-# source("scripts/03_00_balance_tables_and_reweighting.R")
+source("scripts/04_00_half_hourly_analysis.R")
 
-# source("scripts/04_00_half_hourly_analysis.R")
-
-# source("scripts/05_00_MVPF.R")
+source("scripts/05_00_MVPF.R")

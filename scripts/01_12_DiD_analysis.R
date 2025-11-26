@@ -132,7 +132,7 @@ did_data <- overall_weekly %>%
   select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
   filter(week <= 129, firstweek <= 129)  
 
-gas_only_output_filename <- "scratch/est_cs_elec_weekly_gas_only.RDS"
+gas_only_output_filename <- file.path(datapath, "scratch/est_cs_elec_weekly_gas_only.RDS")
 
 message("Estimating treatment effect for electricity consumption in gas-only sample and saving to ", gas_only_output_filename)
 

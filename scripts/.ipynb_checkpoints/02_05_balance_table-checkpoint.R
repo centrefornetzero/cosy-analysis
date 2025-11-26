@@ -254,17 +254,17 @@ merged_data <- postcode_msoa %>%
 # Create combined data frame for plotting
 treated_1 <- merged_data %>%
   filter(treated == 1) %>%
-  select(property_value = year_ending_mar_2023) %>%
+  select(property_value = `Property price (£)`) %>%
   mutate(group = "MSOAs with Cosy Customers")
 
 treated_0 <- merged_data %>%
   filter(treated == 0) %>%
-  select(property_value = year_ending_mar_2023) %>%
+  select(property_value = `Property price (£)`) %>%
   mutate(group = "MSOAs without Cosy Customers")
 
 property_value_data <- merged_data %>%
+  select(property_value = `Property price (£)`) %>%
   filter(!is.na(property_value)) %>%
-  select(property_value) %>%
   mutate(group = "Cosy Customers")
 
 combined_data <- bind_rows(

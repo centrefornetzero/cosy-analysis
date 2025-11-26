@@ -15,7 +15,7 @@ percent_marginal_consumers <- 0.5
 base_year <- 2024
 uk_gdp_as_proportion_of_global <- 0.032
 uk_tax_as_proportion_of_gdp <- 0.335
-datapath <- "../gcs/cosy2"
+
 # ______________________________________________________
 
 # ___________________ Heat pump numbers from paper __________________________________

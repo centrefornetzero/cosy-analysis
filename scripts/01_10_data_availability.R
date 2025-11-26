@@ -1,3 +1,5 @@
+hp_installed <- read_rds(file.path(datapath, "output/hp_installed.rds"))
+
 ## Figure A.1: Smart Meter Data Availability for Heat Pump Customers
 plot_panel <- panelview(consumption_hh ~ is_hp_installed + hdd, 
                         data = hp_installed %>% filter(rate_period=="Overall") %>% select(consumption_hh, account_id, date, is_hp_installed, hdd) %>% distinct(), index = c("account_id","date"), 
@@ -20,7 +22,7 @@ ggsave("graphs/hp_data_availability.png",
 
 
 # Delete?
-cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
+cosy_hp_install_gas_consumption <- fread(file.path(datapath, "input/cosy_-_hp_users_gas_2024_06_13.csv")) %>%
   group_by(account_id) %>%
   mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
          treated = max(is_hp_installed),
