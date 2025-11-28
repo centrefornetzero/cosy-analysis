@@ -62,7 +62,6 @@ source("scripts/02_00_cosy.R")
 
 source("scripts/01_00_heatpump.R")
 
-
 source("scripts/03_00_balance_tables_and_reweighting.R")
 
 source("scripts/04_00_half_hourly_analysis.R")
