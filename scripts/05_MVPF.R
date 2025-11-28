@@ -47,10 +47,10 @@ afternoon_time_initial_use_cosy <- 0.3199
 peak_time_initial_use_cosy <- 0.4404
 other_time_initial_use_cosy <- 0.3843
 
-morning_time_change_cosy <- 0.5071
-afternoon_time_change_cosy <- 0.2926
-peak_time_change_cosy <- -0.2242
-other_time_change_cosy <- -0.1066
+morning_time_change_cosy <- 0.5831
+afternoon_time_change_cosy <- 0.3387
+peak_time_change_cosy <- -0.1599
+other_time_change_cosy <- -0.1306
 
 morning_time_length_cosy <- 6
 afternoon_time_length_cosy <- 6
@@ -698,6 +698,49 @@ Denominator_cosy_first_pound_with_LBD <- gov_spending + ((Discounted_environment
 MVPF_with_cosy_first_pound_with_LBD <- Numerator_cosy_first_pound_with_LBD / Denominator_cosy_first_pound_with_LBD
 
 
+
+# TABLE 3 - MVPF and Other Measures of Cost Effectiveness
+new_outputs <- 
+  list("Just BUS" = c(MVPF, MVPF_first_pound, MVPF_first_pound_with_LBD,
+                      resource_cost_per_tonne_heatpump, 
+                      government_cost_per_tonne_heatpump, social_cost_per_tonne_heatpump), 
+       "Bus + Cosy" = c(MVPF_cosy, MVPF_with_cosy_first_pound, MVPF_with_cosy_first_pound_with_LBD,
+                     resource_cost_per_tonne_cosy, government_cost_per_tonne_cosy,
+                     social_cost_per_tonne_cosy)) %>%
+  reduce(rbind) %>%
+  as_tibble() %>%
+  bind_cols(type = c("Just BUS", "Bus + Cosy"), .) %>%
+  mutate("Discount Rate" = discount_rate, 
+        "%\nMarginal" = percent_marginal_consumers) %>%
+  #mutate_if(is.numeric, ~round(.x, digits =3)) %>%
+  select(type, "Discount Rate", "%\nMarginal", 
+         "Average" = V1, 
+        "First £" = V2,
+         "First £, w/ LBD" = V3,
+         "Resource" = V4,
+         "Government" = V5,
+         "Social" = V6)  
+
+read_csv(file.path(datapath, "scratch/MVPF.csv")) %>%
+  bind_rows(new_outputs) %>%
+  distinct() %>%
+  write_csv(file.path(datapath, "scratch/MVPF.csv"))
+
+# output to latex table
+read_csv(file.path(datapath, "scratch/MVPF.csv")) %>%
+  arrange(-`Discount Rate`, desc(type), `%\nMarginal`) %>%
+  mutate("Discount Rate" = scales::percent(`Discount Rate`, accuracy = 0.1), 
+        `%\nMarginal` = scales::percent(`%\nMarginal`), 
+        type = str_replace(type, "Bus", "BUS")) %>%
+  filter(!(type == "BUS + Cosy" & `%\nMarginal` == "25%")) %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+  knitr::kable(format = "latex", booktabs = TRUE, 
+              col.names = c("", colnames(new_outputs)[-1])) %>%
+  row_spec(3, hline_after = TRUE) %>%
+  add_header_above(c(" " = 3, "MVPF" = 3, "Cost per tonne" = 3)) %>%
+  writeLines(file.path("tables/MVPF.tex"))
+
+                     
 ################################### plot graph ##########################################
 
 
@@ -1210,3 +1253,5 @@ p_MVPF_temp +
 
 ggsave("graphs/MVPF_temp_blog_version.png",
        width = 18, height = 7, units = "cm")
+
+                     
