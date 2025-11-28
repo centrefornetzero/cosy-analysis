@@ -17,3 +17,4 @@ Icon?
 .Rproj.user/shared/notebooks/paths
 .DS_Store
 Icon
+scripts/.ipynb_checkpoints/*
