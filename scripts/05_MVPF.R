@@ -734,7 +734,8 @@ read_csv(file.path(datapath, "scratch/MVPF.csv")) %>%
         type = str_replace(type, "Bus", "BUS")) %>%
   filter(!(type == "BUS + Cosy" & `%\nMarginal` == "25%")) %>%
   mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-  knitr::kable(format = "latex", booktabs = TRUE, 
+  mutate_at(vars(Resource, Government, Social), ~paste0("£", str_remove(.x, "\\.00"))) %>%
+  knitr::kable(format = "latex", booktabs = TRUE, align = "c",
               col.names = c("", colnames(new_outputs)[-1])) %>%
   row_spec(3, hline_after = TRUE) %>%
   add_header_above(c(" " = 3, "MVPF" = 3, "Cost per tonne" = 3)) %>%
