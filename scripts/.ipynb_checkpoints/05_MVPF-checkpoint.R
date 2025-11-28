@@ -15,7 +15,7 @@ percent_marginal_consumers <- 0.5
 base_year <- 2024
 uk_gdp_as_proportion_of_global <- 0.032
 uk_tax_as_proportion_of_gdp <- 0.335
-datapath <- "../gcs/cosy2"
+
 # ______________________________________________________
 
 # ___________________ Heat pump numbers from paper __________________________________
@@ -47,10 +47,10 @@ afternoon_time_initial_use_cosy <- 0.3199
 peak_time_initial_use_cosy <- 0.4404
 other_time_initial_use_cosy <- 0.3843
 
-morning_time_change_cosy <- 0.5071
-afternoon_time_change_cosy <- 0.2926
-peak_time_change_cosy <- -0.2242
-other_time_change_cosy <- -0.1066
+morning_time_change_cosy <- 0.5831
+afternoon_time_change_cosy <- 0.3387
+peak_time_change_cosy <- -0.1599
+other_time_change_cosy <- -0.1306
 
 morning_time_length_cosy <- 6
 afternoon_time_length_cosy <- 6
@@ -698,6 +698,49 @@ Denominator_cosy_first_pound_with_LBD <- gov_spending + ((Discounted_environment
 MVPF_with_cosy_first_pound_with_LBD <- Numerator_cosy_first_pound_with_LBD / Denominator_cosy_first_pound_with_LBD
 
 
+
+# TABLE 3 - MVPF and Other Measures of Cost Effectiveness
+new_outputs <- 
+  list("Just BUS" = c(MVPF, MVPF_first_pound, MVPF_first_pound_with_LBD,
+                      resource_cost_per_tonne_heatpump, 
+                      government_cost_per_tonne_heatpump, social_cost_per_tonne_heatpump), 
+       "Bus + Cosy" = c(MVPF_cosy, MVPF_with_cosy_first_pound, MVPF_with_cosy_first_pound_with_LBD,
+                     resource_cost_per_tonne_cosy, government_cost_per_tonne_cosy,
+                     social_cost_per_tonne_cosy)) %>%
+  reduce(rbind) %>%
+  as_tibble() %>%
+  bind_cols(type = c("Just BUS", "Bus + Cosy"), .) %>%
+  mutate("Discount Rate" = discount_rate, 
+        "%\nMarginal" = percent_marginal_consumers) %>%
+  #mutate_if(is.numeric, ~round(.x, digits =3)) %>%
+  select(type, "Discount Rate", "%\nMarginal", 
+         "Average" = V1, 
+        "First £" = V2,
+         "First £, w/ LBD" = V3,
+         "Resource" = V4,
+         "Government" = V5,
+         "Social" = V6)  
+
+read_csv(file.path(datapath, "scratch/MVPF.csv")) %>%
+  bind_rows(new_outputs) %>%
+  distinct() %>%
+  write_csv(file.path(datapath, "scratch/MVPF.csv"))
+
+# output to latex table
+read_csv(file.path(datapath, "scratch/MVPF.csv")) %>%
+  arrange(-`Discount Rate`, desc(type), `%\nMarginal`) %>%
+  mutate("Discount Rate" = scales::percent(`Discount Rate`, accuracy = 0.1), 
+        `%\nMarginal` = scales::percent(`%\nMarginal`), 
+        type = str_replace(type, "Bus", "BUS")) %>%
+  filter(!(type == "BUS + Cosy" & `%\nMarginal` == "25%")) %>%
+  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
+  knitr::kable(format = "latex", booktabs = TRUE, 
+              col.names = c("", colnames(new_outputs)[-1])) %>%
+  row_spec(3, hline_after = TRUE) %>%
+  add_header_above(c(" " = 3, "MVPF" = 3, "Cost per tonne" = 3)) %>%
+  writeLines(file.path("tables/MVPF.tex"))
+
+                     
 ################################### plot graph ##########################################
 
 
@@ -1162,7 +1205,8 @@ scale_factor <- max(
   na.rm = TRUE
 ) / max(MVPF_by_temp$MVPF, na.rm = TRUE)
 
-ggplot(MVPF_by_temp, aes(x = temp)) +
+p_MVPF_temp <- 
+  ggplot(MVPF_by_temp, aes(x = temp)) +
   # MVPF layer
   geom_ribbon(aes(ymin = MVPF_lower, ymax = MVPF_upper), fill = "#8B5FBF", alpha = 0.2) +
   geom_smooth(aes(y = MVPF), se = FALSE, color = "#8B5FBF", size = 1, method = "loess") +
@@ -1203,43 +1247,11 @@ ggsave("graphs/MVPF_temp.png",
        width = 16, height = 8, units = "cm")
                      
                      
-ggplot(MVPF_by_temp, aes(x = temp)) +
-  # MVPF layer
-  geom_ribbon(aes(ymin = MVPF_lower, ymax = MVPF_upper), fill = "#8B5FBF", alpha = 0.2) +
-  geom_smooth(aes(y = MVPF), se = FALSE, color = "#8B5FBF", size = 1, method = "loess") +
-  geom_point(aes(y = MVPF), color = "#8B5FBF") +
-  
-  # resource cost layer (scaled down)
-  geom_ribbon(aes(
-    ymin = government_cost_per_tonne_lower / scale_factor,
-    ymax = government_cost_per_tonne_upper / scale_factor
-  ), fill = "#87B6F8", alpha = 0.2) +
-  geom_smooth(aes(y = government_cost_per_tonne_heatpump / scale_factor), se = FALSE, color = "#87B6F8", size = 1, method = "loess") +
-  geom_point(aes(y = government_cost_per_tonne_heatpump / scale_factor), color = "#87B6F8") +
-  
-  # gov cost layer (scaled down)
-  geom_ribbon(aes(
-    ymin = resource_cost_per_tonne_lower / scale_factor,
-    ymax = resource_cost_per_tonne_upper / scale_factor
-  ), fill = "#D5AFF2", alpha = 0.2) +
-  geom_smooth(aes(y = resource_cost_per_tonne_heatpump / scale_factor), se = FALSE, color = "#D5AFF2", size = 1, method = "loess") +
-  geom_point(aes(y = resource_cost_per_tonne_heatpump / scale_factor), color = "#D5AFF2") +
-  
-  scale_y_continuous(
-    name = "MVPF",
-    sec.axis = sec_axis(~ . * scale_factor, name = "Cost per tonne", labels = scales::dollar_format(prefix = "£"))
-  )  +
+p_MVPF_temp + 
   labs(x = "Average Weekly Temperature in Degrees (°C)",
-      title = "How welfare impacts of the BUS change with temperature") +
-  theme_minimal() +
-  theme(
-    plot.background = element_rect(fill = "white", color = NA),
-    axis.title.y = element_text(angle = 0, vjust = 0.95, hjust = 1, margin = margin(r = 10)),
-    axis.title.y.right = element_text(angle = 0, vjust = 0.95, margin = margin(l = -50))
-  ) +
-  geom_text(x = 2, y = 2, label = "MVPF", color = "#8B5FBF", vjust = -1, alpha = 1) +
-  geom_text(x = 5, y = 0.5, label = "Government Cost per tonne", color = "#87B6F8", vjust = -1, alpha = 1) +
-  geom_text(x = 14, y = -0.1, label = "Resource Cost per tonne", color = "#D5AFF2", vjust = -1, alpha = 1) 
+      title = "How welfare impacts of the BUS change with temperature") 
 
 ggsave("graphs/MVPF_temp_blog_version.png",
        width = 18, height = 7, units = "cm")
+
+                     
