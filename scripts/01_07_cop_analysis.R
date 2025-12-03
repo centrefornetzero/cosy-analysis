@@ -127,8 +127,8 @@ ggsave(paste0("graphs/hp_temperature_gas_elec_blog_version.png"),
 # Calculate the average value for the dashed line
 avg_cop <- round(abs(m1$`lhs: gas_consumption`$coefficients / m1$`lhs: elec_consumption`$coefficients), digits = 2)
 
-# the average COP inferred from CS estimation (Table A1) is 3.02
-avg_cop <- 3.02
+# actually use the average COP inferred from CS estimation (Table A1) is 3.04
+avg_cop <- 3.04
 
 set.seed(123)  # for reproducibility
 B <- 500  # number of bootstrap samples
@@ -251,7 +251,7 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 16),
        aes(x = as.numeric(as.character(temp)), y = median)) +
   geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
-  geom_hline(yintercept = round(avg_cop, digits = 2), linetype = "dashed", color = hp_color) +
+  geom_hline(yintercept = avg_cop, linetype = "dashed", color = hp_color) +
   annotate("text", 
            x = 2.5,
            y = avg_cop + 1,

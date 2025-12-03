@@ -47,10 +47,10 @@ afternoon_time_initial_use_cosy <- 0.3199
 peak_time_initial_use_cosy <- 0.4404
 other_time_initial_use_cosy <- 0.3843
 
-morning_time_change_cosy <- 0.5831
-afternoon_time_change_cosy <- 0.3387
-peak_time_change_cosy <- -0.1599
-other_time_change_cosy <- -0.1306
+morning_time_change_cosy <- 0.5071
+afternoon_time_change_cosy <- 0.2926
+peak_time_change_cosy <- -0.2242
+other_time_change_cosy <- -0.1066
 
 morning_time_length_cosy <- 6
 afternoon_time_length_cosy <- 6
@@ -61,6 +61,7 @@ morning_time_price_cosy <- 0.1151
 afternoon_time_price_cosy <- 0.1151
 peak_time_price_cosy <- 0.3406
 other_time_price_cosy <- 0.2349
+
 
 # _____________ Octopus electricity prices in 2023 __________
 # convert to yearly

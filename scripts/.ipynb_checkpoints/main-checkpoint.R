@@ -28,14 +28,6 @@ setwd("/home/jupyter/cosy-analysis")
 # establish the home directory
 datapath <- "../gcs/cosy2"
 
-# Create folders
-# dir.create("graphs", showWarnings = FALSE)
-# dir.create("data", showWarnings = FALSE)
-# dir.create("data/scratch", showWarnings = FALSE)
-# dir.create("data/output", showWarnings = FALSE)
-# dir.create("data/input", showWarnings = FALSE)
-# dir.create("tables", showWarnings = FALSE)
-
 
 # Load parameters
 flexible_color <- "#4C515C"  
