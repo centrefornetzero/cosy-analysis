@@ -641,8 +641,7 @@ final_table_with_sd <- final_table %>%
   mutate(Variable = ifelse(Statistic == "mean", Variable, ""),
          Cosy = ifelse(Statistic == "mean", format_number(Cosy), paste0("(", format_number(Cosy), ")")),
          HP = ifelse(Statistic == "mean", format_number(HP), paste0("(", format_number(HP), ")")),
-         Random = ifelse(Statistic == "mean", format_number(Random), paste0("(", format_number(Random), ")"))) %>%
-  select(Variable, Cosy, HP, Random)
+         Random = ifelse(Statistic == "mean", format_number(Random), paste0("(", format_number(Random), ")")))
 
 # Finally, rename the sample columns to include the number of observations
 final_table_with_sd <- final_table_with_sd %>%
@@ -750,7 +749,11 @@ final_table_with_sd <- final_table %>%
   mutate(Variable = ifelse(Statistic == "mean", Variable, ""),
          Survey = ifelse(Statistic == "mean", format_number(Survey), paste0("(", format_number(Survey), ")")),
          NoSurvey = ifelse(Statistic == "mean", format_number(NoSurvey), paste0("(", format_number(NoSurvey), ")"))) %>%
-  select(Variable, Survey, NoSurvey)
+  select(Variable, Survey, NoSurvey) %>%
+  mutate(Variable = case_when(Variable == "energy_efficiency" ~ "Energy Efficiency", 
+                             Variable == "estimated_annual_consumption" ~ "EAC", 
+                             Variable == "floor_area" ~ "Floor Area", 
+                             Variable == "property_value" ~ "Property Value"))
 
 # Finally, rename the sample columns to include the number of observations
 final_table_with_sd <- final_table_with_sd %>%
@@ -846,7 +849,11 @@ final_table_with_sd <- final_table %>%
   mutate(Variable = ifelse(Statistic == "mean", Variable, ""),
          Early = ifelse(Statistic == "mean", format_number(Early), paste0("(", format_number(Early), ")")),
          Late = ifelse(Statistic == "mean", format_number(Late), paste0("(", format_number(Late), ")"))) %>%
-  select(Variable, Early, Late)
+  select(Variable, Early, Late) %>%
+  mutate(Variable = case_when(Variable == "energy_efficiency" ~ "Energy Efficiency", 
+                             Variable == "estimated_annual_consumption" ~ "EAC", 
+                             Variable == "floor_area" ~ "Floor Area", 
+                             Variable == "property_value" ~ "Property Value"))
 
 # Finally, rename the sample columns to include the number of observations
 final_table_with_sd <- final_table_with_sd %>%
@@ -947,14 +954,18 @@ final_table_with_sd <- final_table %>%
   mutate(Variable = ifelse(Statistic == "mean", Variable, ""),
          Early = ifelse(Statistic == "mean", format_number(Early), paste0("(", format_number(Early), ")")),
          Late = ifelse(Statistic == "mean", format_number(Late), paste0("(", format_number(Late), ")"))) %>%
-  select(Variable, Early, Late)
+  select(Variable, Early, Late)  %>%
+  mutate(Variable = case_when(Variable == "energy_efficiency" ~ "Energy Efficiency", 
+                             Variable == "estimated_annual_consumption" ~ "EAC", 
+                             Variable == "floor_area" ~ "Floor Area", 
+                             Variable == "property_value" ~ "Property Value"))
 
 # Finally, rename the sample columns to include the number of observations
 final_table_with_sd <- final_table_with_sd %>%
   rename(
     !!paste0("Early (N = ", n_early, ")") := Early,
     !!paste0("Late (N = ", n_late, ")") := Late
-  )
+  ) 
 
 # Display the final table
 final_table_with_sd
@@ -966,3 +977,4 @@ stargazer(final_table_with_sd, type = "latex", summary = FALSE,
           digits = 2,
           label = "tab:cosy-adoption-stats",
           out = "tables/balance_table_hp_adoption.tex")
+
