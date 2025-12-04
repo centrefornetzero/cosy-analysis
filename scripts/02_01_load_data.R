@@ -3,7 +3,7 @@
 # This script is very long to run so I create a conditional close checking if the file has already been created
 
 # Delete file to rerun everything
-file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
+# file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
 
 ## Merging consumption and customers info datasets
 if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
