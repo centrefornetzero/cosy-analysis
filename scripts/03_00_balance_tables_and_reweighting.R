@@ -535,7 +535,8 @@ m3 <- feols(total_consumption ~ i(is_hp_installed) | hdd + account_id + settleme
 
 etable(m1,m2,m3, tex=TRUE, title = "TWFE using Matching Weights (Heatpump)",
        headers = list("Electricity", "Gas", "Total"), 
-       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/matching_hp.tex", replace = TRUE, label="tab:hp-matching")
+       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/matching_hp.tex", replace = TRUE, label="tab:hp-matching", 
+      depvar = FALSE)
 
 CleanPreAverage("tables/matching_hp.tex")
 
