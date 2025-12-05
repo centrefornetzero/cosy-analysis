@@ -301,13 +301,16 @@ m3 <- feols(consumption_hh ~ i(cosy_contract_active) +  i(cosy_contract_active, 
             cluster = ~account_id,
             split = ~ rate_period)
 
-etable(m3, tex = TRUE, title = "Cosy Adoption by Previous Tariff Type",
+
+etable(m3, title = "Cosy Adoption by Previous Tariff Type", 
+       tex = TRUE,
        label = "tab:prevrav",
        fitstat = ~ N + g + pre_avg_nontou + pre_avg_tou +t_obs + r2,
        dict = c(previous_is_charged_half_hourly = "Prev is ToU", 
-               cosy_contract_active = "Cosy Contract Active"),
+               cosy_contract_active = "Cosy Contract Active", 
+                rate_period = "Rate Period",
+                consumption_hh = "Half Hourly Consumption in kWh"), 
        file = "tables/did_prevar.tex", replace = TRUE)
-
 
 # Read the generated LaTeX file
 
