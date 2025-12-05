@@ -554,7 +554,8 @@ etable(m1, m2, m3,
                       list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
        depvar = FALSE,
        tex=TRUE, title = "HP Installation on Yearly Energy Consumption in kWh",
-       fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_overall_detailed.tex", replace = TRUE, label="tab:hp-did-overall-conso-detailed")
+       fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_overall_detailed.tex", replace = TRUE, label="tab:hp-did-overall-conso-detailed", 
+       style.tex = style.tex(tpt = TRUE))
 
 
 CleanPreAverage("tables/hp_did_overall_detailed.tex")
@@ -694,7 +695,8 @@ etable(m1, m2, m3,
                       list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
        depvar = FALSE,
        tex=TRUE, title = "HP Installation on Yearly Energy Consumption in kWh",
-       fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_never_treated_detailed.tex", replace = TRUE, label="tab:hp-did-overall-conso-detailed")
+       fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_never_treated_detailed.tex", replace = TRUE, label="tab:hp-did-overall-conso-detailed", 
+       style.tex = style.tex(tpt = TRUE))
 
 
 CleanPreAverage("tables/hp_did_never_treated_detailed.tex")
