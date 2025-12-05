@@ -1,6 +1,6 @@
 
 # Load the prices
-rates <- fread("data/input/cosy_-_rate_analysis_2024_07_15.csv")  %>%
+rates <- fread(file.path(datapath, "input/cosy_-_rate_analysis_2024_07_15.csv"))  %>%
   mutate(valid_from = as.Date(valid_from),
          valid_to = as.Date(valid_to),
          valid_from = ifelse(is.na(valid_from), as.Date("2022-12-13"), valid_from),
@@ -31,7 +31,7 @@ rates <- rates %>%
   mutate(share_of_typical = unit_rate / typical_marginal_price * 100)
 
 # load aggregated data
-aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") 
+aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS")) 
 
 # Create unique breaks for property_value
 breaks <- unique(quantile(aggregated_data[!is.na(aggregated_data$property_value),]$property_value, 
@@ -89,7 +89,7 @@ all_coefs <- coeftable(m_property_value) %>%
 
 # get the average saving for the sample
 cosy_avg_saving <- aggregated_data %>%
-  filter(date < first_adoption,!rate_period == "Overall") %>%
+  filter(is.na(first_adoption),!rate_period == "Overall") %>%
   group_by(rate_period) %>%
   summarise(mean_consumption = mean(consumption_hh, na.rm = TRUE)) %>%
   left_join(rates %>% 
@@ -115,7 +115,7 @@ cosy_avg_saving <- aggregated_data %>%
 
 # create the saving for each property value decile
 cosy_saving5 <- aggregated_data %>%
-  filter(date < first_adoption,!rate_period == "Overall", !is.na(property_value_category)) %>%
+  filter(is.na(first_adoption),!rate_period == "Overall", !is.na(property_value_category)) %>%
   group_by(rate_period, property_value_category) %>%
   summarise(mean_consumption = mean(consumption_hh, na.rm = TRUE)) %>%
   left_join(rates %>% 
