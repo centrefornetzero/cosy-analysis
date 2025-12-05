@@ -510,11 +510,13 @@ m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
             data = aggregated_data, 
             cluster = ~account_id, 
             split = ~ rate_period)
-
+stop()
 etable(m1, m1, tex=TRUE, title = "Cosy Adoption",
        headers = list(list("TWFE" = 5, "CS" = 5),
                       list(rep(as.character(sort(main_periods)), times = 2))), 
-       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/did.tex", replace = TRUE, label="tab:did-main")
+       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/did.tex", 
+       replace = TRUE, label="tab:did-main", 
+       style.tex = style.tex(tpt = TRUE))
 
 CleanPreAverage("tables/did.tex")
 

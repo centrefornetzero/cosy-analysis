@@ -47,7 +47,7 @@ etable(m1c, fitstat = ~ N + g + pre_avg + t_obs + r2)
 # Generate the initial LaTeX table
 etable(m1c, tex = TRUE, title = "Cosy Adoption on Electricity Consumption Controlling for EV Charging", 
        fitstat = ~ N + g + pre_avg + t_obs + r2, 
-       file = "tables/did_ev.tex", replace = TRUE, label = "tab:hp-did-ev")
+       file = "tables/did_ev.tex", replace = TRUE, label = "tab:cosy-did-ev")
 CleanPreAverage("tables/did_ev.tex")
 
 # NOTE THAT YEARLY CONSUMPTION CLEARLY ISN"T WORKING - ITS NAN RIGHT NOW

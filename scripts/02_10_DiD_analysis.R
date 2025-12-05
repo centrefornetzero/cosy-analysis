@@ -510,7 +510,7 @@ m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
             data = aggregated_data, 
             cluster = ~account_id, 
             split = ~ rate_period)
-
+stop()
 etable(m1, m1, tex=TRUE, title = "Cosy Adoption",
        headers = list(list("TWFE" = 5, "CS" = 5),
                       list(rep(as.character(sort(main_periods)), times = 2))), 
