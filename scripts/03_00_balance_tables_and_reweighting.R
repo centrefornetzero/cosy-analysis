@@ -641,7 +641,12 @@ final_table_with_sd <- final_table %>%
   mutate(Variable = ifelse(Statistic == "mean", Variable, ""),
          Cosy = ifelse(Statistic == "mean", format_number(Cosy), paste0("(", format_number(Cosy), ")")),
          HP = ifelse(Statistic == "mean", format_number(HP), paste0("(", format_number(HP), ")")),
-         Random = ifelse(Statistic == "mean", format_number(Random), paste0("(", format_number(Random), ")")))
+         Random = ifelse(Statistic == "mean", format_number(Random), paste0("(", format_number(Random), ")"))) %>%
+  mutate(Variable = case_when(Variable == "energy_efficiency" ~ "Energy Efficiency", 
+                             Variable == "estimated_annual_consumption" ~ "EAC", 
+                             Variable == "floor_area" ~ "Floor Area", 
+                             Variable == "property_value" ~ "Property Value"))
+
 
 # Finally, rename the sample columns to include the number of observations
 final_table_with_sd <- final_table_with_sd %>%
@@ -649,7 +654,8 @@ final_table_with_sd <- final_table_with_sd %>%
     !!paste0("Cosy (N = ", n_cosy, ")") := Cosy,
     !!paste0("HP (N = ", n_hp, ")") := HP,
     !!paste0("Random (N = ", n_random, ")") := Random
-  )
+  ) %>%
+  select(-Statistic)
 
 
 # LaTeX table using stargazer (unchanged)
