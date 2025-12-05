@@ -309,7 +309,10 @@ etable(m3, title = "Cosy Adoption by Previous Tariff Type",
        dict = c(previous_is_charged_half_hourly = "Prev is ToU", 
                cosy_contract_active = "Cosy Contract Active", 
                 rate_period = "Rate Period",
-                consumption_hh = "Consumption in kWh"), 
+                consumption_hh = "Consumption in kWh", 
+               account_id = "Household", 
+               hdd = "HDD", 
+               day = "Day"), 
        file = "tables/did_prevar.tex", replace = TRUE)
 
 # Read the generated LaTeX file
