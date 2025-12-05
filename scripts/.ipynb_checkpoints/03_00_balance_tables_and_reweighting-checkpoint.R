@@ -539,7 +539,7 @@ etable(m1,m2,m3, tex=TRUE, title = "TWFE using Matching Weights (Heatpump)",
 
 CleanPreAverage("tables/matching_hp.tex")
 
-
+stop()
 
 # Balance tables
 aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
