@@ -89,7 +89,7 @@ all_coefs <- coeftable(m_property_value) %>%
 
 # get the average saving for the sample
 cosy_avg_saving <- aggregated_data %>%
-  filter(date < first_adoption,!rate_period == "Overall") %>%
+  filter(is.na(first_adoption),!rate_period == "Overall") %>%
   group_by(rate_period) %>%
   summarise(mean_consumption = mean(consumption_hh, na.rm = TRUE)) %>%
   left_join(rates %>% 
@@ -115,7 +115,7 @@ cosy_avg_saving <- aggregated_data %>%
 
 # create the saving for each property value decile
 cosy_saving5 <- aggregated_data %>%
-  filter(date < first_adoption,!rate_period == "Overall", !is.na(property_value_category)) %>%
+  filter(is.na(first_adoption),!rate_period == "Overall", !is.na(property_value_category)) %>%
   group_by(rate_period, property_value_category) %>%
   summarise(mean_consumption = mean(consumption_hh, na.rm = TRUE)) %>%
   left_join(rates %>% 
