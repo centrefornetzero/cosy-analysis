@@ -151,7 +151,7 @@ file_content <- append(file_content, note, after = grep("\\centering", file_cont
 # Write the modified content back to the LaTeX file
 writeLines(file_content, file_path)
 
-stop()
+
 # =================================================================
 ### Table A.10: Impact of Cosy for Leavers
 # =================================================================
