@@ -5,25 +5,25 @@
    \centering
    \begin{tabular}{lcccc}
       \tabularnewline \midrule \midrule
-      Dependent Variable: & \multicolumn{4}{c}{Charging EV}\\
-                                     & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other \\   
-      Model:                         & (1)            & (2)            & (3)             & (4)\\  
+                                     & Morning Cosy & Afternoon Cosy & Peak Rate & Other \\   
+      Model:                         & (1)          & (2)            & (3)       & (4)\\  
       \midrule
       \emph{Variables}\\
-      Cosy Contract Active $=$ 1     & 0.5207$^{***}$ & 0.1412$^{***}$ & -0.0780$^{***}$ & -0.4120$^{***}$\\   
-                                     & (0.0171)       & (0.0116)       & (0.0079)        & (0.0153)\\   
+      Is HP Installed $=$ 1          & -0.0029      & 0.0035$^{*}$   & 0.0019    & -0.0025\\   
+                                     & (0.0058)     & (0.0021)       & (0.0028)  & (0.0071)\\   
 \midrule
 \emph{Pre-Treatment Average}\\
-      Charging EV        & 0.2386         & 0.0658         & 0.0994          & 0.9529\\  
+      Dependent Variable: & \multicolumn{4}{c}{Charging EV}\\
       \midrule
       \emph{Fixed-effects}\\
-      Household                      & Yes            & Yes            & Yes             & Yes\\  
-      Day                            & Yes            & Yes            & Yes             & Yes\\  
+      Household                      & Yes          & Yes            & Yes       & Yes\\  
+      Day                            & Yes          & Yes            & Yes       & Yes\\  
       \midrule
       \emph{Fit statistics}\\
-      Observations                   & 117,983        & 117,983        & 117,983         & 117,983\\  
-      Number of Households & 1,739          & 1,739          & 1,739           & 1,739\\  
-      R$^2$                          & 0.51779        & 0.32183        & 0.30640         & 0.67708\\  
+      Observations                   & 95,317       & 95,317         & 95,317    & 95,317\\  
+      Charging EV        & NaN          & NaN            & NaN       & NaN\\  
+      Half Hourly Consumption        & NaN          & NaN            & NaN       & NaN\\  
+      R$^2$                          & 0.23276      & 0.16610        & 0.12265   & 0.24836\\  
       \midrule \midrule
       \multicolumn{5}{l}{\emph{Clustered (Household) standard-errors in parentheses}}\\
       \multicolumn{5}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
