@@ -67,21 +67,21 @@ fitstat_register("pre_avg2", function(x) {
 
 # get the subsample with HP installation by OE
 # get install date
-hp_install_date <- fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>%
+hp_install_date <- fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>%
   select(account_id, installed_at) %>%
   mutate(installed_at = as.Date(installed_at)) %>%
   distinct(account_id, .keep_all = TRUE)
 
 # get people from the survey responders
-survey_responses <- fread("data/input/responses.csv") %>%
+survey_responses <- fread(file.path(datapath, "input/responses.csv")) %>%
   select(-Other) %>% 
   rename(account_number = kid) %>%
-  inner_join(fread("data/input/survey_ids.csv")) %>%
+  inner_join(fread(file.path(datapath, "input/survey_ids.csv"))) %>%
   mutate(installed_at_2 = as.Date(`When was your heat pump installed?`),
          `Electric vehicle(s)` = as.numeric(`Electric vehicle(s)`=="Electric vehicle(s)")) %>%
   distinct(account_id, .keep_all = TRUE)
 
-aggregated_data <- readRDS("data/scratch/aggregated_data.RDS") %>%
+aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS")) %>%
   left_join(hp_install_date)  %>%
   left_join(survey_responses)  %>%
   mutate(is_hp_installed = ifelse(!is.na(installed_at), 

@@ -1,0 +1,37 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:prevrav} Cosy Adoption by Previous Tariff Type}
+   \centering
+   \begin{tabular}{lccccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variable: & \multicolumn{5}{c}{Consumption in kWh}\\
+      Rate Period                                      & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall \\   
+      Model:                                           & (1)            & (2)            & (3)             & (4)             & (5)\\  
+      \midrule
+      \emph{Variables}\\
+      Cosy Contract Active $=$ 1                       & 0.4623$^{***}$ & 0.2910$^{***}$ & -0.1472$^{***}$ & -0.0997$^{***}$ & 0.0154$^{***}$\\   
+                                                       & (0.0118)       & (0.0077)       & (0.0049)        & (0.0042)        & (0.0032)\\   
+      Prev is ToU $\times$ Cosy Contract Active $=$ 1  & 0.6604$^{***}$ & 0.2614$^{***}$ & -0.0688$^{***}$ & -0.1684$^{***}$ & 0.0003\\   
+                                                       & (0.0403)       & (0.0228)       & (0.0109)        & (0.0105)        & (0.0072)\\   
+      \midrule
+\emph{Pre-Treatment Average}&  & & & & \\  '\
+      Half Hourly Consumption Non-ToU                  & 0.39           & 0.34           & 0.45            & 0.39            & 0.39\\  
+      Half Hourly Consumption ToU                      & 0.42           & 0.27           & 0.32            & 0.43            & 0.39\\  
+\midrule
+      \emph{Fixed-effects}\\
+      HDD                                              & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      Household                                        & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      date                                             & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                                     & 3,145,210      & 3,145,773      & 3,145,746       & 3,150,375       & 3,150,377\\  
+      Size of the 'effective' sample                   & 6,644          & 6,644          & 6,644           & 6,644           & 6,644\\  
+      Number of Time Periods                           & 916            & 916            & 916             & 916             & 916\\  
+      R$^2$                                            & 0.58489        & 0.48951        & 0.48936         & 0.62039         & 0.66817\\  
+      \midrule \midrule
+      \multicolumn{6}{l}{\emph{Clustered (Household) standard-errors in parentheses}}\\
+      \multicolumn{6}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+

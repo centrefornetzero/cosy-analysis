@@ -1,12 +1,13 @@
-## Installer FE 
+## Decompose treatment effects into household vs installer engineer effects
 
 # =======================
 # 1. Data Preparation & Regression
 # =======================
+hp_installed <- read_rds(file.path(datapath, "/output/hp_installed.rds"))
 
 # Installer FE
-installers <- fread("data/input/cosy_-_hp_engineers_2025_03_17.csv") %>%
-  filter(account_id %in% hp_installed[hp_installed$treated==1,]$account_id) %>%
+installers <- fread(file.path(datapath, "/input/cosy_-_hp_engineers_2025_03_17.csv")) %>%
+  inner_join(distinct(filter(hp_installed, treated == 1), account_id, deal_created_at)) %>%
   filter(hp_engineer != "") %>%
   group_by(hp_engineer) %>%
   mutate(n = n()) %>%
@@ -14,16 +15,8 @@ installers <- fread("data/input/cosy_-_hp_engineers_2025_03_17.csv") %>%
   select(-n)
 
 # Prepare data: filter, join, engineer features
-df <- hp_installed %>%
-  filter(treated == 1, rate_period == "Overall") %>%
-  distinct(account_id, deal_created_at) %>%
-  inner_join(installers) %>%
-  filter(hp_engineer != "") %>%
-  group_by(hp_engineer) %>%
-  tally() %>%
-  filter(n > 1) %>%
-  rename(num_install = n) %>%
-  inner_join(installers) %>%
+df <- 
+  installers %>%
   inner_join(hp_installed) %>%
   filter(treated == 1, rate_period == "Overall") %>%
   mutate(temperature = round(daily_avg_heating_degree))
@@ -39,7 +32,11 @@ reg <- feols(
 
 etable(reg)
 
-
+# =====================================================================
+# Delete?
+# If I train my heat-pump consumption model on half the engineers, can it 
+# correctly predict consumption outcomes for customers of other engineers?
+# =====================================================================
 # stratified randomisation
 set.seed(123)
 installers$insample <- randomizr::strata_rs(strata = installers$hp_engineer, 
@@ -105,9 +102,12 @@ ggplot(plot_data,
   theme_minimal()
 
 
-# manual decomposition of variance for FE
+
+# =====================================================================
+## manual decomposition of variance for FE
+# =====================================================================
 fes <- fixef(reg)
-fe_account <- fes$account_id[as.character(df$account_id)]
+fe_account <- fes$account_id[unique(as.character(df$account_id))]
 fe_date <- fes$date[as.character(df$date)]
 fe_temp <- fes$hdd[as.character(df$hdd)]
 
@@ -139,7 +139,14 @@ stargazer(var_decomp,
           title = "Decomposition of Variance in Consumption Outcomes",
           type = "latex")
 
+
+
+
+
+# =====================================================================
 # 3. Bias-Corrected FE Covariance (felm)
+# DELETE?
+# ====================================================================
 
 df2 <- df %>%
   inner_join(data.frame(date = as.Date(names(fes$date)), time_fe = fes$date)) %>%
@@ -174,7 +181,10 @@ stargazer(var_table,
           title = "Decomposition of Variance in Consumption Outcomes",
           type = "latex")
 
+
+# =====================================================================
 # 4. Covariance: Account FE × Interaction Effect
+# ====================================================================
 account_fe_vec <- fe_sub[fe_sub$fe == "account_id", c("idx", "effect")]
 colnames(account_fe_vec) <- c("account_id", "account_fe")
 account_fe_vec$account_id <- as.character(account_fe_vec$account_id)
@@ -232,8 +242,13 @@ rm(list = ls(pattern = "boot*"))
 rm(list = ls(pattern = "coefs*"))
 rm(results)
 
+
+# =====================================================================
+# Plot engineer specific coefs
+# DELETE?
+# ====================================================================
 # Installer FE
-installers <- fread("data/input/cosy_-_hp_engineers_2025_03_17.csv") 
+installers <- fread(file.path(datapath, "/input/cosy_-_hp_engineers_2025_03_17.csv")) 
 
 # Unique periods 
 periods <- unique(hp_installed$rate_period)

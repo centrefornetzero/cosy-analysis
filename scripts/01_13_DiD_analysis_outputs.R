@@ -2,97 +2,12 @@
 elec_color <- hp_color 
 gas_color <- not_hp_color
 
-# get consumption by period
-hp_installed <- fread("data/input/cosy_-_hp_aggregated_up_2024_06_18.csv") %>%
-  group_by(account_id, settlement_date) %>%
-  summarise(total_consumption = sum(total_read_value)) %>%
-  mutate(consumption_hh = total_consumption / 48) %>%
-  inner_join(fread("data/input/cosy_-_hp_details_2024_06_25.csv") %>%
-               distinct(account_id, .keep_all = TRUE),
-             by=c("account_id")) %>%
-  mutate(date = as.Date(settlement_date),
-         is_hp_installed = as.numeric(installed_at <= date))%>%
-  group_by(account_id) %>%
-  mutate(treated = max(is_hp_installed))  # identify treated versus not yet treated
-
-
-# Check number of accounts
-hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% distinct() %>% dim()
-
-# Load and preprocess gas consumption data
-# previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread("data/input/cosy_-_hp_users_gas_2024_06_13.csv") %>%
-  group_by(account_id) %>%
-  mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
-         treated = max(is_hp_installed),
-         min_settlement_week = min(settlement_week)) %>%
-  distinct(account_id, settlement_week, .keep_all = TRUE)
-
-# Create a sequence of weeks
-min_date <- min(cosy_hp_install_gas_consumption$settlement_week)
-max_date <- max(cosy_hp_install_gas_consumption$settlement_week)
-all_weeks <- seq(min_date, max_date, by = "week")
-
-# Create a data frame with all combinations of account_id and settlement_week
-all_combinations <- expand.grid(
-  account_id = unique(cosy_hp_install_gas_consumption$account_id),
-  settlement_week = all_weeks
-)
-
-# Merge with original data
-merged_data <- all_combinations %>%
-  left_join(cosy_hp_install_gas_consumption %>% 
-              distinct(account_id, settlement_week, weekly_consumption, 
-                       min_settlement_week, installed_at)) %>%
-  filter(min_settlement_week < settlement_week) %>%
-  mutate(
-    is_hp_installed = as.numeric(installed_at < settlement_week),
-    weekly_consumption = ifelse(is.na(weekly_consumption), 0, weekly_consumption)
-  ) 
-
-# Define overall_weekly by merging with electricity data
-overall_weekly <- hp_installed %>%
-  mutate(settlement_week = floor_date(date, "week") + 1,
-         is_hp_installed = as.numeric(installed_at <= settlement_week)) %>%
-  group_by(account_id, hashed_mpan, tariff_gsp_group_id, settlement_week, treated, installed_at, is_hp_installed) %>%
-  summarise(elec_consumption = sum(total_consumption)) %>%
-  left_join(merged_data %>%
-              select(account_id, settlement_week, weekly_consumption) %>%
-              rename(gas_consumption = weekly_consumption)) %>%
-  mutate(
-    gas_consumption = 52.25 * gas_consumption,
-    elec_consumption = 52.25 * elec_consumption,
-    total_consumption = gas_consumption + elec_consumption
-  ) 
-
-
-# add weather 
-weather_weekly <- fread("data/input/cosy_-_weather_weekly_2024_06_13.csv") %>%
-  mutate(settlement_week = as.Date(week_date)) %>%
-  distinct(gsp_group_id, settlement_week, .keep_all = TRUE) %>%
-  select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius) %>%
-  rename(tariff_gsp_group_id = gsp_group_id)
-
-# merge with consumption data
-overall_weekly <- overall_weekly %>%
-  inner_join(weather_weekly) %>% 
-mutate(hdd = factor(
-  case_when(
-    avg_air_temperature_celsius < 0 ~ 0,
-    avg_air_temperature_celsius < 15.5 ~ round(avg_air_temperature_celsius),
-    TRUE ~ 15
-  )),
-  temp_degree = factor(
-    case_when(
-      avg_air_temperature_celsius < 0 ~ 0,
-      avg_air_temperature_celsius < 25.5 ~ round(avg_air_temperature_celsius),
-      TRUE ~ 25
-    )))
-
+overall_weekly <- read_rds(file.path(datapath, "/output/overall_weekly.rds"))
 
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
-did_data <- overall_weekly %>%
+did_data <- 
+  overall_weekly %>%
   ungroup() %>%
   mutate(
     week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
@@ -184,9 +99,9 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
 
 # Example usage            
 rds_files <- list(
-  Overall =  "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly.RDS"
+  Overall =  file.path(datapath, "/scratch/est_cs_total_weekly.RDS"),
+  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly.RDS"),
+  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly.RDS")
 )
                
 aggte_simple_overall <- aggte(readRDS(rds_files$Overall), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
@@ -358,7 +273,7 @@ ggplot(plot_data, aes(x = as.Date(week_date), y = estimate, color = type)) +
 file_name <- "graphs/hp_calendarplot_combined.png"
 
 # Save plot data to CSV
-write.csv(plot_data, "data/output/hp_calendarplot_combined.csv", row.names = FALSE)
+write.csv(plot_data, file.path(datapath, "/output/hp_calendarplot_combined.csv"), row.names = FALSE)
 
 # Save the plot
 ggsave(file_name, device = "png", width = 8, height = 6, dpi = 300)
@@ -366,9 +281,9 @@ ggsave(file_name, device = "png", width = 8, height = 6, dpi = 300)
 
 # UNIVERSAL BASE robustness checks
 rds_files <- list(
-  Overall =  "data/scratch/est_cs_total_weekly_robust_universal.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly_robust_universal.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly_robust_universal.RDS"
+  Overall =  file.path(datapath, "/scratch/est_cs_total_weekly_robust_universal.RDS"),
+  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly_robust_universal.RDS"),
+  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly_robust_universal.RDS")
 )
 
 # Load the data
@@ -389,7 +304,7 @@ ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
 
 
 # Define paths and base filenames for each anticipation period
-output_base_path <- "data/scratch/"
+output_base_path <- file.path(datapath, "/scratch/")
 output_filenames <- c("est_cs_elec_weekly", "est_cs_gas_weekly")
 anticipation_periods <- 0:10  # The range of anticipation periods
 
@@ -453,9 +368,9 @@ ggsave("graphs/HP_anticipation.png")
 
 
 rds_files <- list(
-  Overall =  "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly_gas_only.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly.RDS"
+  Overall =  file.path(datapath, "/scratch/est_cs_total_weekly.RDS"),
+  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly_gas_only.RDS"),
+  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly.RDS")
 )
 
 # Example usage
@@ -613,9 +528,9 @@ cs_nT <- list()
 
 # Define paths to the RDS files for CS estimates
 cs_files <- list(
-  Overall = "data/scratch/est_cs_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_elec_weekly.RDS",
-  Gas = "data/scratch/est_cs_gas_weekly.RDS"
+  Overall = file.path(datapath, "/scratch/est_cs_total_weekly.RDS"),
+  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly.RDS"),
+  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly.RDS")
 )
 
 
@@ -639,7 +554,8 @@ etable(m1, m2, m3,
                       list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
        depvar = FALSE,
        tex=TRUE, title = "HP Installation on Yearly Energy Consumption in kWh",
-       fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_overall_detailed.tex", replace = TRUE, label="tab:hp-did-overall-conso-detailed")
+       fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_overall_detailed.tex", replace = TRUE, label="tab:hp-did-overall-conso-detailed", 
+       style.tex = style.tex(tpt = TRUE))
 
 
 CleanPreAverage("tables/hp_did_overall_detailed.tex")
@@ -754,9 +670,9 @@ cs_nT <- list()
 
 # Define paths to the RDS files for CS estimates
 cs_files <- list(
-  Overall = "data/scratch/est_cs_never_treated_total_weekly.RDS",
-  Electricity = "data/scratch/est_cs_never_treated_elec_weekly.RDS",
-  Gas = "data/scratch/est_cs_never_treated_gas_weekly.RDS"
+  Overall = file.path(datapath, "/scratch/est_cs_never_treated_total_weekly.RDS"),
+  Electricity = file.path(datapath, "/scratch/est_cs_never_treated_elec_weekly.RDS"),
+  Gas = file.path(datapath, "/scratch/est_cs_never_treated_gas_weekly.RDS")
 )
 
 
@@ -779,7 +695,8 @@ etable(m1, m2, m3,
                       list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
        depvar = FALSE,
        tex=TRUE, title = "HP Installation on Yearly Energy Consumption in kWh",
-       fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_never_treated_detailed.tex", replace = TRUE, label="tab:hp-did-overall-conso-detailed")
+       fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_never_treated_detailed.tex", replace = TRUE, label="tab:hp-did-never-treated-conso-detailed", 
+       style.tex = style.tex(tpt = TRUE))
 
 
 CleanPreAverage("tables/hp_did_never_treated_detailed.tex")

@@ -8,8 +8,6 @@ Icon?
 **/data/
 **/Rproj.user/
 **/Rhistory/
-**/tables/
-**/graphs/
 .DS_Store
 **/.DS_Store/
 .Rproj.user/shared/notebooks/paths

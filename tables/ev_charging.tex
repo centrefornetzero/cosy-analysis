@@ -1,0 +1,33 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:ev-charging} Cosy Adoption on Probability of Charging EV by Period}
+\floatfoot{\justifying \footnotesize \upshape \textbf{Note:} We show the results of four OLS models where the dependent variable is whether a charging event occurred in the period of interest – morning \textit{Cosy} 4am-7am (column 1), afternoon \textit{Cosy} 1pm-4pm (column 2), peak 4pm-7pm (column 3), and all other hours of the day (column 4). The sample is 127,789 charging events among 1,743 \textit{Cosy} adopters for whom we detect evidence of EV charging. Where a charging events stretches across multiple periods, we attribute it to the period that comprises the \textit{majority} of the event (in minutes). We see that among these EV owning \textit{Cosy} adopters, \textit{Cosy} adoption is associated with more charging the off-peak period and less in the peak and other periods.}
+   \centering
+   \begin{tabular}{lcccc}
+      \tabularnewline \midrule \midrule
+                                     & Morning Cosy & Afternoon Cosy & Peak Rate & Other \\   
+      Model:                         & (1)          & (2)            & (3)       & (4)\\  
+      \midrule
+      \emph{Variables}\\
+      Is HP Installed $=$ 1          & -0.0029      & 0.0035$^{*}$   & 0.0019    & -0.0025\\   
+                                     & (0.0058)     & (0.0021)       & (0.0028)  & (0.0071)\\   
+\midrule
+\emph{Pre-Treatment Average}\\
+      Dependent Variable: & \multicolumn{4}{c}{Charging EV}\\
+      \midrule
+      \emph{Fixed-effects}\\
+      Household                      & Yes          & Yes            & Yes       & Yes\\  
+      Day                            & Yes          & Yes            & Yes       & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                   & 95,317       & 95,317         & 95,317    & 95,317\\  
+      Charging EV        & NaN          & NaN            & NaN       & NaN\\  
+      Half Hourly Consumption        & NaN          & NaN            & NaN       & NaN\\  
+      R$^2$                          & 0.23276      & 0.16610        & 0.12265   & 0.24836\\  
+      \midrule \midrule
+      \multicolumn{5}{l}{\emph{Clustered (Household) standard-errors in parentheses}}\\
+      \multicolumn{5}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+

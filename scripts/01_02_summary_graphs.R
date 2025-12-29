@@ -10,7 +10,19 @@ weekly_installations <- hp_installed %>%
   group_by(first_week) %>%
   summarise(installations = n())
 
-# Prepare the data for deals
+# Prepare weekly count of installations
+weekly_installations <- hp_installed %>%
+  group_by(account_id) %>%
+  mutate(treated = max(is_hp_installed)) %>%
+  filter(treated ==1) %>%
+  ungroup() %>%
+  select(account_id, installed_at) %>%
+  distinct() %>%
+  mutate(first_week = as.Date(floor_date(installed_at, "week"))) %>%
+  group_by(first_week) %>%
+  summarise(installations = n())
+
+# Prepare weekly count of deals
 weekly_deals <- deals_and_installations %>%
   filter(deal_created_at >= "2022-02-01",
          deal_created_at < "2024-06-23") %>%

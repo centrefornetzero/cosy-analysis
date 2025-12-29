@@ -1,0 +1,30 @@
+\begin{table}[htbp]
+   \caption{\label{tab:cosy-did-cs} Cosy Adoption on Half Hourly Electricity Consumption in kWh}
+   \floatfoot{\justifying \footnotesize \upshape \textbf{Note:} We show estimates from five CS estimates of the impact of consumption on customers’ electricity during 
+the morning \textit{Cosy} period 4am-7am (column 1), afternoon \textit{Cosy} period 1pm-4pm (column 2), peak period 4pm-7pm (column 3), 
+other hours of the day (column 4), and ``overall’’, i.e,. across all 48 half-hours of the day (column 5).}
+   \centering
+   \begin{tabular}{lccccc}
+      \tabularnewline \midrule \midrule
+                                     & Morning Cosy     & Afternoon Cosy     & Peak Rate     & Other     & Overall \\   
+      Model:                         & (1)              & (2)              & (3)              & (4)              & (5)\\  
+      \midrule
+      \emph{Variable}\\
+      Has Adopted Cosy $=$ 1     & 0.5071*** & 0.2926*** & -0.2242*** & -0.1066*** & 0.0105\\   
+                                     & (0.0118)         & (0.0094)         & (0.0103)         & (0.0077)         & (0.0070)\\   
+      \midrule
+      \emph{Pre-treatment Average}\\
+      Half Hourly Consumption              & 0.3659 & 0.3199 & 0.4404 & 0.3843 & 0.3798\\   
+      \midrule
+      \emph{Fit statistics}\\
+      Number of Households                   & 6,631           & 6,631           & 6,631           & 6,631           & 6,631\\  
+      Number of Cohorts              & 78              & 78              & 78              & 78              & 78\\  
+      Number of Time Periods         & 129             & 129             & 129             & 129             & 129\\  
+      \midrule \midrule
+      \multicolumn{6}{l}{Clustered (Household) standard-errors in parentheses}\\
+      \multicolumn{6}{l}{Estimation Method: Doubly Robust}\\
+      \multicolumn{6}{l}{Control Group: Not Yet Treated, Anticipation Periods: 0}\\
+      \multicolumn{6}{l}{Signif. Codes: *** 99\% confidence band does not cover 0}\\
+   \end{tabular}
+\end{table}
+
