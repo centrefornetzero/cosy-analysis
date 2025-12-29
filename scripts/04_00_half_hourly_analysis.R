@@ -165,7 +165,7 @@ display_labels <- coefs %>%
 shaded_periods <- data.frame(
   xmin = c(9, 27, 33),  # 4-7 AM (periods 8-14), 1-4 PM (periods 26-32), 4-7 PM (periods 34-40)
   xmax = c(15, 33, 39),
-  period_type = c("Morning and Afternoon Cosy", "Morning and Afternoon Cosy", "Peak Rate")
+  period_type = c("Morning and Afternoon Off-peak", "Morning and Afternoon Off-peak", "Peak Rate")
 )
 
 # Create the ggplot
@@ -177,13 +177,13 @@ ggplot(coefs, aes(x = settlement_period, y = Estimate, group = treatment, color 
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
   scale_color_manual(
     name = "Treatment", 
-    labels = c("hp" = "Heat Pump", "cosy" = "ToU tariff (*Cosy*)"),  # Italicizing Cosy using markdown
+    labels = c("hp" = "Heat Pump", "cosy" = "Heat Pump Tariff"),  # Italicizing Cosy using markdown
     values = c("hp" = hp_color, "cosy" = cosy_color)
   ) +
   scale_fill_manual(
     name = "Rate Period",  # Correct the fill legend
-    values = c("Morning and Afternoon Cosy" = "red", "Peak Rate" = "lightblue"),  # Assign the correct colors
-    labels = c("Morning and Afternoon Cosy" = "Morning and Afternoon Cosy", "Peak Rate" = "Peak Rate")
+    values = c("Morning and Afternoon Off-peak" = "red", "Peak Rate" = "lightblue"),  # Assign the correct colors
+    labels = c("Morning and Afternoon Off-peak" = "Morning and Afternoon Off-peak", "Peak Rate" = "Peak Rate")
   ) +
   labs(
     x = "Time of Day (Settlement Period)",
@@ -404,7 +404,7 @@ display_labels <- coefs %>%
 shaded_periods <- data.frame(
   xmin = c(9, 27, 33),  # 4-7 AM (periods 8-14), 1-4 PM (periods 26-32), 4-7 PM (periods 34-40)
   xmax = c(15, 33, 39),
-  period_type = c("Morning and Afternoon Cosy", "Morning and Afternoon Cosy", "Peak Rate")
+  period_type = c("Morning and Afternoon Off-peak", "Morning and Afternoon Off-peak", "Peak Rate")
 )
 
 # Create the ggplot
@@ -416,13 +416,13 @@ ggplot(coefs, aes(x = settlement_period, y = Estimate, group = treatment, color 
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
   scale_color_manual(
     name = "Treatment", 
-    labels = c("hp" = "Heat Pump", "cosy" = "ToU tariff (*Cosy*)"),  # Italicizing Cosy using markdown
+    labels = c("hp" = "Heat Pump", "cosy" = "Heat Pump Tariff"),  # Italicizing Cosy using markdown
     values = c("hp" = hp_color, "cosy" = cosy_color)
   ) +
   scale_fill_manual(
     name = "Rate Period",  # Correct the fill legend
-    values = c("Morning and Afternoon Cosy" = "red", "Peak Rate" = "lightblue"),  # Assign the correct colors
-    labels = c("Morning and Afternoon Cosy" = "Morning and Afternoon Cosy", "Peak Rate" = "Peak Rate")
+    values = c("Morning and Afternoon Off-peak" = "red", "Peak Rate" = "lightblue"),  # Assign the correct colors
+    labels = c("Morning and Afternoon Off-peak" = "Morning and Afternoon Off-peak", "Peak Rate" = "Peak Rate")
   ) +
   labs(
     x = "Time of Day (Settlement Period)",
@@ -623,7 +623,7 @@ display_labels <- coefs %>%
 shaded_periods <- data.frame(
   xmin = c(9, 27, 33),  # 4-7 AM (periods 8-14), 1-4 PM (periods 26-32), 4-7 PM (periods 34-40)
   xmax = c(15, 33, 39),
-  period_type = c("Morning and Afternoon Cosy", "Morning and Afternoon Cosy", "Peak Rate")
+  period_type = c("Morning and Afternoon Off-peak", "Morning and Afternoon Off-peak", "Peak Rate")
 )
 
 # Change the sample order
@@ -639,13 +639,13 @@ ggplot(coefs, aes(x = settlement_period, y = Estimate, group = treatment, color 
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
   scale_color_manual(
     name = "Treatment", 
-    labels = c("hp" = "Heat Pump", "cosy" = "ToU tariff (*Cosy*)"),  # Italicizing Cosy using markdown
+    labels = c("hp" = "Heat Pump", "cosy" = "Heat Pump Tariff"),  # Italicizing Cosy using markdown
     values = c("hp" = hp_color, "cosy" = cosy_color)
   ) +
   scale_fill_manual(
     name = "Rate Period",  # Correct the fill legend
-    values = c("Morning and Afternoon Cosy" = "red", "Peak Rate" = "lightblue"),  # Assign the correct colors
-    labels = c("Morning and Afternoon Cosy" = "Morning and Afternoon Cosy", "Peak Rate" = "Peak Rate")
+    values = c("Morning and Afternoon Off-peak" = "red", "Peak Rate" = "lightblue"),  # Assign the correct colors
+    labels = c("Morning and Afternoon Off-peak" = "Morning and Afternoon Off-peak", "Peak Rate" = "Peak Rate")
   ) +
   labs(
     x = "Time of Day (Settlement Period)",
@@ -806,7 +806,7 @@ display_labels <- coefs %>%
 shaded_periods <- data.frame(
   xmin = c(9, 27, 33),  # 4-7 AM (periods 8-14), 1-4 PM (periods 26-32), 4-7 PM (periods 34-40)
   xmax = c(15, 33, 39),
-  period_type = c("Morning and Afternoon Cosy", "Morning and Afternoon Cosy", "Peak Rate")
+  period_type = c("Morning and Afternoon Off-peak", "Morning and Afternoon Off-peak", "Peak Rate")
 )
 
 # Create the ggplot
@@ -818,13 +818,13 @@ ggplot(coefs, aes(x = settlement_period, y = Estimate, group = treatment, color 
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
   scale_color_manual(
     name = "Treatment", 
-    labels = c("hp" = "Heat Pump", "cosy" = "ToU tariff (*Cosy*)"),  # Italicizing Cosy using markdown
+    labels = c("hp" = "Heat Pump", "cosy" = "Heat Pump Tariff"),  # Italicizing Cosy using markdown
     values = c("hp" = hp_color, "cosy" = cosy_color)
   ) +
   scale_fill_manual(
     name = "Rate Period",  # Correct the fill legend
-    values = c("Morning and Afternoon Cosy" = "red", "Peak Rate" = "lightblue"),  # Assign the correct colors
-    labels = c("Morning and Afternoon Cosy" = "Morning and Afternoon Cosy", "Peak Rate" = "Peak Rate")
+    values = c("Morning and Afternoon Off-peak" = "red", "Peak Rate" = "lightblue"),  # Assign the correct colors
+    labels = c("Morning and Afternoon Off-peak" = "Morning and Afternoon Off-peak", "Peak Rate" = "Peak Rate")
   ) +
   labs(
     x = "Time of Day (Settlement Period)",

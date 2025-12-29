@@ -217,7 +217,7 @@ colnames(formatted_results)[3] <- paste0("Other MSOAs (N = ", results$`N 0`[1], 
 
 # Create the LaTeX table using stargazer
 stargazer(formatted_results, type = "latex", summary = FALSE, 
-          title = "External Validity by Area for \textit{Cosy} Adopters",
+          title = "External Validity by Area for Adopters",
           rownames = FALSE,
           digits = 2,
           label = "tab:msoa-stats-cosy",
@@ -255,17 +255,17 @@ merged_data <- postcode_msoa %>%
 treated_1 <- merged_data %>%
   filter(treated == 1) %>%
   select(property_value = `Property price (£)`) %>%
-  mutate(group = "MSOAs with Cosy Customers")
+  mutate(group = "MSOAs with Adopters")
 
 treated_0 <- merged_data %>%
   filter(treated == 0) %>%
   select(property_value = `Property price (£)`) %>%
-  mutate(group = "MSOAs without Cosy Customers")
+  mutate(group = "MSOAs without Adopters")
 
 property_value_data <- merged_data %>%
   select(property_value = `Property price (£)`) %>%
   filter(!is.na(property_value)) %>%
-  mutate(group = "Cosy Customers")
+  mutate(group = "Adopters")
 
 combined_data <- bind_rows(
   treated_1,

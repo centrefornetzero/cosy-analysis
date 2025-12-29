@@ -10,9 +10,9 @@ rates <- fread(file.path(datapath, "input/cosy_-_rate_analysis_2024_07_15.csv"))
   ) %>%
   filter(!(valid_from == as.Date("2022-12-13") & valid_to == as.Date("2023-03-31")), !valid_from == "2024-06-30") %>%
   mutate(rate_period = case_when(
-    rate_start_at == "INTERVAL '04:00:00' HOUR TO SECOND" ~ "Morning Cosy",
+    rate_start_at == "INTERVAL '04:00:00' HOUR TO SECOND" ~ "Morning Off-peak",
     rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND" ~ "Other",
-    rate_start_at == "INTERVAL '13:00:00' HOUR TO SECOND" ~ "Afternoon Cosy",
+    rate_start_at == "INTERVAL '13:00:00' HOUR TO SECOND" ~ "Afternoon Off-peak",
     rate_start_at == "INTERVAL '16:00:00' HOUR TO SECOND" ~ "Peak Rate",
     rate_start_at == "INTERVAL '19:00:00' HOUR TO SECOND" ~ "Other",
     TRUE ~ "Other"
@@ -59,8 +59,8 @@ m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
 m1_coefs <- coeftable(m1) %>%
   data.frame() %>%
   filter(sample != "Overall") %>%
-  mutate(rate_period = factor(sample, levels = c("Morning Cosy",
-                                                 "Afternoon Cosy",
+  mutate(rate_period = factor(sample, levels = c("Morning Off-peak",
+                                                 "Afternoon Off-peak",
                                                  "Peak Rate",
                                                  "Other", 
                                                  "Overall")))
@@ -77,8 +77,8 @@ all_coefs <- coeftable(m_property_value) %>%
   filter(sample != "Overall") %>%
   separate(coefficient, into = c("cosy_contract_active", "remove1", "property_value_category", "remove2"), 
            sep = "::") %>%
-  mutate(rate_period = factor(sample, levels = c("Morning Cosy",
-                                                 "Afternoon Cosy",
+  mutate(rate_period = factor(sample, levels = c("Morning Off-peak",
+                                                 "Afternoon Off-peak",
                                                  "Peak Rate",
                                                  "Other", 
                                                  "Overall")))
@@ -151,7 +151,7 @@ ggplot(cosy_saving5, aes(x = `property_value_category`, y = share_gain, fill = `
   scale_fill_manual(values = red_palette) +
   labs(
     x = "Property Value Decile",
-    y = "Average Savings %"
+    y = "Savings %"
   ) +
   scale_y_continuous(
     labels = scales::percent_format(),
@@ -178,12 +178,12 @@ ggplot(cosy_saving5, aes(x = `property_value_category`, y = share_gain, fill = `
   # Manual fill color for bars
   scale_fill_manual(values = red_palette) +
   # Define color legend for the horizontal line and the line plot
-  scale_color_manual(name = "Legend", values = c("Average Savings in Sample (%)" = cosy_color, 
+  scale_color_manual(name = "Legend", values = c("Savings in Sample (%)" = cosy_color, 
                                                  "Savings in £" = cosy_color)) +
   # Labels
   labs(
     x = "Property Value Decile",
-    y = "Average Savings (%)"
+    y = "Savings (%)"
   ) +
   # Primary y-axis for share_gain, secondary y-axis for saving_gbp
   scale_y_continuous(

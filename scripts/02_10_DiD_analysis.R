@@ -129,7 +129,7 @@ create_ggplot <- function(period_data, period_name) {
     geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, , alpha = 0.6) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
     scale_color_manual(
-      name = "Has Adopted Cosy", 
+      name = "Has Adopted Tariff", 
       labels = c("No" = "No", "Yes" = "Yes"),
       values = c("No" = flexible_color, "Yes" = cosy_color)  # Custom colors
     ) +
@@ -206,8 +206,8 @@ for(period in periods) {
 
 all_period_data <- all_period_data %>% 
   filter(!period=="Overall") %>%
-  mutate(period = factor(period, levels = c("Morning Cosy",
-                                            "Afternoon Cosy",
+  mutate(period = factor(period, levels = c("Morning Off-peak",
+                                            "Afternoon Off-peak",
                                             "Peak Rate",
                                             "Other", 
                                             "Overall")))
@@ -223,7 +223,7 @@ ggplot(all_period_data, aes(x = event_time, y = coefficient, color = cosy_status
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
   scale_color_manual(
-    name = "Has Adopted Cosy", 
+    name = "Has Adopted Tariff", 
     labels = c("No" = "No", "Yes" = "Yes"),
     values = c("No" = flexible_color, "Yes" = cosy_color)  # Adjust these colors as needed
   ) +
@@ -320,7 +320,7 @@ for(period in periods) {
 # y_max <- 5
 # 
 # # Loop through each period and create/save the calendar effect plots
-# for (period in c("Peak Rate", "Afternoon Cosy")) {
+# for (period in c("Peak Rate", "Afternoon Off-peak")) {
 #   period_data <- estimates_list[[period]]$calendar
 #   
 #   # Create the plot
@@ -379,8 +379,8 @@ for(period in periods) {
 
 all_period_data <- all_period_data %>%
   filter(period != "Overall") %>%
-  mutate(period = factor(period, levels = c("Morning Cosy",
-                                            "Afternoon Cosy",
+  mutate(period = factor(period, levels = c("Morning Off-peak",
+                                            "Afternoon Off-peak",
                                             "Peak Rate",
                                             "Other", 
                                             "Overall")))
@@ -511,7 +511,7 @@ m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
             cluster = ~account_id, 
             split = ~ rate_period)
 stop()
-etable(m1, m1, tex=TRUE, title = "Cosy Adoption",
+etable(m1, m1, tex=TRUE, title = "Adoption",
        headers = list(list("TWFE" = 5, "CS" = 5),
                       list(rep(as.character(sort(main_periods)), times = 2))), 
        fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/did.tex", 
@@ -566,7 +566,7 @@ cs_estimates <- lapply(cs_estimates, function(x) sprintf("%.4f", x))
 cs_se <- lapply(cs_se, function(x) sprintf("%.4f", x))
 
 # Find the rows that need to be updated
-coeff_line <- grep("Cosy Contract Active \\$=\\$ 1", file_content)
+coeff_line <- grep("Contract Active \\$=\\$ 1", file_content)
 se_line <- coeff_line + 1
 obs_line <- grep("Observations", file_content)
 sample_line <- grep("Number of Households", file_content)
@@ -596,13 +596,13 @@ clear_columns <- function(line) {
 }
 
 # Ensure each replacement maintains the LaTeX table structure
-new_estimates <- c(paste0(cs_estimates[["Morning Cosy"]], "***"), 
-                   paste0(cs_estimates[["Afternoon Cosy"]], "***"), 
+new_estimates <- c(paste0(cs_estimates[["Morning Off-peak"]], "***"), 
+                   paste0(cs_estimates[["Afternoon Off-peak"]], "***"), 
                    paste0(cs_estimates[["Peak Rate"]], "***"), 
                    paste0(cs_estimates[["Other"]], "***"), 
                    paste0(cs_estimates[["Overall"]]))
-new_se <- c(paste0("(", cs_se[["Morning Cosy"]], ")"), 
-            paste0("(", cs_se[["Afternoon Cosy"]], ")"), 
+new_se <- c(paste0("(", cs_se[["Morning Off-peak"]], ")"), 
+            paste0("(", cs_se[["Afternoon Off-peak"]], ")"), 
             paste0("(", cs_se[["Peak Rate"]], ")"), 
             paste0("(", cs_se[["Other"]], ")"), 
             paste0("(", cs_se[["Overall"]], ")"))
@@ -623,7 +623,7 @@ if (length(clustering_line_index) > 0) {
   file_content[clustering_line_index] <- "\\multicolumn{10}{l}{\\emph{Clustered (Household) standard-errors in parentheses for TWFE}}\\\\"
 }
 # Add CS clustering explanation
-new_row <- "\\multicolumn{5}{l}{\\emph{Clustered cohort (Week of adoption) standard-errors in parentheses for CS}}\\\\"
+new_row <- "\\multicolumn{5}{l}{\\emph{Clustered (Household) standard-errors in parentheses for CS}}\\\\"
 file_content <- append(file_content, new_row, after = clustering_line_index)
 
 # Add new row for "Number of cohorts (CS)"
@@ -697,7 +697,7 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
   latex_table <- paste0(latex_table, "      Model:                         & ", paste(paste0("(", 1:length(headers), ")"), collapse = "              & "), "\\\\  \n")
   latex_table <- paste0(latex_table, "      \\midrule\n")
   latex_table <- paste0(latex_table, "      \\emph{Variable}\\\\\n")
-  latex_table <- paste0(latex_table, "      Has Adopted Cosy $=$ 1     & ", paste(coefficients, collapse = " & "), "\\\\   \n")
+  latex_table <- paste0(latex_table, "      Has Adopted Tariff $=$ 1     & ", paste(coefficients, collapse = " & "), "\\\\   \n")
   latex_table <- paste0(latex_table, "                                     & ", paste(standard_errors, collapse = "         & "), "\\\\   \n")
   latex_table <- paste0(latex_table, "      \\midrule\n")
   latex_table <- paste0(latex_table, "      \\emph{Pre-treatment Average}\\\\\n")
@@ -719,7 +719,7 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
   writeLines(latex_table, file)
 }
 
-# Example usage for Cosy adoption
+# Example usage for Tariff Adoption
 main_periods <- sort(unique(aggregated_data$rate_period))
 
 # Creating models list for the new table
@@ -738,13 +738,13 @@ models <- lapply(main_periods, function(period) {
 headers <- main_periods
 
 # File details
-title <- "Cosy Adoption on Half Hourly Electricity Consumption in kWh"
+title <- "Tariff Adoption on Half Hourly Electricity Consumption in kWh"
 file <- "tables/cosy_did_cs.tex"
 label <- "tab:cosy-did-cs"
 
 # Create the LaTeX table
 create_latex_table(models, headers, title, file, label, pre_treatment_averages, note = "We show estimates from five CS estimates of the impact of consumption on customers’ electricity during 
-the morning \\textit{Cosy} period 4am-7am (column 1), afternoon \\textit{Cosy} period 1pm-4pm (column 2), peak period 4pm-7pm (column 3), 
+the morning off-peak period 4am-7am (column 1), afternoon off-peak period 1pm-4pm (column 2), peak period 4pm-7pm (column 3), 
 other hours of the day (column 4), and ``overall’’, i.e,. across all 48 half-hours of the day (column 5).")
 
 
@@ -753,7 +753,7 @@ m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
             cluster = ~account_id, 
             split = ~ rate_period)
 
-etable(m1, m1, tex=TRUE, title = "Cosy Adoption",
+etable(m1, m1, tex=TRUE, title =  "Adoption",
        headers = list(list("TWFE" = 5, "CS" = 5),
                       list(rep(as.character(sort(main_periods)), times = 2))), 
        fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/did.tex", replace = TRUE, label="tab:did-main")
@@ -813,7 +813,7 @@ cs_estimates <- lapply(cs_estimates, function(x) sprintf("%.4f", x))
 cs_se <- lapply(cs_se, function(x) sprintf("%.4f", x))
 
 # Find the rows that need to be updated
-coeff_line <- grep("Cosy Contract Active \\$=\\$ 1", file_content)
+coeff_line <- grep("Contract Active \\$=\\$ 1", file_content)
 se_line <- coeff_line + 1
 obs_line <- grep("Observations", file_content)
 sample_line <- grep("Number of Households", file_content)
@@ -843,13 +843,13 @@ clear_columns <- function(line) {
 }
 
 # Ensure each replacement maintains the LaTeX table structure
-new_estimates <- c(paste0(cs_estimates[["Morning Cosy"]], "***"), 
-                   paste0(cs_estimates[["Afternoon Cosy"]], "***"), 
+new_estimates <- c(paste0(cs_estimates[["Morning Off-peak"]], "***"), 
+                   paste0(cs_estimates[["Afternoon Off-peak"]], "***"), 
                    paste0(cs_estimates[["Peak Rate"]], "***"), 
                    paste0(cs_estimates[["Other"]], "***"), 
                    paste0(cs_estimates[["Overall"]]))
-new_se <- c(paste0("(", cs_se[["Morning Cosy"]], ")"), 
-            paste0("(", cs_se[["Afternoon Cosy"]], ")"), 
+new_se <- c(paste0("(", cs_se[["Morning Off-peak"]], ")"), 
+            paste0("(", cs_se[["Afternoon Off-peak"]], ")"), 
             paste0("(", cs_se[["Peak Rate"]], ")"), 
             paste0("(", cs_se[["Other"]], ")"), 
             paste0("(", cs_se[["Overall"]], ")"))
@@ -870,7 +870,7 @@ if (length(clustering_line_index) > 0) {
   file_content[clustering_line_index] <- "\\multicolumn{10}{l}{\\emph{Clustered (Household) standard-errors in parentheses for TWFE}}\\\\"
 }
 # Add CS clustering explanation
-new_row <- "\\multicolumn{5}{l}{\\emph{Clustered cohort (Week of adoption) standard-errors in parentheses for CS}}\\\\"
+new_row <- "\\multicolumn{5}{l}{\\emph{Clustered cohort (Household) standard-errors in parentheses for CS}}\\\\"
 file_content <- append(file_content, new_row, after = clustering_line_index)
 
 # Add new row for "Number of cohorts (CS)"
@@ -949,8 +949,8 @@ for(i in seq_along(imputation_results_list)) {
            upper_ci =  conf.high,
            period = factor(ifelse(event_time < 0, "No", "Yes"), levels = c("Yes", "No")),
            cosy_status = ifelse(event_time < 0, "No", "Yes"),
-           period = factor(period_name, levels = c("Morning Cosy",
-                                                   "Afternoon Cosy",
+           period = factor(period_name, levels = c("Morning Off-peak",
+                                                   "Afternoon Off-peak",
                                                    "Peak Rate",
                                                    "Other", 
                                                    "Overall")))
@@ -965,7 +965,7 @@ for(i in seq_along(imputation_results_list)) {
     geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
     scale_color_manual(
-      name = "Has Adopted Cosy", 
+      name = "Has Adopted Tariff", 
       labels = c("No" = "No", "Yes" = "Yes"),
       values = c("No" = flexible_color, "Yes" = cosy_color)  # Custom colors
     ) +
@@ -1003,7 +1003,7 @@ ggplot(all_period_data %>% filter(!period == "Overall"), aes(x = event_time, y =
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
   scale_color_manual(
-    name = "Has Adopted Cosy", 
+    name = "Has Adopted Tariff", 
     labels = c("No" = "No", "Yes" = "Yes"),
     values = c("No" = flexible_color, "Yes" = cosy_color)  # Adjust these colors as needed
   ) +

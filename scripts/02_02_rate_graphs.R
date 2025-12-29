@@ -13,13 +13,13 @@ rates <- fread(file.path(datapath, "input/cosy_-_rate_analysis_2024_07_15.csv"))
   ) %>%
   filter(!(valid_from == as.Date("2022-12-13") & valid_to == as.Date("2023-03-31")), !valid_from == "2024-06-30") 
 
-# Add the typical marginal price as a reference column
+# Add the typical Price per kWh as a reference column
 marginal_price <- rates %>%
   filter(rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND") %>%
   distinct(tariff_gsp_group_id, valid_from, unit_rate) %>%
   rename(typical_marginal_price=unit_rate)
 
-# Merge typical marginal price back into the full dataset
+# Merge typical Price per kWh back into the full dataset
 rates <- rates %>%
   left_join(marginal_price) %>%
   mutate(share_of_typical = unit_rate / typical_marginal_price * 100)
@@ -63,7 +63,7 @@ rate_data <- apply_rates(plot_selection, rate_data)
 flexible_octopus <- data.frame(
   time = times,
   rate = plot_selection[plot_selection$rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND",]$unit_rate,
-  group = "Typical Marginal Price"
+  group = "Typical Price per kWh"
 )
 
 # Combine both data frames
@@ -79,10 +79,10 @@ shaded_times <- data.frame(
   fill = c("red", "red", "lightblue")
 )
 
-# Calculate the typical marginal price (you can adjust this based on your data)
-typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Marginal Price") %>% pull(rate), na.rm = TRUE)
+# Calculate the typical Price per kWh (you can adjust this based on your data)
+typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Price per kWh") %>% pull(rate), na.rm = TRUE)
 
-# Add a new column for the share of the typical marginal price
+# Add a new column for the share of the typical Price per kWh
 combined_rates <- combined_rates %>%
   mutate(share_of_typical = rate / typical_marginal_price * 100)
 
@@ -100,17 +100,17 @@ ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group))
                    limits = c(as.POSIXct(min(combined_rates$time)), 
                               as.POSIXct(max(combined_rates$time)- hours(1)))) +  # Set x-axis limits with correct date
   scale_y_continuous(
-    name = "Rate (p/kWh)",
+    name = "Price per kWh (p/kWh)",
     breaks = rate_values,
     labels = scales::label_number(accuracy = 0.01),  # Format y-axis with 2 decimal places
     sec.axis = sec_axis(~ . / typical_marginal_price, 
-                        name = "Share of Typical Marginal Price (%)", 
+                        name = "Share of Typical Price per kWh (%)", 
                         labels = scales::percent_format(accuracy = 1))
   ) +
   theme_minimal() + 
   theme(legend.position = "bottom") +
-  scale_color_manual(values = c("Cosy" = cosy_color, "Typical Marginal Price" = flexible_color)) +
-  scale_linetype_manual(values = c("Cosy" = "solid", "Typical Marginal Price" = "dashed")) +
+  scale_color_manual(values = c("Cosy" = cosy_color, "Typical Price per kWh" = flexible_color)) +
+  scale_linetype_manual(values = c("Cosy" = "solid", "Typical Price per kWh" = "dashed")) +
   scale_fill_identity() +
   guides(linetype = "none")
 
@@ -128,13 +128,13 @@ rates <- fread(file.path(datapath, "input/cosy_-_rate_analysis_2024_07_15.csv"))
   ) %>%
   filter(!(valid_from == as.Date("2022-12-13") & valid_to == as.Date("2023-03-31")), !valid_from == "2024-06-30") 
 
-# Add the typical marginal price as a reference column
+# Add the typical Price per kWh as a reference column
 marginal_price <- rates %>%
   filter(rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND") %>%
   distinct(tariff_gsp_group_id, valid_from, unit_rate) %>%
   rename(typical_marginal_price=unit_rate)
 
-# Merge typical marginal price back into the full dataset
+# Merge typical Price per kWh back into the full dataset
 rates <- rates %>%
   left_join(marginal_price) %>%
   mutate(share_of_typical = unit_rate / typical_marginal_price * 100)
@@ -178,7 +178,7 @@ rate_data <- apply_rates(plot_selection, rate_data)
 flexible_octopus <- data.frame(
   time = times,
   rate = plot_selection[plot_selection$rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND",]$unit_rate,
-  group = "Typical Marginal Price"
+  group = "Typical Price per kWh"
 )
 
 # Combine both data frames
@@ -194,10 +194,10 @@ shaded_times <- data.frame(
   fill = c("lightblue", "lightblue", "red")
 )
 
-# Calculate the typical marginal price (you can adjust this based on your data)
-typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Marginal Price") %>% pull(rate), na.rm = TRUE)
+# Calculate the typical Price per kWh (you can adjust this based on your data)
+typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Price per kWh") %>% pull(rate), na.rm = TRUE)
 
-# Add a new column for the share of the typical marginal price
+# Add a new column for the share of the typical Price per kWh
 combined_rates <- combined_rates %>%
   mutate(share_of_typical = rate / typical_marginal_price * 100)
 
@@ -215,13 +215,13 @@ ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group))
     breaks = rate_values,
     labels = scales::label_number(accuracy = 0.01),  # Format y-axis with 2 decimal places
     sec.axis = sec_axis(~ . / typical_marginal_price, 
-                        name = "Share of Typical Marginal Price (%)", 
+                        name = "Share of Typical Price per kWh (%)", 
                         labels = scales::percent_format(accuracy = 1))
   ) +
   theme_minimal() + 
   theme(legend.position = "bottom") +
-  scale_color_manual(values = c("Cosy" = cosy_color, "Typical Marginal Price" = flexible_color)) +
-  scale_linetype_manual(values = c("Cosy" = "solid", "Typical Marginal Price" = "dashed")) +
+  scale_color_manual(values = c("Cosy" = cosy_color, "Typical Price per kWh" = flexible_color)) +
+  scale_linetype_manual(values = c("Cosy" = "solid", "Typical Price per kWh" = "dashed")) +
   scale_fill_identity() +
   guides(linetype = "none")
 
@@ -233,14 +233,14 @@ ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group))
 # Create rate_period indicator
 rates <- rates %>%
   mutate(rate_period = case_when(
-    rate_start_at == "INTERVAL '04:00:00' HOUR TO SECOND" ~ "Morning \n & Afternoon Cosy",
-    rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND" ~ "Other \n ( ~ Typical Marginal Price)",
-    rate_start_at == "INTERVAL '13:00:00' HOUR TO SECOND" ~ "Morning \n & Afternoon Cosy",
+    rate_start_at == "INTERVAL '04:00:00' HOUR TO SECOND" ~ "Off-peak Rate",
+    rate_start_at == "INTERVAL '07:00:00' HOUR TO SECOND" ~ "Other \n (~ Typical Price per kWh)",
+    rate_start_at == "INTERVAL '13:00:00' HOUR TO SECOND" ~ "Off-peak Rate",
     rate_start_at == "INTERVAL '16:00:00' HOUR TO SECOND" ~ "Peak Rate",
-    rate_start_at == "INTERVAL '19:00:00' HOUR TO SECOND" ~ "Other \n ( ~ Typical Marginal Price)",
+    rate_start_at == "INTERVAL '19:00:00' HOUR TO SECOND" ~ "Other \n (~ Typical Price per kWh)",
     TRUE ~ "Other"
   ),
-  rate_period = factor(rate_period, levels = c("Morning \n & Afternoon Cosy","Other \n ( ~ Typical Marginal Price)", "Peak Rate")))
+  rate_period = factor(rate_period, levels = c("Off-peak Rate","Other \n (~ Typical Price per kWh)", "Peak Rate")))
 
 # Get the number of unique GSP group names
 num_gsp_groups <- length(unique(rates$tariff_gsp_group_name))
@@ -248,7 +248,7 @@ num_gsp_groups <- length(unique(rates$tariff_gsp_group_name))
 # Define a color palette using RColorBrewer and colorRampPalette to generate more colors if needed
 palette <- colorRampPalette(brewer.pal(12, "Set3"))(num_gsp_groups)
 
-# Add the typical marginal price as a reference column
+# Add the typical Price per kWh as a reference column
 rates_selection <- rates %>%
   filter(valid_from == "2024-03-31") 
 
@@ -263,7 +263,7 @@ ggplot(rates_selection, aes(x = rate_period, y = unit_rate, fill = tariff_gsp_gr
     name = "Rate (p/kWh)",
     labels = scales::label_number(accuracy = 0.01),  # Format y-axis with 2 decimal places
     sec.axis = sec_axis(~ . / typical_marginal_price, 
-                        name = "Share of Typical Marginal Price (%)", 
+                        name = "Share of Typical Price per kWh (%)", 
                         labels = scales::percent_format(accuracy = 1))
   ) +
   theme_minimal() +
@@ -312,7 +312,7 @@ ggsave("graphs/Rate_Changes_by_Period.png", width = 12, height = 8, dpi = 300)
 
 
 
-### Figure A.18: Rates as Share of Typical Marginal Price Over Time
+### Figure A.18: Rates as Share of Typical Price per kWh Over Time
 
 # Aggregate the data by rate_period and valid_from to get the average for all GSP groups
 rates_avg <- rates %>%
@@ -331,24 +331,24 @@ annotations <- rates_avg %>%
     avg_share_of_typical = median(avg_share_of_typical, na.rm = TRUE)
   )
 
-# Define specific y-axis breaks for share of typical marginal price
+# Define specific y-axis breaks for share of typical Price per kWh
 share_breaks <- seq(0, 160, 20)
 
 # Define a palette of blue colors
 blue_palette <- scales::brewer_pal(palette = "Blues")(length(unique(rates_avg$rate_period)))
 
-# Plot average share of typical marginal price over time
+# Plot average share of typical Price per kWh over time
 ggplot(rates_avg, aes(x = valid_from, y = avg_share_of_typical, color = rate_period, group = rate_period)) +
   geom_line(size = 1) +
   labs(
     x = "Date",
-    y = "Average Share of Typical Marginal Price (%)",
+    y = "Average Share of Typical Price per kWh (%)",
     color = "Rate Period"
   ) +
   theme_minimal() +
   scale_color_manual(values = blue_palette) +
   scale_y_continuous(
-    name = "Average Share of Typical Marginal Price (%)",
+    name = "Average Share of Typical Price per kWh (%)",
     breaks = share_breaks,
     labels = scales::percent_format(accuracy = 0.1, scale = 1)
   ) + 

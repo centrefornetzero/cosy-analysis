@@ -74,7 +74,7 @@ ggplot(weekly_adoptions, aes(x = first_week, y = adoptions)) +
            label = "Announcement:\nBoiler Upgrade Scheme\nincrease to £7,500", hjust = 1, color = cosy_color) +  # Annotate the vertical line
   labs(
     x = "Week",
-    y = "Customers switching to Cosy"
+    y = "Households Adopting Heat Pump Tariff"
   ) +
   scale_x_date(
     labels = scales::date_format("%b %y"),
@@ -108,7 +108,7 @@ contract_analysis <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024
   ) %>%
   mutate(
     category = case_when(
-      num_contracts == 1 & ongoing == 1 ~ "Stayed on Cosy (ongoing)",
+      num_contracts == 1 & ongoing == 1 ~ "Stayed on Tariff (ongoing)",
       num_contracts == 1 & ended == 1 ~ "Tried then switched",
       num_contracts > 1 ~ "Multiple contracts",
       TRUE ~ "Other"  # Catch-all for any other cases

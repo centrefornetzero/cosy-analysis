@@ -63,11 +63,21 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     
   aggregated_data <- 
     rbind(aggregated_data, aggregate_daily) %>%
-    mutate(rate_period = factor(rate_period, levels = c("Morning Cosy",
-                                                        "Afternoon Cosy",
-                                                        "Peak Rate",
-                                                        "Other", 
-                                                        "Overall")), 
+  mutate(rate_period = recode(
+              rate_period,
+              "Morning Cosy"   = "Morning Off-peak",
+              "Afternoon Cosy" = "Afternoon Off-peak"
+            ),
+            rate_period = factor(
+              rate_period,
+              levels = c(
+                "Morning Off-peak",
+                "Afternoon Off-peak",
+                "Peak Rate",
+                "Other",
+                "Overall"
+              )
+            ), 
            weeks_since_cosy = floor(as.numeric(difftime(date, first_adoption, units = "weeks")))) %>%
       # Remove the ~ 50 mpans with 2 account id
     group_by(hashed_mpan) %>%

@@ -8,7 +8,7 @@ setFixest_dict(c(total_consumption = "Consumption in kWh per period",
                  consumption_hh = "Half Hourly Consumption in kWh",
                  share_consumption = "Share of daily consumption",
                  weekly_consumption = "Gas Consumption per Week in kWh",
-                 cosy_contract_active = "Cosy Contract Active",
+                 cosy_contract_active = "Contract Active",
                  daily_avg_heating_degree = "HDD",
                  hdd = "HDD",
                  avg_heating_degree = "HDD",
@@ -48,7 +48,7 @@ cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_
 cosy_hp_details <- cosy_hp_details %>% 
   filter(!is.na(property_value), !is.na(floor_area), !is.na(energy_efficiency)) %>%
   select(account_id, energy_efficiency, property_value, floor_area) %>%
-  mutate(sample = "Cosy")
+  mutate(sample = "Heat Pump Tariff")
 
 
 # heat pump sample
@@ -65,7 +65,7 @@ random_domus_sample <- fread(file.path(datapath, "input/cosy_-_random_sample_det
   filter(!is.na(property_value), !is.na(floor_area), !is.na(energy_efficiency)) %>%
   filter(!account_id %in% cosy_hp_details$account_id, !account_id %in% hp_details$account_id) %>%
   select(account_id, energy_efficiency, property_value, floor_area) %>%
-  mutate(sample = "Random")
+  mutate(sample = "Random Sample")
 
 # latest eac
 latest_eac <- fread(file.path(datapath, "input/latest_eac.csv")) %>%
@@ -90,8 +90,8 @@ library(stargazer)
 #Using the mathcit function from MatchIt to match each random customers to cosy
 match_obj <- matchit(formula = treated ~ property_value + estimated_annual_consumption + 
                        energy_efficiency + floor_area, data = matching_data %>% 
-                       filter(sample %in% c("Cosy", "Random")) %>%
-                       mutate(treated = as.numeric(!sample=="Random")),   method = "full", estimand = "ATC",
+                       filter(sample %in% c("Heat Pump Tariff", "Random Sample")) %>%
+                       mutate(treated = as.numeric(!sample=="Random Sample")),   method = "full", estimand = "ATC",
                      caliper = c(estimated_annual_consumption = 0.5, energy_efficiency= .5, property_value = 0.5, floor_area = 0.5))
 match_summary <- summary(match_obj)
 match_summary
@@ -100,42 +100,42 @@ match_summary
 plot(match_obj, type = "jitter", interactive = FALSE)
 plot(summary(match_obj), abs = FALSE)
 
-# Table A.22: Summary of Balance for All Data (Cosy)
+# Table A.22: Summary of Balance for All Data (Heat Pump Tariff)
 
 # Replace underscores with spaces and capitalize the first letter of each word
 rownames(match_summary$sum.all) <- gsub("_", " ", rownames(match_summary$sum.all))
 rownames(match_summary$sum.all) <- tools::toTitleCase(rownames(match_summary$sum.all))
-# Replace "Treated" with "Cosy" and "Control" with "Random" in column names
-colnames(match_summary$sum.all) <- gsub("Treated", "Cosy", colnames(match_summary$sum.all))
-colnames(match_summary$sum.all) <- gsub("Control", "Random", colnames(match_summary$sum.all))
+# Replace "Treated" with "Heat Pump Tariff" and "Control" with "Random Sample" in column names
+colnames(match_summary$sum.all) <- gsub("Treated", "Heat Pump Tariff", colnames(match_summary$sum.all))
+colnames(match_summary$sum.all) <- gsub("Control", "Random Sample", colnames(match_summary$sum.all))
 stargazer(match_summary$sum.all[,-dim(match_summary$sum.all)[2]],
-          title = "Summary of Balance for All Data (Cosy)",
+          title = "Summary of Balance for All Data (Heat Pump Tariff)",
           rownames = TRUE,
           digits = 2,
           label = "tab:balance-cosy-prematching",
           out = "tables/balance_cosy_prematching.tex")
 
 
-# Table A.23: Summary of Balance for Matched Data (Cosy)
+# Table A.23: Summary of Balance for Matched Data (Heat Pump Tariff)
 
 # Replace underscores with spaces and capitalize the first letter of each word
 rownames(match_summary$sum.matched) <- gsub("_", " ", rownames(match_summary$sum.matched))
 rownames(match_summary$sum.matched) <- tools::toTitleCase(rownames(match_summary$sum.matched))
-# Replace "Treated" with "Cosy" and "Control" with "Random" in column names
-colnames(match_summary$sum.matched) <- gsub("Treated", "Cosy", colnames(match_summary$sum.matched))
-colnames(match_summary$sum.matched) <- gsub("Control", "Random", colnames(match_summary$sum.matched))
+# Replace "Treated" with "Heat Pump Tariff" and "Control" with "Random Sample" in column names
+colnames(match_summary$sum.matched) <- gsub("Treated", "Heat Pump Tariff", colnames(match_summary$sum.matched))
+colnames(match_summary$sum.matched) <- gsub("Control", "Random Sample", colnames(match_summary$sum.matched))
 stargazer(match_summary$sum.all[,-dim(match_summary$sum.all)[2]],
-          title = "Summary of Balance for Matched Data (Cosy)",
+          title = "Summary of Balance for Matched Data (Heat Pump Tariff)",
           rownames = TRUE,
           digits = 2,
           label = "tab:balance-cosy-matching",
           out = "tables/balance_cosy_matching.tex")
 
 
-# Replace "Treated" with "Cosy" and "Control" with "Random" in column names
-colnames(match_summary$nn) <- c("Random", "Cosy")
+# Replace "Treated" with "Heat Pump Tariff" and "Control" with "Random Sample" in column names
+colnames(match_summary$nn) <- c("Random Sample", "Heat Pump Tariff")
 stargazer(match_summary$nn,
-          title = "Sample Size (Cosy)",
+          title = "Sample Size (Heat Pump Tariff)",
           rownames = TRUE,
           label = "tab:balance-cosy-nn",
           out = "tables/balance_cosy_nn.tex")
@@ -274,8 +274,8 @@ matching_data <-  rbind(latest_eac %>%
 #and risky alcohol drinking (Yes/No)
 match_obj2 <- matchit(treated ~ property_value + estimated_annual_consumption + energy_efficiency + floor_area,
                      data = matching_data %>%
-                       filter(sample %in% c("HP", "Random")) %>%
-                       mutate(treated = as.numeric(!sample=="Random")), method = "full", estimand = "ATC",
+                       filter(sample %in% c("HP", "Random Sample")) %>%
+                       mutate(treated = as.numeric(!sample=="Random Sample")), method = "full", estimand = "ATC",
                      caliper = c(estimated_annual_consumption = 0.5, energy_efficiency= .5, property_value = 0.5, floor_area = 0.5))
 match_summary <- summary(match_obj2)
 match_summary
@@ -290,9 +290,9 @@ plot(summary(match_obj2), abs = FALSE)
 # Replace underscores with spaces and capitalize the first letter of each word
 rownames(match_summary$sum.all) <- gsub("_", " ", rownames(match_summary$sum.all))
 rownames(match_summary$sum.all) <- tools::toTitleCase(rownames(match_summary$sum.all))
-# Replace "Treated" with "Cosy" and "Control" with "Random" in column names
+# Replace "Treated" with "Heat Pump Tariff" and "Control" with "Random Sample" in column names
 colnames(match_summary$sum.all) <- gsub("Treated", "Heatpump", colnames(match_summary$sum.all))
-colnames(match_summary$sum.all) <- gsub("Control", "Random", colnames(match_summary$sum.all))
+colnames(match_summary$sum.all) <- gsub("Control", "Random Sample", colnames(match_summary$sum.all))
 stargazer(match_summary$sum.all[,-dim(match_summary$sum.all)[2]],
           title = "Summary of Balance for All Data (Heatpump)",
           rownames = TRUE,
@@ -307,9 +307,9 @@ stargazer(match_summary$sum.all[,-dim(match_summary$sum.all)[2]],
 # Replace underscores with spaces and capitalize the first letter of each word
 rownames(match_summary$sum.matched) <- gsub("_", " ", rownames(match_summary$sum.matched))
 rownames(match_summary$sum.matched) <- tools::toTitleCase(rownames(match_summary$sum.matched))
-# Replace "Treated" with "Cosy" and "Control" with "Random" in column names
+# Replace "Treated" with "Heat Pump Tariff" and "Control" with "Random Sample" in column names
 colnames(match_summary$sum.matched) <- gsub("Treated", "Heatpump", colnames(match_summary$sum.matched))
-colnames(match_summary$sum.matched) <- gsub("Control", "Random", colnames(match_summary$sum.matched))
+colnames(match_summary$sum.matched) <- gsub("Control", "Random Sample", colnames(match_summary$sum.matched))
 stargazer(match_summary$sum.all[,-dim(match_summary$sum.all)[2]],
           title = "Summary of Balance for Matched Data (Heatpump)",
           rownames = TRUE,
@@ -318,8 +318,8 @@ stargazer(match_summary$sum.all[,-dim(match_summary$sum.all)[2]],
           out = "tables/balance_hp_matching.tex")
 
 
-# Replace "Treated" with "Cosy" and "Control" with "Random" in column names
-colnames(match_summary$nn) <- c("Random", "Heatpump")
+# Replace "Treated" with "Heat Pump Tariff" and "Control" with "Random Sample" in column names
+colnames(match_summary$nn) <- c("Random Sample", "Heatpump")
 stargazer(match_summary$nn,
           title = "Sample Size (Heatpump)",
           rownames = TRUE,
@@ -601,14 +601,14 @@ summarise_numeric <- function(data, prefix) {
 }
 
 # Summarize numeric variables for each dataset
-cosy_numeric <- summarise_numeric(cosy_hp_details, "Cosy")
+cosy_numeric <- summarise_numeric(cosy_hp_details, "Heat Pump Tariff")
 hp_numeric <- summarise_numeric(hp_details, "HP")
-random_numeric <- summarise_numeric(random_domus_sample, "Random")
+random_numeric <- summarise_numeric(random_domus_sample, "Random Sample")
 
 # Pivot each dataset separately to a long format
 cosy_numeric_long <- cosy_numeric %>%
   pivot_longer(cols = everything(), names_to = c("Variable", ".value"), names_pattern = "(.*)_(.*)") %>%
-  mutate(Sample = "Cosy")
+  mutate(Sample = "Heat Pump Tariff")
 
 hp_numeric_long <- hp_numeric %>%
   pivot_longer(cols = everything(), names_to = c("Variable", ".value"), names_pattern = "(.*)_(.*)") %>%
@@ -616,7 +616,7 @@ hp_numeric_long <- hp_numeric %>%
 
 random_numeric_long <- random_numeric %>%
   pivot_longer(cols = everything(), names_to = c("Variable", ".value"), names_pattern = "(.*)_(.*)") %>%
-  mutate(Sample = "Random")
+  mutate(Sample = "Random Sample")
 
 # Combine all summaries
 numeric_summary <- rbind(cosy_numeric_long, hp_numeric_long, random_numeric_long)
@@ -640,7 +640,7 @@ final_table_with_sd <- final_table %>%
   pivot_wider(names_from = Sample, values_from = value) %>%
   arrange(Variable, Statistic) %>%
   mutate(Variable = ifelse(Statistic == "mean", Variable, ""),
-         Cosy = ifelse(Statistic == "mean", format_number(Cosy), paste0("(", format_number(Cosy), ")")),
+         Cosy = ifelse(Statistic == "mean", format_number(Heat Pump Tariff), paste0("(", format_number(Heat Pump Tariff), ")")),
          HP = ifelse(Statistic == "mean", format_number(HP), paste0("(", format_number(HP), ")")),
          Random = ifelse(Statistic == "mean", format_number(Random), paste0("(", format_number(Random), ")"))) %>%
   mutate(Variable = case_when(Variable == "energy_efficiency" ~ "Energy Efficiency", 

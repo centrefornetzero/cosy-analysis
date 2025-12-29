@@ -59,8 +59,8 @@ coefs <- rbind(
                                                                 "0 ≤ T < 5°C",
                                                                 "5 ≤ T < 10°C",
                                                                 "T ≥ 10°C")),
-         rate_period = factor(sample, levels = c("Morning Cosy",
-                                                 "Afternoon Cosy",
+         rate_period = factor(sample, levels = c("Morning Off-peak",
+                                                 "Afternoon Off-peak",
                                                  "Peak Rate",
                                                  "Other", 
                                                  "Overall")))
@@ -102,7 +102,7 @@ ggplot(coefs %>% filter(rate_period != "Overall"), aes(x = `Average Daily Temper
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
   scale_y_continuous(name = "Estimate (kWh)") +  # Set y-axis label
   scale_fill_manual(values = colors) +  # Assign colors with increasing darkness
-  labs(fill = "Avg. Daily Temperature",
+  labs(fill = "Daily Temperature",
       title = "Heat pump time-of-use tariff impacts by temperature") +  # Remove x-axis label, keep legend title
   theme_minimal() +  # Apply minimal theme
   facet_wrap(~ rate_period, scales = "free_y", ncol = 2) +  # Facet with 2 columns and free y-axis scales
@@ -171,7 +171,7 @@ for (i in 1:length(tempreg)) {
       sec.axis = sec_axis(~ ./m1[[j]]$coefficients, name = "% of ATE", labels = scales::percent_format())
     ) +
     labs(
-      x = "Average Temperature in Degrees",
+      x = "Daily Temperature in Degrees",
     ) +
     theme_minimal()
   
@@ -195,8 +195,8 @@ all_coefs <- coeftable(tempreg) %>%
          lower_ci_ATE = `/% ATE` - 1.96 * (`Std..Error` / average * 100),
          upper_ci_ATE = `/% ATE` + 1.96 * (`Std..Error` / average * 100)
   ) %>%
-  mutate(sample = factor(sample, levels = c("Morning Cosy",
-                                            "Afternoon Cosy",
+  mutate(sample = factor(sample, levels = c("Morning Off-peak",
+                                            "Afternoon Off-peak",
                                             "Peak Rate",
                                             "Other", 
                                             "Overall")))
@@ -211,7 +211,7 @@ ggplot(all_coefs, aes(x = daily_avg_air_temperature_celsius, y = Estimate)) +
   scale_y_continuous(
     name = "Estimate (kWh)"  ) +
   labs(
-    x = "Average Temperature in Degrees (°C)",
+    x = "Daily Temperature in Degrees (°C)",
   ) +
   theme_minimal() +
   facet_wrap(~sample)
@@ -302,12 +302,12 @@ m3 <- feols(consumption_hh ~ i(cosy_contract_active) +  i(cosy_contract_active, 
             split = ~ rate_period)
 
 
-etable(m3, title = "Cosy Adoption by Previous Tariff Type", 
+etable(m3, title = "Adoption by Previous Tariff Type", 
        tex = TRUE,
        label = "tab:prevrav",
        fitstat = ~ N + g + pre_avg_nontou + pre_avg_tou +t_obs + r2,
        dict = c(previous_is_charged_half_hourly = "Prev is ToU", 
-               cosy_contract_active = "Cosy Contract Active", 
+               cosy_contract_active = "Contract Active", 
                 rate_period = "Rate Period",
                 consumption_hh = "Consumption in kWh", 
                account_id = "Household", 
@@ -328,7 +328,7 @@ pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index2)]
 file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index2)]
 
 # Find the position just after the coefficients
-coeff_end_index <- grep("Cosy Contract Active", file_content)[2] + 2
+coeff_end_index <- grep("Contract Active", file_content)[2] + 2
 if (length(coeff_end_index) > 1) {
   coeff_end_index <- coeff_end_index[-1]
 }
@@ -492,8 +492,8 @@ extract_and_combine_coefs <- function(tempreg_model, m1_model, labels) {
         lower_ci_ATE = `%_ATE` - 1.96 * (Std..Error / m1_model[[j]]$coefficients * 100),
         upper_ci_ATE = `%_ATE` + 1.96 * (Std..Error / m1_model[[j]]$coefficients * 100),
         outcome = ifelse(grepl("share", deparse(substitute(tempreg_model))), "Share Consumption", "Total Consumption"),
-        period = factor(val, levels = c("Morning Cosy",
-                                        "Afternoon Cosy",
+        period = factor(val, levels = c("Morning Off-peak",
+                                        "Afternoon Off-peak",
                                         "Peak Rate",
                                         "Other", 
                                         "Overall")))
@@ -614,7 +614,7 @@ for (i in 1:5) {
     geom_text(aes(x = EPC_label_position, label = `EPC letter`), hjust = 0, color = "white") +  # Add EPC letters on the right
     scale_fill_manual(values = rating_colors, name = "EPC Letter") +  # Use the defined colors+
     labs(
-      x = "Average Half Hourly Consumption",
+      x = "Half Hourly Consumption",
       y = "EPC Letter"
     ) +
     theme_minimal() +
@@ -838,8 +838,8 @@ extract_and_combine_coefs <- function(tempreg_model, m1_model, labels) {
         lower_ci_ATE = `%_ATE` - 1.96 * (Std..Error / m1_model[[j]]$coefficients * 100),
         upper_ci_ATE = `%_ATE` + 1.96 * (Std..Error / m1_model[[j]]$coefficients * 100),
         outcome = ifelse(grepl("share", deparse(substitute(tempreg_model))), "Share Consumption", "Total Consumption"),
-        period = factor(val, levels = c("Morning Cosy",
-                                        "Afternoon Cosy",
+        period = factor(val, levels = c("Morning Off-peak",
+                                        "Afternoon Off-peak",
                                         "Peak Rate",
                                         "Other", 
                                         "Overall")))
@@ -1054,8 +1054,8 @@ for (i in 1:5) {
       upper_ci_ATE = upper_ci / abs(m1[[j]]$coefficients) * 100,
       outcome = "Total Consumption",
       `Floor_Area` = factor(`Floor_Area`, levels = labels),
-      period = factor(val, levels = c("Morning Cosy",
-                                      "Afternoon Cosy",
+      period = factor(val, levels = c("Morning Off-peak",
+                                      "Afternoon Off-peak",
                                       "Peak Rate",
                                       "Other", 
                                       "Overall")))
@@ -1082,8 +1082,8 @@ for (i in 1:4) {
       period = val,
       outcome = "Share Consumption",
       `Floor_Area` = factor(`Floor_Area`, levels = labels),
-      period = factor(val, levels = c("Morning Cosy",
-                                      "Afternoon Cosy",
+      period = factor(val, levels = c("Morning Off-peak",
+                                      "Afternoon Off-peak",
                                       "Peak Rate",
                                       "Other", 
                                       "Overall")))
@@ -1200,8 +1200,8 @@ for (i in 1:5) {
     mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
            upper_ci = Estimate + 1.96 * `Std..Error`,
            outcome = "Total Consumption",
-           period = factor(sample, levels = c("Morning Cosy",
-                                              "Afternoon Cosy",
+           period = factor(sample, levels = c("Morning Off-peak",
+                                              "Afternoon Off-peak",
                                               "Peak Rate",
                                               "Other", 
                                               "Overall")),
@@ -1260,8 +1260,8 @@ for (i in 1:4) {
       period = val,
       outcome = "Share Consumption",
       `Property Value` = factor(`Property Value`, levels = labels),
-      period = factor(val, levels = c("Morning Cosy",
-                                      "Afternoon Cosy",
+      period = factor(val, levels = c("Morning Off-peak",
+                                      "Afternoon Off-peak",
                                       "Peak Rate",
                                       "Other", 
                                       "Overall")))
@@ -1387,8 +1387,8 @@ for (i in 1:5) {
       `%_ATE` = Estimate / abs(m1[[j]]$coefficients) * 100,
       lower_ci_ATE = lower_ci / abs(m1[[j]]$coefficients) * 100,
       upper_ci_ATE = upper_ci / abs(m1[[j]]$coefficients) * 100,
-      period = factor(val, levels = c("Morning Cosy",
-                                      "Afternoon Cosy",
+      period = factor(val, levels = c("Morning Off-peak",
+                                      "Afternoon Off-peak",
                                       "Peak Rate",
                                       "Other", 
                                       "Overall")))
@@ -1400,13 +1400,13 @@ for (i in 1:5) {
 # Select a color palette from RColorBrewer
 region_colors <- brewer.pal(n = length(unique(all_coefs$Region)), name = "Set3")
 
-# Order regions by their estimate size for period == "Morning Cosy"
+# Order regions by their estimate size for period == "Morning Off-peak"
 morning_cosy_order <- all_coefs %>%
-  filter(period == "Morning Cosy") %>%
+  filter(period == "Morning Off-peak") %>%
   arrange(desc(Estimate)) %>%
   pull(Region)
 
-# Reorder the Region factor based on the estimate size in "Morning Cosy"
+# Reorder the Region factor based on the estimate size in "Morning Off-peak"
 all_coefs <- all_coefs %>%
   mutate(Region = factor(Region, levels = morning_cosy_order))
 
@@ -1556,8 +1556,8 @@ for (i in 1:5) {
       upper_ci_ATE = upper_ci / abs(m1[[j]]$coefficients) * 100,
       outcome = "Total Consumption",
       `Income Category` = factor(`Income Category`, levels = labels),
-      period = factor(val, levels = c("Morning Cosy",
-                                      "Afternoon Cosy",
+      period = factor(val, levels = c("Morning Off-peak",
+                                      "Afternoon Off-peak",
                                       "Peak Rate",
                                       "Other", 
                                       "Overall")))
@@ -1616,8 +1616,8 @@ for (i in 1:4) {
       period = val,
       outcome = "Share Consumption",
       `income_decile` = factor(`income_decile`, levels = labels),
-      period = factor(val, levels = c("Morning Cosy",
-                                      "Afternoon Cosy",
+      period = factor(val, levels = c("Morning Off-peak",
+                                      "Afternoon Off-peak",
                                       "Peak Rate",
                                       "Other", 
                                       "Overall")))

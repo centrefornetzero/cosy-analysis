@@ -29,7 +29,7 @@ fitstat_register("pre_avg3", function(x) {
   formatted_pre_avg <- format_decimal(pre_avg)
   
   return(formatted_pre_avg)
-}, "Half Hourly Consumption Pre-Cosy")
+}, "Half Hourly Consumption Pre-Tariff-Adoption")
 
 
 # Register the pre-treatment average fit statistic
@@ -106,7 +106,7 @@ file_content <- readLines("tables/did_hp_install.tex")
 
 # Find the lines with the pre-treatment average and remove them
 pre_avg_line_index <- grep("Half Hourly Consumption Pre-Heatpump", file_content)
-pre_avg_line_index2 <- grep("Half Hourly Consumption Pre-Cosy", file_content)
+pre_avg_line_index2 <- grep("Half Hourly Consumption Pre-Tariff-Adoption", file_content)
 pre_avg_lines <- file_content[pre_avg_line_index]
 pre_avg_lines2 <- file_content[pre_avg_line_index2]
 
@@ -196,7 +196,7 @@ file_content <- readLines("tables/did_hp_install_overall.tex")
 
 # F# Find the lines with the pre-treatment average and remove them
 pre_avg_line_index <- grep("Half Hourly Consumption Pre-Heatpump", file_content)
-pre_avg_line_index2 <- grep("Half Hourly Consumption Pre-Cosy", file_content)
+pre_avg_line_index2 <- grep("Half Hourly Consumption Pre-Tariff-Adoption", file_content)
 pre_avg_lines <- file_content[pre_avg_line_index]
 pre_avg_lines2 <- file_content[pre_avg_line_index2]
 

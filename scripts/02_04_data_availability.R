@@ -14,7 +14,7 @@
                           main = "Smart Meter Data Availability",
                           background = "white",
                           color = c(flexible_color, cosy_color, "white"),
-                          legend.labs = c("Before Cosy", "After Cosy", "No smart meter data"), 
+                          legend.labs = c("Before Adoption", "After Adoption", "No smart meter data"), 
                           collapse.history = "TRUE")
   ggsave("graphs/data_availability.png", 
          width = 16, height = 8, units = "cm")
