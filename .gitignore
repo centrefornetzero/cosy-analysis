@@ -1,3 +1,12 @@
+# Jupyter notebooks & RStudio checkpoints
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# R session junk
+.Rhistory
+.RData
+.Rproj.user/
+
 # macOS system files
 .DS_Store
 Icon?
