@@ -66,11 +66,22 @@ rm(weather, hp_installed_daily, hp_installed_period)
 hp_installed <- hp_installed %>%
   mutate(date = as.Date(date),
          is_hp_installed = as.numeric(installed_at <= date)) %>%
-  mutate(rate_period = factor(rate_period, levels = c("Morning Cosy",
-                                                      "Afternoon Cosy",
-                                                      "Peak Rate",
-                                                      "Other", 
-                                                      "Overall"))) %>%
+  mutate(rate_period = recode(
+               rate_period,
+               "Morning Cosy"   = "Morning Off-peak",
+               "Afternoon Cosy" = "Afternoon Off-peak"
+             ),
+             rate_period = factor(
+               rate_period,
+               levels = c(
+                 "Morning Off-peak",
+                 "Afternoon Off-peak",
+                 "Peak Rate",
+                 "Other",
+                 "Overall"
+               )
+             )
+           ) %>%
   group_by(account_id) %>%
   mutate(treated = max(is_hp_installed)) %>% # identify treated versus not yet treated
   ungroup() 
@@ -121,7 +132,8 @@ hp_installed_weekly <-
 cosy_hp_install_gas_consumption <- fread(file.path(datapath, "input/cosy_-_hp_users_gas_2024_06_13.csv")) %>%
   group_by(account_id) %>%
   distinct(account_id, settlement_week, .keep_all = TRUE) %>%
-  mutate(min_settlement_week = min(settlement_week))
+  mutate(min_settlement_week = min(settlement_week),
+         weekly_consumption = ifelse(weekly_consumption<0, NA, weekly_consumption))
 
 # Create a sequence of weeks
 min_date <- min(cosy_hp_install_gas_consumption$settlement_week)
@@ -135,11 +147,11 @@ all_combinations <- expand.grid(
 )
 
 # Merge with original unbalanced gas data
-merged_data <- all_combinations %>%
+merged_data2 <- all_combinations %>%
   left_join(cosy_hp_install_gas_consumption %>% 
               distinct(account_id, settlement_week, weekly_consumption, 
                        min_settlement_week, installed_at)) %>%
-  filter(min_settlement_week < settlement_week) %>%
+  filter(as.Date(min_settlement_week) < as.Date(settlement_week)) %>%
   mutate(
     weekly_consumption = ifelse(is.na(weekly_consumption), 0, 
                                 weekly_consumption)

@@ -27,3 +27,4 @@ Icon?
 .DS_Store
 Icon
 scripts/.ipynb_checkpoints/*
+lit/Icon

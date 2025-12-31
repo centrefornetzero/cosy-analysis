@@ -60,6 +60,10 @@ hp_details <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_1
   select(account_id, energy_efficiency, property_value, floor_area)  %>%
   mutate(sample = "HP")
 
+hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds"))
+overall_weekly <-  readRDS(file.path(datapath, "output/overall_weekly.rds"))
+
+
 # random sample
 random_domus_sample <- fread(file.path(datapath, "input/cosy_-_random_sample_details_2024_08_23.csv")) %>% 
   filter(!is.na(property_value), !is.na(floor_area), !is.na(energy_efficiency)) %>%
@@ -331,94 +335,7 @@ stargazer(match_summary$nn,
 matched_data2 <- match.data(match_obj2)
 
 
-# get consumption by period
-hp_installed <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_18.csv")) %>%
-  group_by(account_id, settlement_date) %>%
-  summarise(total_consumption = sum(total_read_value)) %>%
-  mutate(consumption_hh = total_consumption / 48) %>%
-  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>%
-               distinct(account_id, .keep_all = TRUE),
-             by=c("account_id")) %>%
-  mutate(date = as.Date(settlement_date),
-         is_hp_installed = as.numeric(installed_at <= date))%>%
-  group_by(account_id) %>%
-  mutate(treated = max(is_hp_installed))  # identify treated versus not yet treated
 
-
-# Check number of accounts
-hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% distinct() %>% dim()
-
-# Load and preprocess gas consumption data
-# previous 2024_06_13.csv
-cosy_hp_install_gas_consumption <- fread(file.path(datapath, "input/cosy_-_hp_users_gas_2024_06_13.csv")) %>%
-  group_by(account_id) %>%
-  mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
-         treated = max(is_hp_installed),
-         min_settlement_week = min(settlement_week)) %>%
-  distinct(account_id, settlement_week, .keep_all = TRUE)
-
-# Create a sequence of weeks
-min_date <- min(cosy_hp_install_gas_consumption$settlement_week)
-max_date <- max(cosy_hp_install_gas_consumption$settlement_week)
-all_weeks <- seq(min_date, max_date, by = "week")
-
-# Create a data frame with all combinations of account_id and settlement_week
-all_combinations <- expand.grid(
-  account_id = unique(cosy_hp_install_gas_consumption$account_id),
-  settlement_week = all_weeks
-)
-
-# Merge with original data
-merged_data <- all_combinations %>%
-  left_join(cosy_hp_install_gas_consumption %>% 
-              distinct(account_id, settlement_week, weekly_consumption, 
-                       min_settlement_week, installed_at)) %>%
-  filter(min_settlement_week < settlement_week) %>%
-  mutate(
-    is_hp_installed = as.numeric(installed_at < settlement_week),
-    weekly_consumption = ifelse(is.na(weekly_consumption), 0, weekly_consumption)
-  ) 
-
-# Define overall_weekly by merging with electricity data
-overall_weekly <- hp_installed %>%
-  mutate(settlement_week = floor_date(date, "week") + 1,
-         is_hp_installed = as.numeric(installed_at <= settlement_week)) %>%
-  group_by(account_id, hashed_mpan, tariff_gsp_group_id, settlement_week, treated, installed_at, is_hp_installed) %>%
-  summarise(elec_consumption = sum(total_consumption)) %>%
-  left_join(merged_data %>%
-              select(account_id, settlement_week, weekly_consumption) %>%
-              rename(gas_consumption = weekly_consumption)) %>%
-  mutate(
-    gas_consumption = 52.25 * gas_consumption,
-    elec_consumption = 52.25 * elec_consumption,
-    total_consumption = gas_consumption + elec_consumption
-  ) 
-
-
-# add weather 
-weather_weekly <- fread(file.path(datapath, "input/cosy_-_weather_weekly_2024_06_13.csv")) %>%
-  mutate(settlement_week = as.Date(week_date)) %>%
-  distinct(gsp_group_id, settlement_week, .keep_all = TRUE) %>%
-  select(gsp_group_id, settlement_week, avg_heating_degree, avg_air_temperature_celsius) %>%
-  rename(tariff_gsp_group_id = gsp_group_id)
-
-# merge with consumption data
-overall_weekly <- overall_weekly %>%
-  inner_join(weather_weekly) %>% 
-mutate(hdd = factor(
-  case_when(
-    avg_air_temperature_celsius < 0 ~ 0,
-    avg_air_temperature_celsius < 15.5 ~ round(avg_air_temperature_celsius),
-    TRUE ~ 15
-  )),
-  temp_degree = factor(
-    case_when(
-      avg_air_temperature_celsius < 0 ~ 0,
-      avg_air_temperature_celsius < 25.5 ~ round(avg_air_temperature_celsius),
-      TRUE ~ 25
-    )))
-
-rm(all_combinations, cosy_hp_install_gas_consumption, merged_data, weather, all_weeks, max_date, min_date)
 
 CleanPreAverage <- function(file_path) {
   
@@ -612,7 +529,7 @@ cosy_numeric_long <- cosy_numeric %>%
 
 hp_numeric_long <- hp_numeric %>%
   pivot_longer(cols = everything(), names_to = c("Variable", ".value"), names_pattern = "(.*)_(.*)") %>%
-  mutate(Sample = "HP")
+  mutate(Sample = "Heat Pump Adopters")
 
 random_numeric_long <- random_numeric %>%
   pivot_longer(cols = everything(), names_to = c("Variable", ".value"), names_pattern = "(.*)_(.*)") %>%
@@ -640,9 +557,9 @@ final_table_with_sd <- final_table %>%
   pivot_wider(names_from = Sample, values_from = value) %>%
   arrange(Variable, Statistic) %>%
   mutate(Variable = ifelse(Statistic == "mean", Variable, ""),
-         Cosy = ifelse(Statistic == "mean", format_number(Heat Pump Tariff), paste0("(", format_number(Heat Pump Tariff), ")")),
-         HP = ifelse(Statistic == "mean", format_number(HP), paste0("(", format_number(HP), ")")),
-         Random = ifelse(Statistic == "mean", format_number(Random), paste0("(", format_number(Random), ")"))) %>%
+         Cosy = ifelse(Statistic == "mean", format_number(`Heat Pump Tariff`), paste0("(", format_number(`Heat Pump Tariff`), ")")),
+         HP = ifelse(Statistic == "mean", format_number(`Heat Pump Adopters`), paste0("(", format_number(`Heat Pump Adopters`), ")")),
+         Random = ifelse(Statistic == "mean", format_number(`Random Sample`), paste0("(", format_number(`Random Sample`), ")"))) %>%
   mutate(Variable = case_when(Variable == "energy_efficiency" ~ "Energy Efficiency", 
                              Variable == "estimated_annual_consumption" ~ "EAC", 
                              Variable == "floor_area" ~ "Floor Area", 
@@ -652,9 +569,9 @@ final_table_with_sd <- final_table %>%
 # Finally, rename the sample columns to include the number of observations
 final_table_with_sd <- final_table_with_sd %>%
   rename(
-    !!paste0("Cosy (N = ", n_cosy, ")") := Cosy,
-    !!paste0("HP (N = ", n_hp, ")") := HP,
-    !!paste0("Random (N = ", n_random, ")") := Random
+    !!paste0("Heat Pump Tariff (N = ", n_cosy, ")") := `Heat Pump Tariff`,
+    !!paste0("Heat Pump Adopters (N = ", n_hp, ")") := `Heat Pump Adopters`,
+    !!paste0("Random Sample (N = ", n_random, ")") := `Random Sample`
   ) %>%
   select(-Statistic)
 
@@ -774,7 +691,7 @@ final_table_with_sd
 
 # Create the LaTeX table using stargazer (optional, if needed)
 stargazer(final_table_with_sd, type = "latex", summary = FALSE, 
-          title = "Balance Table for \\textit{Cosy} Survey Responders and Non-Responders",
+          title = "Balance Table for Heat Pump Tariff Survey Responders and Non-Responders",
           rownames = FALSE,
           digits = 2,
           label = "tab:cosy-survey-stats",

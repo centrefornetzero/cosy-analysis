@@ -12,8 +12,8 @@ ev_charging <- fread(file.path(datapath, "input/cosy_-_ev_detection_2024_07_04.c
          interval_start = as.POSIXct(interval_start, format="%Y-%m-%d %H:%M:%S"),
          hour = as.integer(format(interval_start, "%H")),
          rate_period = case_when(
-           hour >= 4 & hour < 7 ~ "Morning Cosy",
-           hour >= 13 & hour < 16 ~ "Afternoon Cosy",
+           hour >= 4 & hour < 7 ~ "Morning Off-peak",
+           hour >= 13 & hour < 16 ~ "Afternoon Off-peak",
            hour >= 16 & hour < 19 ~ "Peak Rate",
            TRUE ~ "Other"
          )
@@ -94,8 +94,8 @@ ev_charging_max <- ev_charging_max %>%
 # Create dummy variables for rate periods
 ev_charging_max <- ev_charging_max %>%
   mutate(
-    Morning_Cosy = ifelse(rate_period == "Morning Cosy", 1, 0),
-    Afternoon_Cosy = ifelse(rate_period == "Afternoon Cosy", 1, 0),
+    Morning_Cosy = ifelse(rate_period == "Morning Off-peak", 1, 0),
+    Afternoon_Cosy = ifelse(rate_period == "Afternoon Off-Peak", 1, 0),
     Peak_Rate = ifelse(rate_period == "Peak Rate", 1, 0),
     Other = ifelse(rate_period == "Other", 1, 0)
   )
@@ -111,7 +111,7 @@ m_charging4 <- feols(Other ~ i(is_hp_installed) | account_id + date, data = ev_c
 etable(m_charging1, m_charging2, m_charging3, m_charging4, 
        tex = TRUE, 
        title = "HP Installation on Probability of Charging EV by Period", 
-       headers = c("Morning Cosy", "Afternoon Cosy", "Peak Rate", "Other"),
+       headers = c("Morning Off-peak", "Afternoon Off-Peak", "Peak Rate", "Other"),
        fitstat = ~ N + g + pre_avg + r2, 
        file = "tables/hp_ev_charging.tex", 
        replace = TRUE, 

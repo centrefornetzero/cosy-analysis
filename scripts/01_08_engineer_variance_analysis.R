@@ -22,9 +22,11 @@ df <-
   mutate(temperature = round(daily_avg_heating_degree))
 
 # Main model: includes interaction and fixed effects
+ref_ing <- unique(df$hp_engineer)[1]   # or choose explicitly, see below
+
 reg <- feols(
   consumption_hh ~ i(is_hp_installed, ref = 0) +
-    i(is_hp_installed, hp_engineer, ref = 0, ref2 = "Steven Wiltshire") |
+    i(is_hp_installed, hp_engineer, ref = 0, ref2 = ref_ing) |
     account_id + date + hdd,
   cluster = ~account_id,
   data = df

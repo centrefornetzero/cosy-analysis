@@ -23,10 +23,14 @@ install_if_needed <- function(package) {
 lapply(packages, install_if_needed)
 
 # Make sure working directory is "cosy-analysis"
-setwd("/home/jupyter/cosy-analysis")
+if (getwd() != "/Users/louise/Documents/GitHub/cosy-analysis") {
+  setwd("/home/jupyter/cosy-analysis")
+  # establish the home directory
+  datapath <- "../gcs/cosy2"
+} else {
+  datapath <- "data"
+}
 
-# establish the home directory
-datapath <- "../gcs/cosy2"
 
 
 # Load parameters

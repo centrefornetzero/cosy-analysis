@@ -15,7 +15,6 @@ did_data <- overall_weekly %>%
   select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
   filter(week <= 129, firstweek <= 129) 
 
-
 # ---------------------- Create CS main results ---------------------
 
 
