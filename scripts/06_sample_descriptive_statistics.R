@@ -23,8 +23,6 @@ summarise_outcome <- function(df, y, id = "id", scale = 1) {
       Obs    = scales::comma(sum(!is.na(y_scaled))),
       Mean = round(mean(y_scaled, na.rm = TRUE), 2),
       SD   = round(sd(y_scaled, na.rm = TRUE), 2),
-      Min  = round(min(y_scaled, na.rm = TRUE), 2),
-      Max  = round(max(y_scaled, na.rm = TRUE), 2),
       .groups = "drop"
     )
 }
@@ -112,12 +110,10 @@ sample_index <- tab %>%
   { setNames(.$n, .$Sample) }
 
 latex_table <- tab %>%
-  select(Panel, Sample, Period, Obs, Mean, SD, Min, Max) %>%
+  select(Panel, Sample, Period, Obs, Mean, SD) %>%
   mutate(
     Mean = scales::comma(Mean, accuracy = 0.01),
-    SD   = scales::comma(SD,   accuracy = 0.01),
-    Min  = scales::comma(Min,  accuracy = 0.01),
-    Max  = scales::comma(Max,  accuracy = 0.01)
+    SD   = scales::comma(SD,   accuracy = 0.01)
   ) %>%
   select(-Panel) %>%  # keep Sample for pack_rows
   kbl(

@@ -1,0 +1,36 @@
+
+\begin{table}[htbp]
+   \caption{\label{tab:did-hp-install-overall} HP and Cosy Adoption}
+   \centering
+   \begin{tabular}{lcccccccccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variable: & \multicolumn{10}{c}{Half Hourly Consumption in kWh}\\
+      Rate period                          & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall       & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall \\   
+      Model:                               & (1)            & (2)            & (3)             & (4)             & (5)           & (6)            & (7)            & (8)             & (9)             & (10)\\  
+      \midrule
+      \emph{Variables}\\
+      Cosy Contract Active $=$ 1           & 0.5388$^{***}$ & 0.3881$^{***}$ & -0.2323$^{***}$ & -0.0961$^{***}$ & 0.0294$^{**}$ & 0.5482$^{***}$ & 0.3898$^{***}$ & -0.2078$^{***}$ & -0.0779$^{***}$ & 0.0450$^{***}$\\   
+                                           & (0.0665)       & (0.0473)       & (0.0241)        & (0.0162)        & (0.0139)      & (0.0635)       & (0.0446)       & (0.0229)        & (0.0158)        & (0.0140)\\   
+      \midrule
+\emph{Pre-Treatment Average}\
+\midrule
+      Half Hourly Consumption Pre-Cosy     & 1.0407         & 0.7158         & 0.2712          & 0.3238          & 0.4558        & 1.0407         & 0.7158         & 0.2712          & 0.3238          & 0.4558\\  
+      Half Hourly Consumption Pre-Heatpump & 0.2995         & 0.2591         & 0.3172          & 0.2341          & 0.2548        & 0.2995         & 0.2591         & 0.3172          & 0.2341          & 0.2548\\  
+      \emph{Fixed-effects}\\
+      HDD                                  & Yes            & Yes            & Yes             & Yes             & Yes           & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      Household                            & Yes            & Yes            & Yes             & Yes             & Yes           & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      Day                                  & Yes            & Yes            & Yes             & Yes             & Yes           & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      Is HP Installed                      & Yes            & Yes            & Yes             & Yes             & Yes           &                &                &                 &                 & \\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations                         & 139,537        & 139,554        & 139,551         & 139,762         & 139,762       & 139,537        & 139,554        & 139,551         & 139,762         & 139,762\\  
+      Number of Households       & 311            & 311            & 311             & 311             & 311           & 311            & 311            & 311             & 311             & 311\\  
+      Number of Time Periods               & 916            & 916            & 916             & 916             & 916           & 916            & 916            & 916             & 916             & 916\\  
+      R$^2$                                & 0.58615        & 0.49193        & 0.49980         & 0.63068         & 0.68554       & 0.58595        & 0.49192        & 0.49456         & 0.62497         & 0.68189\\  
+      \midrule \midrule
+      \multicolumn{11}{l}{\emph{Clustered (Household) standard-errors in parentheses}}\\
+      \multicolumn{11}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+

@@ -132,8 +132,7 @@ hp_installed_weekly <-
 cosy_hp_install_gas_consumption <- fread(file.path(datapath, "input/cosy_-_hp_users_gas_2024_06_13.csv")) %>%
   group_by(account_id) %>%
   distinct(account_id, settlement_week, .keep_all = TRUE) %>%
-  mutate(min_settlement_week = min(settlement_week),
-         weekly_consumption = ifelse(weekly_consumption<0, NA, weekly_consumption))
+  mutate(min_settlement_week = min(settlement_week))
 
 # Create a sequence of weeks
 min_date <- min(cosy_hp_install_gas_consumption$settlement_week)

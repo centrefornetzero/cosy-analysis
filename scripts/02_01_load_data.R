@@ -6,7 +6,7 @@
 # file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
 
 ## Merging consumption and customers info datasets
-if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
+#if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
   start <- Sys.time()
     print('hello')
 
@@ -150,9 +150,9 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
   saveRDS(aggregated_data, file.path(datapath, "scratch/aggregated_data.RDS"))
   
   rm(weather, adoption, consumption_with_indicator, agreements)
-} else {
-  aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS")) 
-}
+#} else {
+#  aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS")) 
+#}
 
 # Run on a subsample of the data for faster processing
 if (random_subsample) {

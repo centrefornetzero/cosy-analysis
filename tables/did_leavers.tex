@@ -1,32 +1,30 @@
 
 \begin{table}[htbp]
-   \caption{\label{tab:did-leavers} Impact of Cosy for Leavers}
+   \caption{\label{tab:did-leavers} Impact for Leavers}
    \centering
    \begin{tabular}{lccccc}
       \tabularnewline \midrule \midrule
       Dependent Variable: & \multicolumn{5}{c}{Half Hourly Consumption in kWh}\\
-      Rate period                                  & Morning Cosy   & Afternoon Cosy & Peak Rate       & Other           & Overall \\   
-      Model:                                       & (1)            & (2)            & (3)             & (4)             & (5)\\  
+      Rate period                    & Morning Off-peak & Afternoon Off-peak & Peak Rate       & Other           & Overall \\   
+      Model:                         & (1)              & (2)                & (3)             & (4)             & (5)\\  
       \midrule
       \emph{Variables}\\
-      Cosy Contract Active $=$ 1                   & 0.5168$^{***}$ & 0.3138$^{***}$ & -0.1585$^{***}$ & -0.1052$^{***}$ & 0.0205$^{***}$\\   
-                                                   & (0.0163)       & (0.0098)       & (0.0065)        & (0.0052)        & (0.0040)\\   
-      leavers $\times$ Cosy Contract Active $=$ 1  & 0.1532$^{***}$ & 0.0575$^{***}$ & -0.0035         & -0.0588$^{***}$ & -0.0119$^{**}$\\   
-                                                   & (0.0293)       & (0.0173)       & (0.0098)        & (0.0086)        & (0.0060)\\   
+      Contract Active $=$ 1          & 0.5832$^{***}$   & 0.3387$^{***}$     & -0.1600$^{***}$ & -0.1306$^{***}$ & 0.0154$^{***}$\\   
+                                     & (0.0121)         & (0.0076)           & (0.0045)        & (0.0041)        & (0.0029)\\   
 \midrule
 \emph{Pre-Treatment Average}\\
-      Half Hourly Consumption                      & 0.3952         & 0.3298         & 0.4261          & 0.3979          & 0.3922\\  
+      Half Hourly Consumption        & 0.3952           & 0.3298             & 0.4261          & 0.3979          & 0.3922\\  
       \midrule
       \emph{Fixed-effects}\\
-      HDD                                          & Yes            & Yes            & Yes             & Yes             & Yes\\  
-      Household                                    & Yes            & Yes            & Yes             & Yes             & Yes\\  
-      Day                                          & Yes            & Yes            & Yes             & Yes             & Yes\\  
+      HDD                            & Yes              & Yes                & Yes             & Yes             & Yes\\  
+      Household                      & Yes              & Yes                & Yes             & Yes             & Yes\\  
+      Day                            & Yes              & Yes                & Yes             & Yes             & Yes\\  
       \midrule
       \emph{Fit statistics}\\
-      Observations                                 & 3,148,056      & 3,148,619      & 3,148,592       & 3,153,227       & 3,153,229\\  
-      Number of Households               & 6,656          & 6,656          & 6,656           & 6,656           & 6,656\\  
-      Number of Time Periods                       & 916            & 916            & 916             & 916             & 916\\  
-      R$^2$                                        & 0.57390        & 0.48682        & 0.48922         & 0.61729         & 0.66848\\  
+      Observations                   & 3,148,056        & 3,148,619          & 3,148,592       & 3,153,227       & 3,153,229\\  
+      Number of Households & 6,656            & 6,656              & 6,656           & 6,656           & 6,656\\  
+      Number of Time Periods         & 916              & 916                & 916             & 916             & 916\\  
+      R$^2$                          & 0.57303          & 0.48661            & 0.48922         & 0.61662         & 0.66845\\  
       \midrule \midrule
       \multicolumn{6}{l}{\emph{Clustered (Household) standard-errors in parentheses}}\\
       \multicolumn{6}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
