@@ -28,3 +28,7 @@ Icon?
 Icon
 scripts/.ipynb_checkpoints/*
 lit/Icon
+
+# Generated outputs
+graphs/
+Rplots.pdf
