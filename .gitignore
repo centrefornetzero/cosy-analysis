@@ -32,3 +32,6 @@ lit/Icon
 # Generated outputs
 graphs/
 Rplots.pdf
+
+# Generated outputs
+tables/
