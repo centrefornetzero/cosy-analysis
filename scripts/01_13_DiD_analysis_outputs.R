@@ -2,7 +2,7 @@
 elec_color <- hp_color 
 gas_color <- not_hp_color
 
-overall_weekly <- read_rds(file.path(datapath, "/output/overall_weekly.rds"))
+overall_weekly <- read_rds(file.path(datapath, "/output/gas_weekly.rds"))
 
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
@@ -60,8 +60,7 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
     summarise_all(mean)
   pre_treatment_values <- c(
     format_decimal(pre_treatment_averages$elec_consumption, 1),
-    format_decimal(pre_treatment_averages$gas_consumption, 1),
-    format_decimal(pre_treatment_averages$total_consumption, 1))
+    format_decimal(pre_treatment_averages$gas_consumption, 1))
   
   # Begin LaTeX table
   latex_table <- "\\begin{table}[htbp]\n"
@@ -78,7 +77,7 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
   latex_table <- paste0(latex_table, "                                     & ", paste(standard_errors, collapse = "         & "), "\\\\   \n")
   latex_table <- paste0(latex_table, "      \\midrule\n")
   latex_table <- paste0(latex_table, "      \\emph{Pre-treatment Average}\\\\\n")
-  latex_table <- paste0(latex_table, "      Yearly Consumption              & ", pre_treatment_values[1], " & ", pre_treatment_values[2], " & ", pre_treatment_values[3], "\\\\   \n")
+  latex_table <- paste0(latex_table, "      Yearly Consumption              & ", pre_treatment_values[1], " & ", pre_treatment_values[2], "\\\\   \n")
   latex_table <- paste0(latex_table, "      \\midrule\n")
   latex_table <- paste0(latex_table, "      \\emph{Fit statistics}\\\\\n")
   latex_table <- paste0(latex_table, "      Number of Households                   & ", paste(observations, collapse = "           & "), "\\\\  \n")
@@ -99,12 +98,10 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
 
 # Example usage            
 rds_files <- list(
-  Overall =  file.path(datapath, "/scratch/est_cs_total_weekly.RDS"),
   Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly.RDS"),
   Gas = file.path(datapath, "/scratch/est_cs_gas_weekly.RDS")
 )
                
-aggte_simple_overall <- aggte(readRDS(rds_files$Overall), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 aggte_simple_elec <- aggte(readRDS(rds_files$Electricity), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 aggte_simple_gas <- aggte(readRDS(rds_files$Gas), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 
@@ -119,22 +116,17 @@ pre_treatment_averages <- as_tibble(
     aggte_simple_gas$DIDparams$data %>%
       ungroup() %>%
       filter(week < firstweek - 1) %>%
-      summarise(gas_consumption = mean(gas_consumption)),
-    
-    aggte_simple_overall$DIDparams$data %>%
-      ungroup() %>%
-      filter(week < firstweek - 1) %>%
-      summarise(total_consumption = mean(total_consumption))
+      summarise(gas_consumption = mean(gas_consumption))
   )
 )
 
 
-models <- list(Electricity = aggte_simple_elec, Gas = aggte_simple_gas, Overall = aggte_simple_overall)
-headers <- c( "Electricity", "Gas", "Overall")
+models <- list(Electricity = aggte_simple_elec, Gas = aggte_simple_gas)
+headers <- c( "Electricity", "Gas")
 title <- "Heat Pump Installation on Yearly Energy Consumption in kWh"
 file <- "tables/hp_did_overall_cs.tex"
 label <- "tab:hp-did-cs"
-note <- "We show estimates from three CS estimates of the impact of consumption on customers' electricity consumption (column 1), gas consumption (column 2), and overall (electricity plus gas) consumption (column 3). The latter two models' are from a subset of our full sample for customers with gas consumption before their heat pump installation."
+note <- "We show estimates from three CS estimates of the impact of consumption on customers' electricity consumption (column 1), gas consumption (column 2). The latter model is from a subset of our full sample for customers with gas consumption before their heat pump installation."
 
 create_latex_table(models, headers, title, file, label, pre_treatment_averages, note)
 

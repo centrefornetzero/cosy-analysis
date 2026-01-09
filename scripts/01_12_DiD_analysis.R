@@ -22,13 +22,12 @@ did_data <- overall_weekly %>%
 
 # Define the output filenames for the main analysis
 output_filenames <- c(
-  "scratch/est_cs_total_weekly.RDS",
   "scratch/est_cs_elec_weekly.RDS",
   "scratch/est_cs_gas_weekly.RDS"
 )
 
 # Define the corresponding variable names
-yname_vars <- c("total_consumption", "elec_consumption", "gas_consumption")
+yname_vars <- c("elec_consumption", "gas_consumption")
 
 # Estimate and save the results for the main analysis (not yet treated control group)
 for (i in seq_along(yname_vars)) {
@@ -45,6 +44,8 @@ for (i in seq_along(yname_vars)) {
                    anticipation = 1,
                    clustervars = "id",
                    control_group = c("notyettreated"),
+                   est_method = "ipw",   # <— avoids fastglm in most setups
+                   faster_mode=FALSE,
                    allow_unbalanced_panel = TRUE,
                    base_period = "varying")
   
@@ -70,6 +71,8 @@ for (i in seq_along(yname_vars)) {
                    anticipation = 1,
                    clustervars = "id",
                    control_group = c("notyettreated"),
+                   est_method = "ipw",   # <— avoids fastglm in most setups
+                   faster_mode=FALSE,
                    allow_unbalanced_panel = TRUE,
                    base_period = "universal")
   
@@ -108,6 +111,8 @@ for (i in seq_along(yname_vars)) {
                    anticipation = 1,
                    clustervars = "id",
                    control_group = c("notyettreated", "nevertreated"),
+                   est_method = "ipw",   # <— avoids fastglm in most setups
+                   faster_mode=FALSE,
                    allow_unbalanced_panel = TRUE,
                    base_period = "varying")
   
@@ -143,6 +148,8 @@ est_cs_gas_only <- att_gt(yname = "elec_consumption",
                           anticipation = 1,
                           clustervars = "id",
                           control_group = c("notyettreated"),
+                          est_method = "ipw",   # <— avoids fastglm in most setups
+                          faster_mode=FALSE,
                           allow_unbalanced_panel = TRUE,
                           base_period = "varying")
 
