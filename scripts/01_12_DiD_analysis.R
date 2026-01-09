@@ -121,10 +121,16 @@ for (i in seq_along(yname_vars)) {
 }
 
 # Step 4: Estimate CS models for the gas-only subset
-start_date <- min(overall_weekly$settlement_week)
-start_date <- min(overall_weekly$settlement_week)
+start_date <- min(overall_weekly$settlement_week, na.rm = TRUE)
+
+gas_accounts <- overall_weekly %>%
+  group_by(account_id) %>%
+  summarise(has_gas = any(!is.na(gas_consumption)), .groups = "drop") %>%
+  filter(has_gas) %>%
+  pull(account_id)
+
 did_data <- overall_weekly %>%
-  filter(account_id %in% merged_data$account_id) %>%
+  filter(account_id %in% gas_accounts) %>%
   ungroup() %>%
   mutate(
     week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
@@ -134,7 +140,7 @@ did_data <- overall_weekly %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
   select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
-  filter(week <= 129, firstweek <= 129)  
+  filter(week <= 129, firstweek <= 129)
 
 gas_only_output_filename <- file.path(datapath, "scratch/est_cs_elec_weekly_gas_only.RDS")
 

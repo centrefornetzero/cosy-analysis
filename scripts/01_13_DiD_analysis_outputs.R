@@ -1,8 +1,9 @@
 # Load data 
+print("Check 1")
 elec_color <- hp_color 
 gas_color <- not_hp_color
 
-overall_weekly <- read_rds(file.path(datapath, "/output/gas_weekly.rds"))
+overall_weekly <- read_rds(file.path(datapath, "output/overall_weekly.rds"))
 
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
@@ -98,8 +99,8 @@ create_latex_table <- function(models, headers, title, file, label, pre_treatmen
 
 # Example usage            
 rds_files <- list(
-  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly.RDS"),
-  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly.RDS")
+  Electricity = file.path( "data/scratch/est_cs_elec_weekly.RDS"),
+  Gas = file.path("data/scratch/est_cs_gas_weekly.RDS")
 )
                
 aggte_simple_elec <- aggte(readRDS(rds_files$Electricity), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
@@ -273,9 +274,9 @@ ggsave(file_name, device = "png", width = 8, height = 6, dpi = 300)
 
 # UNIVERSAL BASE robustness checks
 rds_files <- list(
-  Overall =  file.path(datapath, "/scratch/est_cs_total_weekly_robust_universal.RDS"),
-  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly_robust_universal.RDS"),
-  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly_robust_universal.RDS")
+  Overall =  file.path("data/scratch/est_cs_total_weekly_robust_universal.RDS"),
+  Electricity = file.path("data/scratch/est_cs_elec_weekly_robust_universal.RDS"),
+  Gas = file.path("data/scratch/est_cs_gas_weekly_robust_universal.RDS")
 )
 
 # Load the data
@@ -292,11 +293,11 @@ p
 file_name <- "graphs/dynamic_hp_plot_robust_universal_combined.png"
 
 # Save the plot
-ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
+ggsave(file_name, plot = p, width = 10, height = 8, dpi = 300)
 
 
 # Define paths and base filenames for each anticipation period
-output_base_path <- file.path(datapath, "/scratch/")
+output_base_path <- file.path("data/scratch/")
 output_filenames <- c("est_cs_elec_weekly", "est_cs_gas_weekly")
 anticipation_periods <- 0:10  # The range of anticipation periods
 
@@ -360,13 +361,11 @@ ggsave("graphs/HP_anticipation.png")
 
 
 rds_files <- list(
-  Overall =  file.path(datapath, "/scratch/est_cs_total_weekly.RDS"),
-  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly_gas_only.RDS"),
-  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly.RDS")
+  Electricity = file.path("data/scratch/est_cs_elec_weekly_gas_only.RDS"),
+  Gas = file.path("data/scratch/est_cs_gas_weekly.RDS")
 )
 
 # Example usage
-aggte_simple_overall <- aggte(readRDS(rds_files$Overall), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 aggte_simple_elec <- aggte(readRDS(rds_files$Electricity), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 aggte_simple_gas <- aggte(readRDS(rds_files$Gas), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 
@@ -381,22 +380,17 @@ pre_treatment_averages <- as_tibble(
     aggte_simple_gas$DIDparams$data %>%
       ungroup() %>%
       filter(week < firstweek - 1) %>%
-      summarise(gas_consumption = mean(gas_consumption)),
-    
-    aggte_simple_overall$DIDparams$data %>%
-      ungroup() %>%
-      filter(week < firstweek - 1) %>%
-      summarise(total_consumption = mean(total_consumption))
+      summarise(gas_consumption = mean(gas_consumption))
   )
 )
 
 
-models <- list(Electricity = aggte_simple_elec, Gas = aggte_simple_gas, Overall = aggte_simple_overall)
-headers <- c( "Electricity", "Gas", "Overall")
+models <- list(Electricity = aggte_simple_elec, Gas = aggte_simple_gas)
+headers <- c( "Electricity", "Gas")
 title <- "Heat Pump Installation on Yearly Energy Consumption in kWh"
 file <- "tables/hp_did_overall_cs_gas_only.tex"
 label <- "tab:hp-did-cs-gas-only"
-note <- "We show estimates from three CS estimates of the impact of consumption on customers' electricity consumption (column 1), gas consumption (column 2), and overall (electricity plus gas) consumption (column 3). The latter two models' are from a subset of our full sample for customers with gas consumption before their heat pump installation."
+note <- "We show estimates from three CS estimates of the impact of consumption on customers' electricity consumption (column 1), gas consumption (column 2). The latter model is from a subset of our full sample for customers with gas consumption before their heat pump installation."
 
 create_latex_table(models, headers, title, file, label, pre_treatment_averages, note)
 
@@ -504,12 +498,9 @@ m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlemen
             data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
             data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)
-m3 <- feols(total_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)  
-
 
 # Define the main periods
-main_periods <- c("Overall", "Electricity", "Gas")
+main_periods <- c("Electricity", "Gas")
 
 # Initialize variables to store estimates and standard errors
 cs_estimates <- list()
@@ -520,9 +511,8 @@ cs_nT <- list()
 
 # Define paths to the RDS files for CS estimates
 cs_files <- list(
-  Overall = file.path(datapath, "/scratch/est_cs_total_weekly.RDS"),
-  Electricity = file.path(datapath, "/scratch/est_cs_elec_weekly.RDS"),
-  Gas = file.path(datapath, "/scratch/est_cs_gas_weekly.RDS")
+  Electricity = file.path("data/scratch/est_cs_elec_weekly.RDS"),
+  Gas = file.path("data/scratch/est_cs_gas_weekly.RDS")
 )
 
 
@@ -540,10 +530,10 @@ for(period in main_periods) {
 
 
 # Generate the initial LaTeX table with TWFE models
-etable(m1, m2, m3,
-       m1, m2, m3,
-       headers = list(list("TWFE" = 3, "CS" = 3),
-                      list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
+etable(m1, m2,
+       m1, m2, 
+       headers = list(list("TWFE" = 2, "CS" = 2),
+                      list(rep(c("Electricity", "Gas"), times = 2))),
        depvar = FALSE,
        tex=TRUE, title = "HP Installation on Yearly Energy Consumption in kWh",
        fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_overall_detailed.tex", replace = TRUE, label="tab:hp-did-overall-conso-detailed", 
@@ -576,11 +566,9 @@ clear_columns <- function(line) {
 
 # Ensure each replacement maintains the LaTeX table structure
 new_estimates <- c(paste0(cs_estimates[["Electricity"]], "$^{***}$"), 
-                   paste0(cs_estimates[["Gas"]], "$^{***}$"),
-                   paste0(cs_estimates[["Overall"]], "$^{***}$"))
+                   paste0(cs_estimates[["Gas"]], "$^{***}$"))
 new_se <- c(paste0("(", cs_se[["Electricity"]], ")"), 
-            paste0("(", cs_se[["Gas"]], ")"),
-            paste0("(", cs_se[["Overall"]], ")"))
+            paste0("(", cs_se[["Gas"]], ")"))
 
 # Find the rows that need to be updated
 coeff_line <- grep("Is HP Installed \\$=\\$ 1", file_content)
@@ -618,14 +606,14 @@ new_row <- "\\multicolumn{10}{l}{\\emph{Clustered cohort (Week of adoption) stan
 file_content <- append(file_content, new_row, after = clustering_line_index)
 
 # Add new row for "Number of cohorts (CS)"
-new_row <- paste0("Number of cohorts (CS) & & & & ", cs_nG[["Electricity"]], " & ", cs_nG[["Gas"]], " & ", cs_nG[["Overall"]], " \\\\")
+new_row <- paste0("Number of cohorts (CS) & & & & ", cs_nG[["Electricity"]], " & ", cs_nG[["Gas"]], " \\\\")
 file_content <- append(file_content, new_row, after = sample_line)
 
 # Write the modified content back to the LaTeX file
 writeLines(file_content, file_path)
 
 # clean
-rm(m1,m2,m3)
+rm(m1,m2)
                
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
@@ -649,9 +637,6 @@ m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlemen
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
             data = overall_weekly %>% filter(settlement_week < "2024-06-03", 
                                              account_id %in% did_data$account_id), cluster = ~ account_id)
-m3 <- feols(total_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(settlement_week < "2024-06-03", 
-                                             account_id %in% did_data$account_id), cluster = ~ account_id) 
 
 # Initialize variables to store estimates and standard errors
 cs_estimates <- list()
@@ -662,9 +647,8 @@ cs_nT <- list()
 
 # Define paths to the RDS files for CS estimates
 cs_files <- list(
-  Overall = file.path(datapath, "/scratch/est_cs_never_treated_total_weekly.RDS"),
-  Electricity = file.path(datapath, "/scratch/est_cs_never_treated_elec_weekly.RDS"),
-  Gas = file.path(datapath, "/scratch/est_cs_never_treated_gas_weekly.RDS")
+  Electricity = file.path("data/scratch/est_cs_never_treated_elec_weekly.RDS"),
+  Gas = file.path("data/scratch/est_cs_never_treated_gas_weekly.RDS")
 )
 
 
@@ -681,10 +665,10 @@ for(period in main_periods) {
 }
 
 # Generate the initial LaTeX table with TWFE models
-etable(m1, m2, m3, 
-       m1, m2, m3,
-       headers = list(list("TWFE" = 3, "CS" = 3),
-                      list(rep(c("Electricity", "Gas", "Overall"), times = 2))),
+etable(m1, m2, 
+       m1, m2, 
+       headers = list(list("TWFE" = 2, "CS" = 2),
+                      list(rep(c("Electricity", "Gas"), times = 2))),
        depvar = FALSE,
        tex=TRUE, title = "HP Installation on Yearly Energy Consumption in kWh",
        fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_never_treated_detailed.tex", replace = TRUE, label="tab:hp-did-never-treated-conso-detailed", 
@@ -717,11 +701,9 @@ clear_columns <- function(line) {
 
 # Ensure each replacement maintains the LaTeX table structure
 new_estimates <- c(paste0(cs_estimates[["Electricity"]], "$^{***}$"), 
-                   paste0(cs_estimates[["Gas"]], "$^{***}$"),
-                   paste0(cs_estimates[["Overall"]], "$^{***}$"))
+                   paste0(cs_estimates[["Gas"]], "$^{***}$"))
 new_se <- c(paste0("(", cs_se[["Electricity"]], ")"), 
-            paste0("(", cs_se[["Gas"]], ")"),
-            paste0("(", cs_se[["Overall"]], ")"))
+            paste0("(", cs_se[["Gas"]], ")"))
 
 # Find the rows that need to be updated
 coeff_line <- grep("Is HP Installed \\$=\\$ 1", file_content)
@@ -759,7 +741,7 @@ new_row <- "\\multicolumn{10}{l}{\\emph{Clustered cohort (Week of adoption) stan
 file_content <- append(file_content, new_row, after = clustering_line_index)
 
 # Add new row for "Number of cohorts (CS)"
-new_row <- paste0("Number of cohorts (CS) & & & & ", cs_nG[["Electricity"]], " & ", cs_nG[["Gas"]], " & ", cs_nG[["Overall"]], " \\\\")
+new_row <- paste0("Number of cohorts (CS) & & & & ", cs_nG[["Electricity"]], " & ", cs_nG[["Gas"]], " \\\\")
 file_content <- append(file_content, new_row, after = sample_line)
 
 # Write the modified content back to the LaTeX file
