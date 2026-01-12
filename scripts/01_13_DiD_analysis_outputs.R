@@ -1,257 +1,483 @@
-# Load data 
-print("Check 1")
-elec_color <- hp_color 
-gas_color <- not_hp_color
+# ============================================================
+# HP installation: TWFE + Callaway–Sant’Anna (CS) tables + plots
+# Cleaned-up, single script.
+#
+# Key fixes:
+#  - One definition per helper function (no duplicates).
+#  - Robust CS pre-treatment averages (and no dplyr-on-duplicate-names issues).
+#  - Robust LaTeX post-processing: correct column counts for 4-model tables
+#    (label | TWFE Elec | TWFE Gas | CS Elec | CS Gas) = 5 cols total.
+#  - Safer grep patterns (avoid matching the wrong line).
+#  - Checkpoints printed throughout.
+# ============================================================
+
+# ============================================================
+# 0) Small utilities
+# ============================================================
+
+checkpoint <- function(msg) cat(paste0(">>> ", msg, " <<<\n"))
+
+format_decimal <- function(x, digits = 1) formatC(x, format = "f", digits = digits, big.mark = ",")
+format_number  <- function(x) formatC(x, format = "d", big.mark = ",")
+
+confidence_star <- function(coef, se, alpha) {
+  ci_lower <- coef - qnorm(1 - alpha / 2) * se
+  ci_upper <- coef + qnorm(1 - alpha / 2) * se
+  if (ci_lower > 0 | ci_upper < 0) "***" else ""
+}
+
+# Make DIDparams$data dplyr-safe (removes duplicate column names like duplicate "id")
+clean_didparams_data <- function(x) {
+  # x is often a data.table; remove duplicated names using data.table semantics if available
+  nms <- names(x)
+  if (anyDuplicated(nms)) {
+    # data.table subset syntax works if x is data.table; if not, fallback to base
+    if ("data.table" %in% class(x)) {
+      x <- x[, nms[!duplicated(nms)], with = FALSE]
+    } else {
+      x <- x[, !duplicated(nms), drop = FALSE]
+    }
+  }
+  as.data.frame(x)
+}
+
+# Compute pre-treatment average safely from an aggte_simple object
+# outcome_col must exist in DIDparams$data (e.g., "elec_consumption" / "gas_consumption" / "consumption_hh")
+pre_avg_from_aggte <- function(aggte_simple, outcome_col) {
+  dat <- clean_didparams_data(aggte_simple$DIDparams$data)
+  stopifnot(outcome_col %in% names(dat))
+  dat %>%
+    filter(week < firstweek - 1) %>%
+    summarise(pre_avg = mean(.data[[outcome_col]], na.rm = TRUE)) %>%
+    pull(pre_avg)
+}
+
+# ============================================================
+# 1) LaTeX table creator for CS-only (2-column: Electricity / Gas)
+# ============================================================
+create_latex_table_cs <- function(models, headers, title, file, label,
+                                  pre_treatment_values,
+                                  note = "",
+                                  digits = 1,
+                                  variable_label = "Is HP Installed $=$ 1",
+                                  pretreat_row_label = "Yearly Consumption",
+                                  estimation_method = "Doubly Robust",
+                                  control_group = "Not Yet Treated",
+                                  anticipation = 1) {
+
+  stopifnot(length(headers) == length(models))
+  stopifnot(length(pre_treatment_values) == length(models))
+
+  # --- Coefs + stars ---
+  coefficients <- sapply(models, function(m) {
+    coef  <- m$overall.att
+    se    <- m$overall.se
+    alpha <- m$DIDparams$alp
+    paste0(format_decimal(coef, digits), confidence_star(coef, se, alpha))
+  })
+
+  # --- SEs ---
+  standard_errors <- sapply(models, function(m) {
+    paste0("(", format_decimal(m$overall.se, digits), ")")
+  })
+
+  # --- Fit stats (use the fields that actually exist in your objects) ---
+    get_did_stat <- function(m, stat) {
+    dp <- m$DIDparams
+
+    # new names
+    if (stat == "n_households") {
+    if (!is.null(dp$id_count)) return(dp$id_count)
+    if (!is.null(dp$n))       return(dp$n)      # old
+    }
+
+    if (stat == "nG") {
+    if (!is.null(dp$treated_groups_count)) return(dp$treated_groups_count)
+    if (!is.null(dp$nG))                   return(dp$nG)  # old
+    }
+
+    if (stat == "nT") {
+    if (!is.null(dp$time_periods_count)) return(dp$time_periods_count)
+    if (!is.null(dp$nT))                 return(dp$nT)   # old
+    }
+
+    NA
+    }
+    n_households <- sapply(models, function(m) format_number(get_did_stat(m, "n_households")))
+    nG           <- sapply(models, function(m) format_number(get_did_stat(m, "nG")))
+    nT           <- sapply(models, function(m) format_number(get_did_stat(m, "nT")))
+
+  # if anything came back empty, fail loudly instead of writing character(0)
+  if (any(nchar(n_households) == 0) || any(nchar(nG) == 0) || any(nchar(nT) == 0)) {
+    stop("Some fit statistics are empty. Check DIDparams fields in your aggte objects.")
+  }
+
+  alpha <- models[[1]]$DIDparams$alp
+  conf_level <- (1 - alpha) * 100
+
+  pretreat_fmt <- sapply(pre_treatment_values, function(x) format_decimal(x, digits))
+
+  k <- length(headers)
+
+  # --- Build LaTeX with SINGLE backslashes (do NOT double-escape here) ---
+  latex <- "\\begin{table}[htbp]\n"
+  latex <- paste0(latex, "   \\caption{\\label{", label, "} ", title, "}\n")
+
+  if (note != "") {
+    latex <- paste0(
+      latex,
+      "   \\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} ",
+      note,
+      "}\n"
+    )
+  }
+
+  latex <- paste0(latex, "   \\centering\n")
+  latex <- paste0(latex, "   \\begin{tabular}{l", paste(rep("c", k), collapse = ""), "}\n")
+  latex <- paste0(latex, "      \\tabularnewline \\midrule \\midrule\n")
+  latex <- paste0(latex, "                                     & ", paste(headers, collapse = " & "), " \\\\\n")
+  latex <- paste0(latex, "      Model:                         & ",
+                  paste(paste0("(", seq_len(k), ")"), collapse = " & "), " \\\\\n")
+  latex <- paste0(latex, "      \\midrule\n")
+  latex <- paste0(latex, "      \\emph{Variable}\\\\\n")
+  latex <- paste0(latex, "      ", variable_label, " & ", paste(coefficients, collapse = " & "), " \\\\\n")
+  latex <- paste0(latex, "                                     & ", paste(standard_errors, collapse = " & "), " \\\\\n")
+  latex <- paste0(latex, "      \\midrule\n")
+  latex <- paste0(latex, "      \\emph{Pre-treatment Average}\\\\\n")
+  latex <- paste0(latex, "      ", pretreat_row_label, " & ", paste(pretreat_fmt, collapse = " & "), " \\\\\n")
+  latex <- paste0(latex, "      \\midrule\n")
+  latex <- paste0(latex, "      \\emph{Fit statistics}\\\\\n")
+  latex <- paste0(latex, "      Number of Households & ", paste(n_households, collapse = " & "), " \\\\\n")
+  latex <- paste0(latex, "      Number of Cohorts & ", paste(nG, collapse = " & "), " \\\\\n")
+  latex <- paste0(latex, "      Number of Time Periods & ", paste(nT, collapse = " & "), " \\\\\n")
+  latex <- paste0(latex, "      \\midrule \\midrule\n")
+  latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Clustered (Household) standard-errors in parentheses}\\\\\n")
+  latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Estimation Method: ", estimation_method, "}\\\\\n")
+  latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Control Group: ", control_group,
+                  ", Anticipation Periods: ", anticipation, "}\\\\\n")
+  latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Signif. Codes: *** ",
+                  conf_level, "\\% confidence band does not cover 0}\\\\\n")
+  latex <- paste0(latex, "   \\end{tabular}\n")
+  latex <- paste0(latex, "\\end{table}\n")
+
+  writeLines(latex, file)
+}
+# ============================================================
+# 2) LaTeX patcher for TWFE+CS combined table produced by fixest::etable
+#    Works for EXACT structure: m1,m2,m1,m2  => 4 models => 5 columns total
+# ============================================================
+
+patch_etable_twfe_cs <- function(file_path,
+                                cs_estimates, cs_se, cs_n, cs_nG, cs_nT,
+                                coef_pattern = "Is HP Installed \\$=\\$ 1") {
+
+  checkpoint(paste0("Patching LaTeX table: ", file_path))
+  file_content <- readLines(file_path)
+
+  # overwrite CS columns ONLY: parts[4]=CS Elec, parts[5]=CS Gas
+  replace_cs_cols <- function(line, new_values) {
+    parts <- strsplit(line, "&")[[1]]
+    if (length(parts) < 5) return(line)
+    stopifnot(length(new_values) == 2)
+    parts[4] <- str_trim(new_values[[1]])
+    parts[5] <- str_trim(new_values[[2]])
+    paste(parts, collapse = " & ")
+  }
+  clear_cs_cols <- function(line) {
+    parts <- strsplit(line, "&")[[1]]
+    if (length(parts) < 5) return(line)
+    parts[4] <- ""
+    parts[5] <- ""
+    paste(parts, collapse = " & ")
+  }
+
+  # Construct coefficient/se strings (assumes stars always *** here; adapt if needed)
+  new_estimates <- c(paste0(cs_estimates[["Electricity"]], "$^{***}$"),
+                     paste0(cs_estimates[["Gas"]], "$^{***}$"))
+  new_se <- c(paste0("(", cs_se[["Electricity"]], ")"),
+              paste0("(", cs_se[["Gas"]], ")"))
+
+  # Safer row targeting
+  coeff_line   <- grep(coef_pattern, file_content)
+  se_line      <- coeff_line + 1
+
+  obs_line     <- grep("^\\s*Observations\\s*&", file_content)
+  sample_line  <- grep("^\\s*Number of Households\\s*&|Size of the 'effective' sample", file_content)
+  periods_line <- grep("^\\s*Number of Time Periods\\s*&", file_content)
+
+  hdd_line     <- grep("^\\s*HDD\\s*&", file_content)
+  hh_line      <- grep("^\\s*Household\\s*&", file_content)
+  week_line    <- grep("^\\s*Week\\s*&", file_content)
+  r2_line      <- grep("^\\s*R\\$\\^2\\$\\s*&", file_content)
+
+  # Replace CS columns in key rows
+  if (length(sample_line) > 0) {
+    file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
+    file_content[sample_line] <- paste0(
+      replace_cs_cols(file_content[sample_line], c(cs_n[["Electricity"]], cs_n[["Gas"]])),
+      " \\\\"
+    )
+  }
+
+  if (length(coeff_line) > 0) {
+    file_content[coeff_line] <- paste0(replace_cs_cols(file_content[coeff_line], new_estimates), " \\\\")
+    file_content[se_line]    <- paste0(replace_cs_cols(file_content[se_line],    new_se),       " \\\\")
+  }
+
+  if (length(periods_line) > 0) {
+    file_content[periods_line] <- paste0(
+      replace_cs_cols(file_content[periods_line], c(cs_nT[["Electricity"]], cs_nT[["Gas"]])),
+      " \\\\"
+    )
+  }
+
+  # Clear CS columns where TWFE-only info is shown
+  if (length(obs_line)  > 0) file_content[obs_line]  <- paste0(clear_cs_cols(file_content[obs_line]),  " \\\\")
+  if (length(hdd_line)  > 0) file_content[hdd_line]  <- paste0(clear_cs_cols(file_content[hdd_line]),  " \\\\")
+  if (length(hh_line)   > 0) file_content[hh_line]   <- paste0(clear_cs_cols(file_content[hh_line]),   " \\\\")
+  if (length(week_line) > 0) file_content[week_line] <- paste0(clear_cs_cols(file_content[week_line]), " \\\\")
+  if (length(r2_line)   > 0) file_content[r2_line]   <- paste0(clear_cs_cols(file_content[r2_line]),   " \\\\")
+
+  # Clustering line must match 5 columns
+  clustering_line_index <- grep("Clustered \\(Household\\)", file_content)
+  if (length(clustering_line_index) > 0) {
+    file_content[clustering_line_index] <- "\\multicolumn{5}{l}{\\emph{Clustered (Household) standard-errors in parentheses}}\\\\"
+  }
+
+  # Add "Number of cohorts (CS)" row (5-column compliant)
+  if (length(sample_line) > 0) {
+    new_row <- paste0("Number of cohorts (CS) &  &  & ",
+                      cs_nG[["Electricity"]], " & ", cs_nG[["Gas"]], " \\\\")
+    file_content <- append(file_content, new_row, after = sample_line[1])
+  }
+
+  writeLines(file_content, file_path)
+  checkpoint("LaTeX patch applied")
+}
+
+# ============================================================
+# 3) Plot helpers
+# ============================================================
+
+create_dynamic_plot <- function(elec_data, gas_data, elec_color, gas_color) {
+  plot_data <- data.frame(
+    event_time = c(elec_data$egt, gas_data$egt),
+    coefficient = c(elec_data$att.egt / 52.25, gas_data$att.egt / 52.25),
+    se = c(elec_data$se.egt / 52.25, gas_data$se.egt / 52.25),
+    type = rep(c("Electricity", "Gas"), each = length(elec_data$egt))
+  ) %>%
+    mutate(
+      lower_ci = coefficient - 1.96 * se,
+      upper_ci = coefficient + 1.96 * se
+    )
+
+  ggplot(plot_data, aes(x = event_time, y = coefficient, group = type)) +
+    geom_line(aes(color = type)) +
+    geom_point(aes(color = type, shape = type), size = 3) +
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci, color = type), width = 0.2, alpha = 0.6) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    scale_colour_manual(
+      name = "Type",
+      labels = c("Electricity", "Gas"),
+      values = c(Electricity = elec_color, Gas = gas_color)
+    ) +
+    scale_shape_manual(
+      name = "Type",
+      labels = c("Electricity", "Gas"),
+      values = c(16, 17)
+    ) +
+    labs(
+      x = "Weeks since installation",
+      y = "Dynamic ATT for Weekly Consumption (kWh)"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+}
+
+create_calendar_plot_data <- function(start_date, elec_data, gas_data) {
+  elec <- data.frame(
+    week_date = start_date + weeks(elec_data$egt),
+    estimate  = elec_data$att.egt / 52.25,
+    se        = elec_data$se.egt / 52.25,
+    type      = "Electricity"
+  )
+  gas <- data.frame(
+    week_date = start_date + weeks(gas_data$egt),
+    estimate  = gas_data$att.egt / 52.25,
+    se        = gas_data$se.egt / 52.25,
+    type      = "Gas"
+  )
+  bind_rows(elec, gas) %>%
+    mutate(
+      lower_ci = estimate - 1.96 * se,
+      upper_ci = estimate + 1.96 * se
+    )
+}
+
+# ============================================================
+# 4) Load data + set colors
+# ============================================================
+
+checkpoint("Load data + setup")
+
+# Define your colors (assumes hp_color/not_hp_color exist in your environment)
+elec_color <- hp_color
+gas_color  <- not_hp_color
 
 overall_weekly <- read_rds(file.path(datapath, "output/overall_weekly.rds"))
 
-# Create CS main results 
+# Build DID data index (used for filtering)
 start_date <- min(overall_weekly$settlement_week)
-did_data <- 
-  overall_weekly %>%
+
+did_data <- overall_weekly %>%
   ungroup() %>%
   mutate(
-    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    week      = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
     firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
   ) %>%
   group_by(account_id) %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
-  filter(week <= 129, firstweek <= 129) 
+  filter(week <= 129, firstweek <= 129)
 
+checkpoint("DID index built")
 
-# Function to format numbers with thousands separator
-format_decimal <- function(x, digits) {
-  formatC(x, format = "f", digits = digits, big.mark = ",")
-}
+# ============================================================
+# 5) CS simple tables (full vs gas-only) — build once, reuse helpers
+# ============================================================
 
-format_number <- function(x) {
-  formatC(x, format = "d", big.mark = ",")
-}
+checkpoint("CS simple: load RDS + build CS-only table")
 
-# Function to check if the confidence interval contains zero
-confidence_star <- function(coefficient, se, alpha) {
-  ci_lower <- coefficient - qnorm(1 - alpha / 2) * se
-  ci_upper <- coefficient + qnorm(1 - alpha / 2) * se
-  if (ci_lower > 0 | ci_upper < 0) {
-    return("***")
-  } else {
-    return("")
-  }
-}
-
-# Function to create LaTeX table
-create_latex_table <- function(models, headers, title, file, label, pre_treatment_averages, note) {
-  # Extract data from models
-  coefficients <- sapply(models, function(model) {
-    coef <- model$overall.att
-    se <- model$overall.se
-    alpha <- model$DIDparams$alp
-    paste0(format_decimal(coef, 1), confidence_star(coef, se, alpha))
-  })
-  standard_errors <- sapply(models, function(model) paste0("(", format_decimal(model$overall.se, 1), ")"))
-  observations <- sapply(models, function(model) format_number(model$DIDparams$n))
-  nG <- sapply(models, function(model) format_number(model$DIDparams$nG))
-  nT <- sapply(models, function(model) format_number(model$DIDparams$nT))
-  alpha <- models[[1]]$DIDparams$alp
-  conf_level <- (1 - alpha) * 100
-  
-  # Pre-treatment averages
-  pre_treatment_averages <- pre_treatment_averages %>%
-    summarise_all(mean)
-  pre_treatment_values <- c(
-    format_decimal(pre_treatment_averages$elec_consumption, 1),
-    format_decimal(pre_treatment_averages$gas_consumption, 1))
-  
-  # Begin LaTeX table
-  latex_table <- "\\begin{table}[htbp]\n"
-  latex_table <- paste0(latex_table, "   \\caption{\\label{", label, "} ", title, "}\n")
-  latex_table <- paste0(latex_table, "   \\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:}", note, "}\n")            
-  latex_table <- paste0(latex_table, "   \\centering\n")
-  latex_table <- paste0(latex_table, "   \\begin{tabular}{l", paste(rep("c", length(headers)), collapse = ""), "}\n")
-  latex_table <- paste0(latex_table, "      \\tabularnewline \\midrule \\midrule\n")
-  latex_table <- paste0(latex_table, "                                     & ", paste(headers, collapse = "     & "), " \\\\   \n")
-  latex_table <- paste0(latex_table, "      Model:                         & ", paste(paste0("(", 1:length(headers), ")"), collapse = "              & "), "\\\\  \n")
-  latex_table <- paste0(latex_table, "      \\midrule\n")
-  latex_table <- paste0(latex_table, "      \\emph{Variable}\\\\\n")
-  latex_table <- paste0(latex_table, "      Is HP Installed $=$ 1          & ", paste(coefficients, collapse = " & "), "\\\\   \n")
-  latex_table <- paste0(latex_table, "                                     & ", paste(standard_errors, collapse = "         & "), "\\\\   \n")
-  latex_table <- paste0(latex_table, "      \\midrule\n")
-  latex_table <- paste0(latex_table, "      \\emph{Pre-treatment Average}\\\\\n")
-  latex_table <- paste0(latex_table, "      Yearly Consumption              & ", pre_treatment_values[1], " & ", pre_treatment_values[2], "\\\\   \n")
-  latex_table <- paste0(latex_table, "      \\midrule\n")
-  latex_table <- paste0(latex_table, "      \\emph{Fit statistics}\\\\\n")
-  latex_table <- paste0(latex_table, "      Number of Households                   & ", paste(observations, collapse = "           & "), "\\\\  \n")
-  latex_table <- paste0(latex_table, "      Number of Cohorts              & ", paste(nG, collapse = "              & "), "\\\\  \n")
-  latex_table <- paste0(latex_table, "      Number of Time Periods         & ", paste(nT, collapse = "             & "), "\\\\  \n")
-  latex_table <- paste0(latex_table, "      \\midrule \\midrule\n")
-  latex_table <- paste0(latex_table, "      \\multicolumn{", length(headers) + 1, "}{l}{Clustered (Household) standard-errors in parentheses}\\\\\n")
-  latex_table <- paste0(latex_table, "      \\multicolumn{", length(headers) + 1, "}{l}{Estimation Method: Doubly Robust}\\\\\n")
-  latex_table <- paste0(latex_table, "      \\multicolumn{", length(headers) + 1, "}{l}{Control Group: Not Yet Treated, Anticipation Periods: 1}\\\\\n")
-  latex_table <- paste0(latex_table, "      \\multicolumn{", length(headers) + 1, "}{l}{Signif. Codes: *** ", conf_level, "\\% confidence band does not cover 0}\\\\\n")
-  latex_table <- paste0(latex_table, "   \\end{tabular}\n")
-  latex_table <- paste0(latex_table, "\\end{table}\n")
-  
-  # Write to file
-  writeLines(latex_table, file)
-}
-
-
-# Example usage            
-rds_files <- list(
-  Electricity = file.path( "data/scratch/est_cs_elec_weekly.RDS"),
-  Gas = file.path("data/scratch/est_cs_gas_weekly.RDS")
-)
-               
-aggte_simple_elec <- aggte(readRDS(rds_files$Electricity), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
-aggte_simple_gas <- aggte(readRDS(rds_files$Gas), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
-
-# Pre treatment average
-pre_treatment_averages <- as_tibble(
-  bind_cols(
-    aggte_simple_elec$DIDparams$data %>%
-      ungroup() %>%
-      filter(week < firstweek - 1) %>%
-      summarise(elec_consumption = mean(elec_consumption)),
-    
-    aggte_simple_gas$DIDparams$data %>%
-      ungroup() %>%
-      filter(week < firstweek - 1) %>%
-      summarise(gas_consumption = mean(gas_consumption))
-  )
+# ---- CS files (FULL sample) ----
+cs_files_full <- list(
+  Electricity = file.path("data/scratch/est_cs_elec_weekly.RDS"),
+  Gas         = file.path("data/scratch/est_cs_gas_weekly.RDS")
 )
 
+aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple",
+                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+aggte_simple_gas  <- aggte(readRDS(cs_files_full$Gas), type = "simple",
+                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 
-models <- list(Electricity = aggte_simple_elec, Gas = aggte_simple_gas)
-headers <- c( "Electricity", "Gas")
-title <- "Heat Pump Installation on Yearly Energy Consumption in kWh"
-file <- "tables/hp_did_overall_cs.tex"
-label <- "tab:hp-did-cs"
-note <- "We show estimates from three CS estimates of the impact of consumption on customers' electricity consumption (column 1), gas consumption (column 2). The latter model is from a subset of our full sample for customers with gas consumption before their heat pump installation."
+# Pre-treatment means (use DIDparams$data safely)
+pre_elec <- pre_avg_from_aggte(aggte_simple_elec, "elec_consumption")
+pre_gas  <- pre_avg_from_aggte(aggte_simple_gas,  "gas_consumption")
 
-create_latex_table(models, headers, title, file, label, pre_treatment_averages, note)
+models_cs_full  <- list(Electricity = aggte_simple_elec, Gas = aggte_simple_gas)
+headers_cs      <- c("Electricity", "Gas")
+title_cs_full   <- "Heat Pump Installation Effects on Yearly Energy Consumption (kWh)"
+file_cs_full    <- "tables/hp_did_overall_cs.tex"
+label_cs_full   <- "tab:hp-did-cs"
 
+note_cs_full <- paste(
+  "This table reports CS estimates",
+  "of the impact of heat pump installation on households\u2019 yearly electricity consumption (column 1)",
+  "and gas consumption (column 2).",
+  sep = " "
+)
 
-# Function to create the ggplot for each period
-create_ggplot <- function(elec_data, gas_data) {
-  # Extract coefficients, standard errors, and event time for electricity
-  elec_coefficients <- elec_data$att.egt/52.25
-  elec_standard_errors <- elec_data$se.egt/52.25
-  elec_event_time <- elec_data$egt
-  
-  # Extract coefficients, standard errors, and event time for gas
-  gas_coefficients <- gas_data$att.egt/52.25
-  gas_standard_errors <- gas_data$se.egt/52.25
-  gas_event_time <- gas_data$egt
-  
-  # Create a data frame for plotting
-  plot_data <- data.frame(
-    event_time = c(elec_event_time, gas_event_time),
-    coefficient = c(elec_coefficients, gas_coefficients),
-    lower_ci = c(elec_coefficients - 1.96 * elec_standard_errors, gas_coefficients - 1.96 * gas_standard_errors),
-    upper_ci = c(elec_coefficients + 1.96 * elec_standard_errors, gas_coefficients + 1.96 * gas_standard_errors),
-    type = rep(c("Electricity", "Gas"), each = length(elec_event_time))
-  )
-  
-  # Create the ggplot
-  p <- ggplot(plot_data, aes(x = event_time, y = coefficient, group = type)) +
-    geom_line(aes(color = type)) +
-    geom_point(aes(color = type, shape = type), size = 3) +
-    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci, color = type), width = 0.2, alpha = 0.6) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
-    scale_x_continuous(breaks = seq(floor(min(plot_data$event_time) / 10) * 10, ceiling(max(plot_data$event_time) / 10) * 10, 10)) +
-    scale_colour_manual(name = "Type",
-                        labels = c("Electricity", "Gas"),
-                        values = c(Electricity = elec_color, Gas = gas_color)) +   
-    scale_shape_manual(name = "Type",
-                       labels =  c("Electricity", "Gas"),
-                       values = c(16, 17)) + 
-    labs(
-      x = "Weeks since adoption",
-      y = "Dynamic ATT for Weekly Consumption (kWh)"
-    ) +
-    theme_minimal() +
-    theme(legend.position = "bottom")  # Move the legend to the bottom
-  
-  
-  return(p)
-}
+create_latex_table_cs(
+  models = models_cs_full,
+  headers = headers_cs,
+  title = title_cs_full,
+  file = file_cs_full,
+  label = label_cs_full,
+  pre_treatment_values = c(pre_elec, pre_gas),
+  note = note_cs_full,
+  digits = 1,
+  variable_label = "Is HP Installed $=$ 1",
+  pretreat_row_label = "Yearly Consumption"
+)
 
-# Load the data
-elec_data <- aggte(readRDS(rds_files$Electricity), type = "dynamic",
-                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
-gas_data <- aggte(readRDS(rds_files$Gas), type = "dynamic",
+checkpoint("Saved tables/hp_did_overall_cs.tex")
+
+# ---- CS files (GAS-ONLY electricity + gas) ----
+checkpoint("CS simple: gas-only subsample table")
+
+cs_files_gas_only <- list(
+  Electricity = file.path("data/scratch/est_cs_elec_weekly_gas_only.RDS"),
+  Gas         = file.path("data/scratch/est_cs_gas_weekly.RDS")
+)
+
+aggte_simple_elec_gasonly <- aggte(readRDS(cs_files_gas_only$Electricity), type = "simple",
+                                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+aggte_simple_gas_gasonly  <- aggte(readRDS(cs_files_gas_only$Gas), type = "simple",
+                                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+
+pre_elec_gasonly <- pre_avg_from_aggte(aggte_simple_elec_gasonly, "elec_consumption")
+pre_gas_gasonly  <- pre_avg_from_aggte(aggte_simple_gas_gasonly,  "gas_consumption")
+
+models_cs_gasonly <- list(Electricity = aggte_simple_elec_gasonly, Gas = aggte_simple_gas_gasonly)
+title_cs_gasonly  <- "Heat Pump Installation Effects on Yearly Energy Consumption (Gas-Metered Households)"
+file_cs_gasonly   <- "tables/hp_did_overall_cs_gas_only.tex"
+label_cs_gasonly  <- "tab:hp-did-cs-gas-only"
+
+note_cs_gasonly <- paste(
+  "This table reports CS estimates of the impact of heat pump installation on yearly electricity (column 1)",
+  "and gas consumption (column 2). Both models are estimated on the subsample of households with observed",
+  "gas consumption prior to installation, and therefore use a smaller sample than the full electricity-only analysis.",
+  sep = " "
+)
+
+create_latex_table_cs(
+  models = models_cs_gasonly,
+  headers = headers_cs,
+  title = title_cs_gasonly,
+  file = file_cs_gasonly,
+  label = label_cs_gasonly,
+  pre_treatment_values = c(pre_elec_gasonly, pre_gas_gasonly),
+  note = note_cs_gasonly,
+  digits = 1,
+  variable_label = "Is HP Installed $=$ 1",
+  pretreat_row_label = "Yearly Consumption"
+)
+
+checkpoint("Saved tables/hp_did_overall_cs_gas_only.tex")
+
+# ============================================================
+# 6) Dynamic plot (CS)
+# ============================================================
+
+checkpoint("Dynamic CS plot (electricity + gas)")
+
+elec_dyn <- aggte(readRDS(cs_files_full$Electricity), type = "dynamic",
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
+gas_dyn  <- aggte(readRDS(cs_files_full$Gas), type = "dynamic",
                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
 
-# Create the plot
-p <- create_ggplot(elec_data, gas_data)
-p
+p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color)
+ggsave("graphs/dynamic_hp_plot_combined.png", plot = p_dyn, width = 10, height = 8, dpi = 300)
+checkpoint("Saved graphs/dynamic_hp_plot_combined.png")
 
-# Define the filename
-file_name <- "graphs/dynamic_hp_plot_combined.png"
+# ============================================================
+# 7) Calendar plot (CS)
+# ============================================================
 
-# Save the plot
-ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
+checkpoint("Calendar CS plot (electricity + gas)")
 
-# define the start date
-start_date <- min(overall_weekly$settlement_week)
+elec_cal <- aggte(readRDS(cs_files_full$Electricity), type = "calendar",
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE)
+gas_cal  <- aggte(readRDS(cs_files_full$Gas), type = "calendar",
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE)
 
-# Load the data
-elec_data <- aggte(readRDS(rds_files$Electricity), type = "calendar", na.rm = TRUE, clustervars = "id", bstrap = TRUE)
-gas_data <- aggte(readRDS(rds_files$Gas), type = "calendar", na.rm = TRUE, clustervars = "id", bstrap = TRUE)
+plot_cal_data <- create_calendar_plot_data(start_date, elec_cal, gas_cal)
 
-# Create the combined plot
-# Extract estimates, standard errors, and event time for electricity
-elec_estimates <- elec_data$att.egt/52.25
-elec_standard_errors <- elec_data$se.egt/52.25
-elec_event_time <- elec_data$egt
-
-# Extract estimates, standard errors, and event time for gas
-gas_estimates <- gas_data$att.egt/52.25
-gas_standard_errors <- gas_data$se.egt/52.25
-gas_event_time <- gas_data$egt
-
-# Calculate the week dates based on the start_date
-elec_week_dates <- start_date + weeks(elec_event_time)
-gas_week_dates <- start_date + weeks(gas_event_time)
-
-# Align the lengths of the data
-max_length <- max(length(elec_estimates), length(gas_estimates))
-
-elec_estimates <- c(elec_estimates, rep(NA, max_length - length(elec_estimates)))
-elec_standard_errors <- c(elec_standard_errors, rep(NA, max_length - length(elec_standard_errors)))
-elec_week_dates <- c(elec_week_dates, rep(NA, max_length - length(elec_week_dates)))
-
-gas_estimates <- c(gas_estimates, rep(NA, max_length - length(gas_estimates)))
-gas_standard_errors <- c(gas_standard_errors, rep(NA, max_length - length(gas_standard_errors)))
-gas_week_dates <- c(gas_week_dates, rep(NA, max_length - length(gas_week_dates)))
-
-# Create a data frame for plotting
-plot_data <- data.frame(
-  week_date = c(elec_week_dates, gas_week_dates),
-  estimate = c(elec_estimates, gas_estimates),
-  lower_ci = c(elec_estimates - 1.96 * elec_standard_errors, gas_estimates - 1.96 * gas_standard_errors),
-  upper_ci = c(elec_estimates + 1.96 * elec_standard_errors, gas_estimates + 1.96 * gas_standard_errors),
-  type = rep(c("Electricity", "Gas"), each = max_length)
-)
-
-
-# Create the ggplot for combined effect
-ggplot(plot_data, aes(x = as.Date(week_date), y = estimate, color = type)) +
-  geom_point(aes(shape = type), size = 3) +  # Different shapes for Electricity and Gas
+p_cal <- ggplot(plot_cal_data, aes(x = as.Date(week_date), y = estimate, color = type)) +
+  geom_point(aes(shape = type), size = 3) +
   geom_line() +
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
-  scale_x_date(
-    labels = scales::date_format("%b %y"),  # Formatting months and years
-    date_breaks = "3 month"  # Adjust this based on your data density
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  scale_x_date(labels = scales::date_format("%b %y"), date_breaks = "3 month") +
+  scale_colour_manual(
+    name = "Type",
+    labels = c("Electricity", "Gas"),
+    values = c(Electricity = elec_color, Gas = gas_color)
   ) +
-  scale_colour_manual(name = "Type",
-                      labels = c("Electricity", "Gas"),
-                      values = c(Electricity = elec_color, Gas = gas_color)) +   
-  scale_shape_manual(name = "Type",
-                     labels =  c("Electricity", "Gas"),
-                     values = c(16, 17)) + 
+  scale_shape_manual(
+    name = "Type",
+    labels = c("Electricity", "Gas"),
+    values = c(16, 17)
+  ) +
   labs(
     x = "Week",
     y = "Calendar ATT for Weekly Consumption (kWh)",
@@ -259,203 +485,25 @@ ggplot(plot_data, aes(x = as.Date(week_date), y = estimate, color = type)) +
     shape = "Type"
   ) +
   theme_minimal() +
-  theme(legend.position = "bottom") + # Move the legend to the bottom
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+  theme(legend.position = "bottom") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-# Define the filename
-file_name <- "graphs/hp_calendarplot_combined.png"
+write.csv(plot_cal_data, file.path(datapath, "output/hp_calendarplot_combined.csv"), row.names = FALSE)
+ggsave("graphs/hp_calendarplot_combined.png", plot = p_cal, width = 8, height = 6, dpi = 300)
+checkpoint("Saved graphs/hp_calendarplot_combined.png and output/hp_calendarplot_combined.csv")
 
-# Save plot data to CSV
-write.csv(plot_data, file.path(datapath, "/output/hp_calendarplot_combined.csv"), row.names = FALSE)
+# ============================================================
+# 8) TWFE models + combined TWFE/CS LaTeX table (patched)
+# ============================================================
 
-# Save the plot
-ggsave(file_name, device = "png", width = 8, height = 6, dpi = 300)
+checkpoint("TWFE models + TWFE/CS combined LaTeX table")
 
-
-# UNIVERSAL BASE robustness checks
-rds_files <- list(
-  Overall =  file.path("data/scratch/est_cs_total_weekly_robust_universal.RDS"),
-  Electricity = file.path("data/scratch/est_cs_elec_weekly_robust_universal.RDS"),
-  Gas = file.path("data/scratch/est_cs_gas_weekly_robust_universal.RDS")
-)
-
-# Load the data
-elec_data <- aggte(readRDS(rds_files$Electricity), type = "dynamic",
-                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
-gas_data <- aggte(readRDS(rds_files$Gas), type = "dynamic",
-                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
-
-# Create the plot
-p <- create_ggplot(elec_data, gas_data)
-p
-
-# Define the filename
-file_name <- "graphs/dynamic_hp_plot_robust_universal_combined.png"
-
-# Save the plot
-ggsave(file_name, plot = p, width = 10, height = 8, dpi = 300)
-
-
-# Define paths and base filenames for each anticipation period
-output_base_path <- file.path("data/scratch/")
-output_filenames <- c("est_cs_elec_weekly", "est_cs_gas_weekly")
-anticipation_periods <- 0:10  # The range of anticipation periods
-
-# Define a function to process each anticipation week
-process_week <- function(anticipation_week) {
-  # File paths
-  elec_file <- paste0(output_base_path, output_filenames[1], "_anticipation_", anticipation_week, ".RDS")
-  gas_file  <- paste0(output_base_path, output_filenames[2], "_anticipation_", anticipation_week, ".RDS")
-  
-  # Read and calculate aggregate estimates
-  elec_agg <- aggte(readRDS(elec_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
-  gas_agg  <- aggte(readRDS(gas_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
-  
-  # Create data frames for each type
-  df_elec <- data.frame(
-    anticipation_week = anticipation_week,
-    estimate = elec_agg$overall.att ,
-    lower_ci = elec_agg$overall.att  - 1.96 * elec_agg$overall.se,
-    upper_ci = elec_agg$overall.att  + 1.96 * elec_agg$overall.se,
-    type = "Electricity"
-  )
-  
-  df_gas <- data.frame(
-    anticipation_week = anticipation_week,
-    estimate = gas_agg$overall.att ,
-    lower_ci = gas_agg$overall.att  - 1.96 * gas_agg$overall.se,
-    upper_ci = gas_agg$overall.att  + 1.96 * gas_agg$overall.se,
-    type = "Gas"
-  )
-  
-  list(df_elec, df_gas)
-}
-
-# Apply the function over anticipation weeks and combine results
-results_list <- lapply(anticipation_periods, process_week)
-
-# Flatten the list and bind rows into one data frame
-plot_data <- do.call(rbind, unlist(results_list, recursive = FALSE))
-
-
-# Plotting the results with confidence intervals
-ggplot(plot_data, aes(x = anticipation_week, y = estimate, color = type, fill = type)) +
-  geom_line() +
-  geom_point() +
-  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.2) +
-  scale_color_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
-  scale_fill_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
-  labs(
-    title = "Anticipation Period Estimates for Electricity and Gas",
-    x = "Anticipation Week",
-    y = "Estimate",
-    color = "Type",
-    fill = "Type"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "bottom")
-
-ggsave("graphs/HP_anticipation.png")
-
-
-
-
-rds_files <- list(
-  Electricity = file.path("data/scratch/est_cs_elec_weekly_gas_only.RDS"),
-  Gas = file.path("data/scratch/est_cs_gas_weekly.RDS")
-)
-
-# Example usage
-aggte_simple_elec <- aggte(readRDS(rds_files$Electricity), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
-aggte_simple_gas <- aggte(readRDS(rds_files$Gas), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
-
-# Pre treatment average
-pre_treatment_averages <- as_tibble(
-  bind_cols(
-    aggte_simple_elec$DIDparams$data %>%
-      ungroup() %>%
-      filter(week < firstweek - 1) %>%
-      summarise(elec_consumption = mean(elec_consumption)),
-    
-    aggte_simple_gas$DIDparams$data %>%
-      ungroup() %>%
-      filter(week < firstweek - 1) %>%
-      summarise(gas_consumption = mean(gas_consumption))
-  )
-)
-
-
-models <- list(Electricity = aggte_simple_elec, Gas = aggte_simple_gas)
-headers <- c( "Electricity", "Gas")
-title <- "Heat Pump Installation on Yearly Energy Consumption in kWh"
-file <- "tables/hp_did_overall_cs_gas_only.tex"
-label <- "tab:hp-did-cs-gas-only"
-note <- "We show estimates from three CS estimates of the impact of consumption on customers' electricity consumption (column 1), gas consumption (column 2). The latter model is from a subset of our full sample for customers with gas consumption before their heat pump installation."
-
-create_latex_table(models, headers, title, file, label, pre_treatment_averages, note)
-
-
-# Format the TWFE and CS comparison tex files
-CleanPreAverage <- function(file_path) {
-  
-  # Read the generated LaTeX file
-  file_content <- readLines(file_path)
-  
-  # Find the lines with the pre-treatment average and remove them
-  if (length(grep("Yearly Consumption", file_content))==1) {
-    pre_avg_line_index <- grep("Yearly Consumption", file_content)
-  } else {
-    pre_avg_line_index <- grep("Yearly Consumption", file_content)[2]
-  }
-  
-  # Find the lines with the pre-treatment average and remove them
-  pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
-  file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
-  
-  # Find the position just after the coefficients
-  coeff_end_index <- grep("Is HP Installed", file_content)[length(grep("Is HP Installed", file_content))] + 2
-  
-  # Insert the pre-treatment average row after the coefficients
-  file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
-  file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
-  
-  # Add a \midrule after the pre-treatment average
-  file_content <- append(file_content, "\\midrule", after = coeff_end_index + length(pre_avg_lines)+1)
-  
-  # Modify the label for "Size of the 'effective' sample" to "Number of Households"
-  sample_line <- grep("Size of the 'effective' sample", file_content)
-  file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
-  
-  # Write the modified content back to the LaTeX file
-  writeLines(file_content, file_path)
-}
-
-
-
-# Function to format numbers
-format_number <- function(number) {
-  return(format(round(number), big.mark = ",", scientific = FALSE))
-}
-
-# Function to format numbers with four decimal places
-format_decimal <- function(number, digits = 2) {
-  return(format(round(number, digits), nsmall = digits, big.mark = ",", scientific = FALSE))
-}
-
-
-# Register the pre-treatment average fit statistic
+# Fitstat helpers (register once)
 fitstat_register("pre_avg", function(x) {
-  
-  # Directly use the model's data
   model_data <- eval(x$call$data, envir = x$call_env)
-  
-  # Extract the outcome variable from the formula
   outcome_variable <- all.vars(x$fml_all$linear)[1]
-  
-  # Get the logical vector of observations used in the model
   obs_used <- obs(x)
-  
-  # Ensure `obs_used` correctly subsets the data
+
   if (is.logical(obs_used) && length(obs_used) == nrow(model_data)) {
     data_used <- model_data[obs_used, ]
   } else if (is.numeric(obs_used) && all(obs_used <= nrow(model_data))) {
@@ -463,164 +511,96 @@ fitstat_register("pre_avg", function(x) {
   } else {
     stop("Unable to correctly subset data. Check the obs_used vector.")
   }
-  
-  # Extract the outcome values
-  outcome_values <- data_used[[outcome_variable]]
-  
-  # Create pre-avg for non-HP installed group
-  pre_avg <- mean(outcome_values[data_used$is_hp_installed == 0], na.rm = TRUE)
-  
-  # Format the pre-avg
-  formatted_pre_avg <- format_decimal(pre_avg)
-  
-  return(formatted_pre_avg)
+
+  pre_avg <- mean(data_used[[outcome_variable]][data_used$is_hp_installed == 0], na.rm = TRUE)
+  format_decimal(pre_avg, digits = 1)
 }, "Yearly Consumption")
 
-
-
-
-# Add number of time periods
 fitstat_register("t_obs", function(x) {
-  
-  # time variable
   t_var <- x$fixef_vars[3]
-  
-  # nbr of unique val for t var
-  t_obs <- x$fixef_sizes[t_var]
-  
-  return(format_number(t_obs))
+  format_number(x$fixef_sizes[t_var])
 }, "Number of Time Periods")
 
+# TWFE models (filtered to DID ids)
+m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week,
+            data = overall_weekly %>% filter(account_id %in% did_data$account_id),
+            cluster = ~account_id)
 
+m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week,
+            data = overall_weekly %>% filter(account_id %in% did_data$account_id),
+            cluster = ~account_id)
 
-# Apply the TWFE models
-m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)
-m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(account_id %in% did_data$account_id), cluster = ~ account_id)
-
-# Define the main periods
+# CS stats for patching (use *formatted strings* for LaTeX injection)
 main_periods <- c("Electricity", "Gas")
-
-# Initialize variables to store estimates and standard errors
-cs_estimates <- list()
-cs_se <- list()
-cs_n <- list()
-cs_nG <- list()
-cs_nT <- list()
-
-# Define paths to the RDS files for CS estimates
-cs_files <- list(
-  Electricity = file.path("data/scratch/est_cs_elec_weekly.RDS"),
-  Gas = file.path("data/scratch/est_cs_gas_weekly.RDS")
+cs_estimates <- list(
+  Electricity = format_decimal(aggte_simple_elec$overall.att, 1),
+  Gas         = format_decimal(aggte_simple_gas$overall.att, 1)
+)
+cs_se <- list(
+  Electricity = format_decimal(aggte_simple_elec$overall.se, 1),
+  Gas         = format_decimal(aggte_simple_gas$overall.se, 1)
+)
+cs_n <- list(
+  Electricity = format_number(aggte_simple_elec$DIDparams$n),
+  Gas         = format_number(aggte_simple_gas$DIDparams$n)
+)
+cs_nG <- list(
+  Electricity = format_number(aggte_simple_elec$DIDparams$nG),
+  Gas         = format_number(aggte_simple_gas$DIDparams$nG)
+)
+cs_nT <- list(
+  Electricity = format_number(aggte_simple_elec$DIDparams$nT),
+  Gas         = format_number(aggte_simple_gas$DIDparams$nT)
 )
 
+# Create the initial 4-model table: (TWFE Elec, TWFE Gas, placeholder, placeholder)
+etable(
+  m1, m2,
+  m1, m2,
+  headers = list(
+    list("TWFE" = 2, "CS" = 2),
+    list(rep(c("Electricity", "Gas"), times = 2))
+  ),
+  depvar = FALSE,
+  tex = TRUE,
+  title = "HP Installation on Yearly Energy Consumption in kWh",
+  fitstat = ~ N + g + pre_avg + t_obs + r2,
+  file = "tables/hp_did_overall_detailed.tex",
+  replace = TRUE,
+  label = "tab:hp-did-overall-conso-detailed",
+  style.tex = style.tex(tpt = TRUE)
+)
 
-# Loop through each period to get the Callaway and Sant'Anna estimates
-for(period in main_periods) {
-  est_cs <- readRDS(cs_files[[period]])
-  aggte_simple <- aggte(est_cs, type = "simple", na.rm = TRUE, clustervars="id", bstrap=TRUE, alp = 0.01)
-  
-  cs_estimates[[period]] <- format_decimal(aggte_simple$overall.att, 1)
-  cs_se[[period]] <- format_decimal(aggte_simple$overall.se, 1)
-  cs_n[[period]] <- format_number(aggte_simple$DIDparams$n)
-  cs_nG[[period]] <- format_number(aggte_simple$DIDparams$nG)
-  cs_nT[[period]] <- format_number(aggte_simple$DIDparams$nT)
-}
-
-
-# Generate the initial LaTeX table with TWFE models
-etable(m1, m2,
-       m1, m2, 
-       headers = list(list("TWFE" = 2, "CS" = 2),
-                      list(rep(c("Electricity", "Gas"), times = 2))),
-       depvar = FALSE,
-       tex=TRUE, title = "HP Installation on Yearly Energy Consumption in kWh",
-       fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_overall_detailed.tex", replace = TRUE, label="tab:hp-did-overall-conso-detailed", 
-       style.tex = style.tex(tpt = TRUE))
-
-
+# (Optional) your re-positioning helper
 CleanPreAverage("tables/hp_did_overall_detailed.tex")
 
-# Read the generated LaTeX file
-file_path <- "tables/hp_did_overall_detailed.tex"
-file_content <- readLines(file_path)
+# Patch CS values into the right-hand two columns (cols 4 and 5)
+patch_etable_twfe_cs(
+  file_path = "tables/hp_did_overall_detailed.tex",
+  cs_estimates = cs_estimates,
+  cs_se = cs_se,
+  cs_n = cs_n,
+  cs_nG = cs_nG,
+  cs_nT = cs_nT,
+  coef_pattern = "Is HP Installed \\$=\\$ 1"
+)
 
-# Function to replace the 6th to 8th columns in a LaTeX table row
-replace_columns <- function(line, new_values) {
-  parts <- str_split(line, "&")[[1]]
-  for (i in seq_along(new_values)) {
-    parts[4 + i] <- str_trim(new_values[[i]])
-  }
-  return(paste(parts, collapse = " & "))
-}
+checkpoint("Saved tables/hp_did_overall_detailed.tex (patched)")
 
-# Function to clear the 6th to 8th columns in a LaTeX table row
-clear_columns <- function(line) {
-  parts <- str_split(line, "&")[[1]]
-  for (i in 5:7) {
-    parts[i] <- ""
-  }
-  return(paste(parts, collapse = " & "))
-}
+# ============================================================
+# 9) NEVER-TREATED robustness: TWFE + CS detailed table (patched)
+# Output: tables/hp_did_never_treated_detailed.tex
+# ============================================================
 
-# Ensure each replacement maintains the LaTeX table structure
-new_estimates <- c(paste0(cs_estimates[["Electricity"]], "$^{***}$"), 
-                   paste0(cs_estimates[["Gas"]], "$^{***}$"))
-new_se <- c(paste0("(", cs_se[["Electricity"]], ")"), 
-            paste0("(", cs_se[["Gas"]], ")"))
+checkpoint("NEVER-TREATED: build DID index and models")
 
-# Find the rows that need to be updated
-coeff_line <- grep("Is HP Installed \\$=\\$ 1", file_content)
-se_line <- coeff_line + 1
-obs_line <- grep("Observations", file_content)
-sample_line <- grep("Number of Households", file_content)
-periods_line <- grep("Number of Time Periods", file_content)
-hdd_line <- grep("HDD", file_content)
-mpan_line <- grep("Household", file_content)[1]
-day_line <- grep("Week", file_content)
-r2_line <- grep("R", file_content)
-
-# Replace estimates and standard errors in the LaTeX file
-file_content[sample_line] <- replace_columns(file_content[sample_line], cs_n) %>% paste0(" \\\\")
-file_content[coeff_line] <- replace_columns(file_content[coeff_line], new_estimates) %>% paste0(" \\\\")
-file_content[se_line] <- replace_columns(file_content[se_line], new_se) %>% paste0(" \\\\")
-file_content[periods_line] <- replace_columns(file_content[periods_line], cs_nT) %>% paste0(" \\\\")
-file_content[obs_line] <- clear_columns(file_content[obs_line]) %>% paste0(" \\\\")
-file_content[hdd_line] <- clear_columns(file_content[hdd_line]) %>% paste0(" \\\\")
-file_content[mpan_line] <- clear_columns(file_content[mpan_line]) %>% paste0(" \\\\")
-file_content[day_line] <- clear_columns(file_content[day_line]) %>% paste0(" \\\\")
-file_content[r2_line] <- clear_columns(file_content[r2_line]) %>% paste0(" \\\\")
-
-# Update the line with the clustering information
-clustering_line_index <- grep("Clustered \\(Household\\)", file_content)
-if (length(clustering_line_index) > 0) {
-  file_content[clustering_line_index] <- "\\multicolumn{10}{l}{\\emph{Clustered (Household) standard-errors in parentheses for TWFE}}\\\\"
-}
-
-# Modify the label for "Size of the 'effective' sample" to "Number of Households"
-file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
-
-# Add CS clustering explanation
-new_row <- "\\multicolumn{10}{l}{\\emph{Clustered cohort (Week of adoption) standard-errors in parentheses for CS}}\\\\"
-file_content <- append(file_content, new_row, after = clustering_line_index)
-
-# Add new row for "Number of cohorts (CS)"
-new_row <- paste0("Number of cohorts (CS) & & & & ", cs_nG[["Electricity"]], " & ", cs_nG[["Gas"]], " \\\\")
-file_content <- append(file_content, new_row, after = sample_line)
-
-# Write the modified content back to the LaTeX file
-writeLines(file_content, file_path)
-
-# clean
-rm(m1,m2)
-               
-# Create CS main results 
+# Rebuild DID index with 'never treated' coding (firstweek=0 if after window)
 start_date <- min(overall_weekly$settlement_week)
-did_data <- overall_weekly %>%
+
+did_data_never <- overall_weekly %>%
   ungroup() %>%
   mutate(
-    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    week      = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
     firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
   ) %>%
   group_by(account_id) %>%
@@ -629,224 +609,92 @@ did_data <- overall_weekly %>%
   filter(week <= 129) %>%
   mutate(firstweek = ifelse(firstweek > 129, 0, firstweek))
 
-
-# Apply the TWFE models
-m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(settlement_week < "2024-06-03", 
-                                             account_id %in% did_data$account_id), cluster = ~ account_id)
-m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week, 
-            data = overall_weekly %>% filter(settlement_week < "2024-06-03", 
-                                             account_id %in% did_data$account_id), cluster = ~ account_id)
-
-# Initialize variables to store estimates and standard errors
-cs_estimates <- list()
-cs_se <- list()
-cs_n <- list()
-cs_nG <- list()
-cs_nT <- list()
-
-# Define paths to the RDS files for CS estimates
-cs_files <- list(
-  Electricity = file.path("data/scratch/est_cs_never_treated_elec_weekly.RDS"),
-  Gas = file.path("data/scratch/est_cs_never_treated_gas_weekly.RDS")
+# TWFE models (your original date cut)
+m1_never <- feols(
+  elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week,
+  data = overall_weekly %>%
+    filter(settlement_week < as.Date("2024-06-03"),
+           account_id %in% did_data_never$account_id),
+  cluster = ~account_id
 )
 
+m2_never <- feols(
+  gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week,
+  data = overall_weekly %>%
+    filter(settlement_week < as.Date("2024-06-03"),
+           account_id %in% did_data_never$account_id),
+  cluster = ~account_id
+)
 
-# Loop through each period to get the Callaway and Sant'Anna estimates
-for(period in main_periods) {
-  est_cs <- readRDS(cs_files[[period]])
-  aggte_simple <- aggte(est_cs, type = "simple", na.rm = TRUE, clustervars="id", bstrap=TRUE, alp = 0.01)
-  
-  cs_estimates[[period]] <- format_decimal(aggte_simple$overall.att, 1)
-  cs_se[[period]] <- format_decimal(aggte_simple$overall.se, 1)
-  cs_n[[period]] <- format_number(aggte_simple$DIDparams$n)
-  cs_nG[[period]] <- format_number(aggte_simple$DIDparams$nG)
-  cs_nT[[period]] <- format_number(aggte_simple$DIDparams$nT)
-}
+checkpoint("NEVER-TREATED: load CS results")
 
-# Generate the initial LaTeX table with TWFE models
-etable(m1, m2, 
-       m1, m2, 
-       headers = list(list("TWFE" = 2, "CS" = 2),
-                      list(rep(c("Electricity", "Gas"), times = 2))),
-       depvar = FALSE,
-       tex=TRUE, title = "HP Installation on Yearly Energy Consumption in kWh",
-       fitstat = ~ N + g + pre_avg + t_obs + r2, file = "tables/hp_did_never_treated_detailed.tex", replace = TRUE, label="tab:hp-did-never-treated-conso-detailed", 
-       style.tex = style.tex(tpt = TRUE))
+# CS files for never-treated robustness
+cs_files_never <- list(
+  Electricity = file.path("data/scratch/est_cs_never_treated_elec_weekly.RDS"),
+  Gas         = file.path("data/scratch/est_cs_never_treated_gas_weekly.RDS")
+)
 
+aggte_simple_elec_never <- aggte(readRDS(cs_files_never$Electricity), type = "simple",
+                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+aggte_simple_gas_never  <- aggte(readRDS(cs_files_never$Gas), type = "simple",
+                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 
+# Stats used to patch CS columns (store formatted strings for LaTeX)
+cs_estimates_never <- list(
+  Electricity = format_decimal(aggte_simple_elec_never$overall.att, 1),
+  Gas         = format_decimal(aggte_simple_gas_never$overall.att, 1)
+)
+cs_se_never <- list(
+  Electricity = format_decimal(aggte_simple_elec_never$overall.se, 1),
+  Gas         = format_decimal(aggte_simple_gas_never$overall.se, 1)
+)
+cs_n_never <- list(
+  Electricity = format_number(aggte_simple_elec_never$DIDparams$n),
+  Gas         = format_number(aggte_simple_gas_never$DIDparams$n)
+)
+cs_nG_never <- list(
+  Electricity = format_number(aggte_simple_elec_never$DIDparams$nG),
+  Gas         = format_number(aggte_simple_gas_never$DIDparams$nG)
+)
+cs_nT_never <- list(
+  Electricity = format_number(aggte_simple_elec_never$DIDparams$nT),
+  Gas         = format_number(aggte_simple_gas_never$DIDparams$nT)
+)
+
+checkpoint("NEVER-TREATED: create etable + patch")
+
+# Create the initial 4-model table (TWFE Elec, TWFE Gas, placeholder, placeholder)
+etable(
+  m1_never, m2_never,
+  m1_never, m2_never,
+  headers = list(
+    list("TWFE" = 2, "CS" = 2),
+    list(rep(c("Electricity", "Gas"), times = 2))
+  ),
+  depvar = FALSE,
+  tex = TRUE,
+  title = "HP Installation on Yearly Energy Consumption in kWh (Never-treated)",
+  fitstat = ~ N + g + pre_avg + t_obs + r2,
+  file = "tables/hp_did_never_treated_detailed.tex",
+  replace = TRUE,
+  label = "tab:hp-did-never-treated-conso-detailed",
+  style.tex = style.tex(tpt = TRUE)
+)
+
+# Optional: reposition pre-treatment average (your existing helper)
 CleanPreAverage("tables/hp_did_never_treated_detailed.tex")
 
-# Read the generated LaTeX file
-file_path <- "tables/hp_did_never_treated_detailed.tex"
-file_content <- readLines(file_path)
-
-# Function to replace the 6th to 8th columns in a LaTeX table row
-replace_columns <- function(line, new_values) {
-  parts <- str_split(line, "&")[[1]]
-  for (i in seq_along(new_values)) {
-    parts[4 + i] <- str_trim(new_values[[i]])
-  }
-  return(paste(parts, collapse = " & "))
-}
-
-# Function to clear the 6th to 8th columns in a LaTeX table row
-clear_columns <- function(line) {
-  parts <- str_split(line, "&")[[1]]
-  for (i in 5:7) {
-    parts[i] <- ""
-  }
-  return(paste(parts, collapse = " & "))
-}
-
-# Ensure each replacement maintains the LaTeX table structure
-new_estimates <- c(paste0(cs_estimates[["Electricity"]], "$^{***}$"), 
-                   paste0(cs_estimates[["Gas"]], "$^{***}$"))
-new_se <- c(paste0("(", cs_se[["Electricity"]], ")"), 
-            paste0("(", cs_se[["Gas"]], ")"))
-
-# Find the rows that need to be updated
-coeff_line <- grep("Is HP Installed \\$=\\$ 1", file_content)
-se_line <- coeff_line + 1
-obs_line <- grep("Observations", file_content)
-sample_line <- grep("Number of Households", file_content)
-periods_line <- grep("Number of Time Periods", file_content)
-hdd_line <- grep("HDD", file_content)
-mpan_line <- grep("Household", file_content)[1]
-day_line <- grep("Week", file_content)
-r2_line <- grep("R", file_content)
-
-# Replace estimates and standard errors in the LaTeX file
-file_content[sample_line] <- replace_columns(file_content[sample_line], cs_n) %>% paste0(" \\\\")
-file_content[coeff_line] <- replace_columns(file_content[coeff_line], new_estimates) %>% paste0(" \\\\")
-file_content[se_line] <- replace_columns(file_content[se_line], new_se) %>% paste0(" \\\\")
-file_content[periods_line] <- replace_columns(file_content[periods_line], cs_nT) %>% paste0(" \\\\")
-file_content[obs_line] <- clear_columns(file_content[obs_line]) %>% paste0(" \\\\")
-file_content[hdd_line] <- clear_columns(file_content[hdd_line]) %>% paste0(" \\\\")
-file_content[mpan_line] <- clear_columns(file_content[mpan_line]) %>% paste0(" \\\\")
-file_content[day_line] <- clear_columns(file_content[day_line]) %>% paste0(" \\\\")
-file_content[r2_line] <- clear_columns(file_content[r2_line]) %>% paste0(" \\\\")
-
-# Update the line with the clustering information
-clustering_line_index <- grep("Clustered \\(Household\\)", file_content)
-if (length(clustering_line_index) > 0) {
-  file_content[clustering_line_index] <- "\\multicolumn{10}{l}{\\emph{Clustered (Household) standard-errors in parentheses for TWFE}}\\\\"
-}
-
-# Modify the label for "Size of the 'effective' sample" to "Number of Households"
-file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
-
-# Add CS clustering explanation
-new_row <- "\\multicolumn{10}{l}{\\emph{Clustered cohort (Week of adoption) standard-errors in parentheses for CS}}\\\\"
-file_content <- append(file_content, new_row, after = clustering_line_index)
-
-# Add new row for "Number of cohorts (CS)"
-new_row <- paste0("Number of cohorts (CS) & & & & ", cs_nG[["Electricity"]], " & ", cs_nG[["Gas"]], " \\\\")
-file_content <- append(file_content, new_row, after = sample_line)
-
-# Write the modified content back to the LaTeX file
-writeLines(file_content, file_path)
-
-
-# DID Imputation
-# Data preparation (reusing your 'did_data' code)
-start_date <- min(overall_weekly$settlement_week)
-did_data <- overall_weekly %>%
-  ungroup() %>%
-  mutate(
-    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
-    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
-  ) %>%
-  group_by(account_id) %>%
-  mutate(id = cur_group_id()) %>%
-  ungroup() %>%
-  select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
-  mutate(firstweek = ifelse(firstweek>131, NA, firstweek),
-         total_consumption = total_consumption/ 52.25,
-         elec_consumption= elec_consumption/ 52.25, 
-         gas_consumption= gas_consumption/ 52.25, )
-
-summary(did_data)
-
-
-# did_imputation command
-# Setting up the arguments for did_imputation
-imputation_results <- did_imputation(
-  data = did_data,
-  yname = "gas_consumption",    # Outcome variable (or choose "elec_consumption" or "gas_consumption")
-  gname = "firstweek",            # Variable name for unit-specific treatment time
-  tname = "week",                 # Calendar period
-  idname = "id",                  # Unique unit ID
-  first_stage = NULL,             # Default to unit and time fixed effects
-  wname = NULL,                   # No weights provided
-  wtr = NULL,                     # Treatment weights (for static and event study effects)
-  horizon = c(-52, 52),                 # Use all event time horizons
-  pretrends = -52:-1,               # Use all pre-trends
-  cluster_var = "id"              # Clustering variable
+# Patch CS columns (cols 4 & 5) + add cohorts row etc.
+patch_etable_twfe_cs(
+  file_path = "tables/hp_did_never_treated_detailed.tex",
+  cs_estimates = cs_estimates_never,
+  cs_se = cs_se_never,
+  cs_n = cs_n_never,
+  cs_nG = cs_nG_never,
+  cs_nT = cs_nT_never,
+  coef_pattern = "Is HP Installed \\$=\\$ 1"
 )
 
-# Viewing the results
-summary(imputation_results)
-
-
-# did_imputation command
-# Setting up the arguments for did_imputation
-imputation_results2 <- did_imputation(
-  data = did_data,
-  yname = "elec_consumption",    # Outcome variable (or choose "elec_consumption" or "gas_consumption")
-  gname = "firstweek",            # Variable name for unit-specific treatment time
-  tname = "week",                 # Calendar period
-  idname = "id",                  # Unique unit ID
-  first_stage = NULL,             # Default to unit and time fixed effects
-  wname = NULL,                   # No weights provided
-  wtr = NULL,                     # Treatment weights (for static and event study effects)
-  horizon = c(-52, 52),                 # Use all event time horizons
-  pretrends = -52:-1,               # Use all pre-trends
-  cluster_var = "id"              # Clustering variable
-)
-
-# Viewing the results
-summary(imputation_results2)
-
-
-
-# merge the two estimates
-plot_data <- rbind(imputation_results %>% mutate(type = "Gas"),
-                   imputation_results2 %>% mutate(type = "Electricity")) %>%
-  rename(coefficient = estimate,
-         event_time = term) %>%
-  mutate(event_time = as.numeric(event_time)) %>%
-  filter(event_time > -91, event_time < 90) %>%
-  mutate(lower_ci =  conf.low,
-         upper_ci = conf.high)
-
-#%>%
-#mutate(lower_ci = ifelse(event_time < 0, NA, conf.low),
-#       upper_ci = ifelse(event_time < 0, NA, conf.high))
-
-
-# define color
-elec_color <- "#AD87CA"
-gas_color <- "#2D354A"
-
-# plot
-ggplot(plot_data, aes(x = event_time, y = coefficient, group = type)) +
-  geom_line(aes(color = type)) +
-  geom_point(aes(color = type, shape = type), size = 3) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci, color = type), width = 0.2, alpha = 0.6) +
-  scale_colour_manual(name = "Type",
-                      labels = c("Electricity", "Gas"),
-                      values = c(Electricity = elec_color, Gas = gas_color)) +   
-  scale_shape_manual(name = "Type",
-                     labels =  c("Electricity", "Gas"),
-                     values = c(16, 17)) + 
-  scale_x_continuous(breaks = seq(floor(min(plot_data$event_time) / 10) * 10, ceiling(max(plot_data$event_time) / 10) * 10, 10)) +
-  labs(
-    x = "Weeks since adoption",
-    y = "Dynamic ATT for Weekly Consumption (kWh)"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "bottom")  # Move the legend to the bottom
-ggsave("graphs/hp_dynamic_att_combined_imputation.png", device = "png", width = 16, height = 12, dpi = 300)
-
+checkpoint("Saved tables/hp_did_never_treated_detailed.tex (patched)")
+                         
+checkpoint("DONE")
