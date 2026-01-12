@@ -85,7 +85,7 @@ inject_cs_into_did_tex <- function(file_path,
   file_content <- readLines(file_path)
 
   # Locate rows
-  coeff_line   <- grep("Contract Active \\\\\\$=\\\\\\$ 1", file_content)
+  coeff_line   <- grep("Contract", file_content)
   se_line      <- coeff_line + 1
   obs_line     <- grep("Observations", file_content)
   sample_line  <- grep("Number of Households", file_content)
@@ -138,7 +138,7 @@ inject_cs_into_did_tex <- function(file_path,
       "\\multicolumn{10}{l}{\\emph{Clustered (Household) standard-errors in parentheses for TWFE}}\\\\"
     file_content <- append(
       file_content,
-      "\\multicolumn{5}{l}{\\emph{Clustered cohort (Household) standard-errors in parentheses for CS}}\\\\",
+      "\\multicolumn{5}{l}{\\emph{Clustered (Household) standard-errors in parentheses for CS}}\\\\",
       after = clustering_line_index
     )
   }
@@ -154,6 +154,98 @@ inject_cs_into_did_tex <- function(file_path,
   writeLines(file_content, file_path)
 }
 
+# ----------------------------
+# Helper: CleanPreAverage (kept from your code)
+# ----------------------------
+create_latex_table <- function(models, headers, title, file, label,
+                               note = "") {
+
+  # Extract coefficients with stars
+  coefficients <- sapply(models, function(model) {
+    coef  <- model$overall.att
+    se    <- model$overall.se
+    alpha <- model$DIDparams$alp
+    paste0(format_decimal(coef, 4), confidence_star(coef, se, alpha))
+  })
+
+  # Standard errors
+  standard_errors <- sapply(models, function(model) {
+    paste0("(", format_decimal(model$overall.se, 4), ")")
+  })
+
+  # Pre-treatment averages (robust to duplicate column names)
+  pre_treatment_values <- sapply(models, function(model) {
+    dat <- model$DIDparams$data
+    if (anyDuplicated(names(dat))) {
+      dat <- dat[, names(dat)[!duplicated(names(dat))], with = FALSE]
+    }
+    dat <- as.data.frame(dat)
+
+    pre_avg <- dat %>%
+      dplyr::filter(week < firstweek - 1) %>%
+      dplyr::summarise(pre_avg = mean(consumption_hh, na.rm = TRUE)) %>%
+      dplyr::pull(pre_avg)
+
+    format_decimal(pre_avg, 4)
+  })
+
+  # Fit statistics (matching your CS table)
+  n_households <- sapply(models, function(m) format_number(m$DIDparams$id_count))
+  nG <- sapply(models, function(m) format_number(m$DIDparams$treated_groups_count))
+  nT <- sapply(models, function(m) format_number(m$DIDparams$time_periods_count))
+
+  alpha <- models[[1]]$DIDparams$alp
+  conf_level <- (1 - alpha) * 100
+
+  # ---- LaTeX ----
+  latex <- "\\begin{table}[htbp]\n"
+  latex <- paste0(latex, "   \\caption{\\label{", label, "} ", title, "}\n")
+
+  # Add floatfoot note (like your original CS table)
+  if (note != "") {
+    latex <- paste0(
+      latex,
+      "   \\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} ",
+      note,
+      "}\n"
+    )
+  }
+
+  latex <- paste0(latex, "   \\centering\n")
+  latex <- paste0(latex, "   \\begin{tabular}{l", paste(rep("c", length(headers)), collapse = ""), "}\n")
+  latex <- paste0(latex, "      \\tabularnewline \\midrule \\midrule\n")
+  latex <- paste0(latex, "                                     & ", paste(headers, collapse = "     & "), " \\\\   \n")
+  latex <- paste0(latex, "      Model:                         & ",
+                  paste(paste0("(", seq_along(headers), ")"), collapse = "              & "),
+                  "\\\\  \n")
+  latex <- paste0(latex, "      \\midrule\n")
+
+  latex <- paste0(latex, "      \\emph{Variable}\\\\\n")
+  latex <- paste0(latex, "      Has Adopted Tariff $=$ 1     & ", paste(coefficients, collapse = " & "), "\\\\   \n")
+  latex <- paste0(latex, "                                     & ", paste(standard_errors, collapse = "         & "), "\\\\   \n")
+
+  latex <- paste0(latex, "      \\midrule\n")
+  latex <- paste0(latex, "      \\emph{Pre-treatment Average}\\\\\n")
+  latex <- paste0(latex, "      Half Hourly Consumption              & ", paste(pre_treatment_values, collapse = " & "), "\\\\   \n")
+
+  latex <- paste0(latex, "      \\midrule\n")
+  latex <- paste0(latex, "      \\emph{Fit statistics}\\\\\n")
+  latex <- paste0(latex, "      Number of Households                   & ", paste(n_households, collapse = "           & "), "\\\\  \n")
+  latex <- paste0(latex, "      Number of Cohorts              & ", paste(nG, collapse = "              & "), "\\\\  \n")
+  latex <- paste0(latex, "      Number of Time Periods         & ", paste(nT, collapse = "             & "), "\\\\  \n")
+
+  # Add the extra “CS footer” rows you wanted back
+  latex <- paste0(latex, "      \\midrule \\midrule\n")
+  latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Clustered (Household) standard-errors in parentheses}\\\\\n")
+  latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Estimation Method: Doubly Robust}\\\\\n")
+  latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Control Group: Not Yet Treated, Anticipation Periods: 0}\\\\\n")
+  latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Signif. Codes: *** ", conf_level, "\\% confidence band does not cover 0}\\\\\n")
+
+  latex <- paste0(latex, "   \\end{tabular}\n")
+  latex <- paste0(latex, "\\end{table}\n")
+
+  writeLines(latex, file)
+}
 # ----------------------------
 # Helper: CleanPreAverage (kept from your code)
 # ----------------------------
@@ -480,13 +572,22 @@ m1 <- feols(
   split = ~ rate_period
 )
 
+shortstack_period <- function(x) {
+  dplyr::case_when(
+    x == "Morning Off-peak"   ~ "\\shortstack{Morning\\\\Off-peak}",
+    x == "Afternoon Off-peak" ~ "\\shortstack{Afternoon\\\\Off-peak}",
+    TRUE ~ x
+  )
+}
+period_headers <- shortstack_period(sort(main_periods))
+
 etable(
   m1, m1,
   tex = TRUE,
   title = "Adoption",
   headers = list(
     list("TWFE" = 5, "CS" = 5),
-    list(rep(as.character(sort(main_periods)), times = 2))
+    list(rep(period_headers, times = 2))
   ),
   fitstat = ~ N + g + pre_avg + t_obs + r2,
   file = "tables/did.tex",
@@ -494,7 +595,7 @@ etable(
   label = "tab:did-main",
   style.tex = style.tex(tpt = TRUE)
 )
-
+               
 CleanPreAverage("tables/did.tex")
 
 # Optional: tweak tabular preamble (kept from your later block)
@@ -556,6 +657,33 @@ inject_cs_into_did_tex(
 )
 
 cat(">>> Injected CS results into tables/did.tex <<<\n")
+                             
+                             
+cat("\n>>> Writing cosy_did_cs table <<<\n")
+
+
+models <- lapply(main_periods, function(period) {
+  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
+  aggte(est_cs, type="simple", na.rm=TRUE, clustervars="id", bstrap=TRUE, alp=0.01)
+})
+
+
+headers <- shortstack_period(c("Morning Off-peak","Afternoon Off-peak","Peak Rate","Other","Overall"))
+
+note_text <- paste0(
+  "We show estimates from five CS estimates of the impact of consumption on customers’ electricity during ",
+  "the Morning Off-peak 4am-7am (column 1), Afternoon Off-peak 1pm-4pm (column 2), Peak 4pm-7pm (column 3), ",
+  "other hours of the day (column 4), and ``Overall’’, i.e,. across all 48 half-hours of the day (column 5)."
+)
+
+create_latex_table(
+  models = models,
+  headers = headers,
+  title = "Heat Pump Tariff Adoption on Half Hourly Electricity Consumption in kWh",
+  file  = "tables/cosy_did_cs.tex",
+  label = "tab:cosy-did-cs",
+  note  = note_text
+)
 
 # ============================================================
 # 8) DiD imputation estimator + plots
