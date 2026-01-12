@@ -38,7 +38,7 @@ times <- seq(from = as.POSIXct(paste(unique_valid_from, "00:00:00")),
 rate_data <- data.frame(
   time = times,
   rate = NA,
-  group = "Cosy"
+  group = "Heat Pump Tariff"
 )
 
 # Function to convert INTERVAL strings to times and apply the rates
@@ -84,7 +84,7 @@ typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Price
 
 # Add a new column for the share of the typical Price per kWh
 combined_rates <- combined_rates %>%
-  mutate(share_of_typical = rate / typical_marginal_price * 100)
+  mutate(share_of_typical = rate / typical_marginal_price * 100) 
 
 # Plot the line chart with Flexible Octopus in dashed line and specific y-axis breaks
 # Assuming unique_valid_from is the date used in your 'time' sequence
@@ -109,8 +109,8 @@ ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group))
   ) +
   theme_minimal() + 
   theme(legend.position = "bottom") +
-  scale_color_manual(values = c("Cosy" = cosy_color, "Typical Price per kWh" = flexible_color)) +
-  scale_linetype_manual(values = c("Cosy" = "solid", "Typical Price per kWh" = "dashed")) +
+  scale_color_manual(values = c("Heat Pump Tariff" = cosy_color, "Typical Price per kWh" = flexible_color)) +
+  scale_linetype_manual(values = c("Heat Pump Tariff" = "solid", "Typical Price per kWh" = "dashed")) +
   scale_fill_identity() +
   guides(linetype = "none")
 

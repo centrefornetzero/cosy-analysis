@@ -1,1021 +1,674 @@
-# Difference in differences analysis
+# ============================================================
+# Difference-in-Differences (DiD) analysis (Cosy tariff)
+# - Estimation: Callaway & Sant’Anna (did::att_gt + did::aggte)
+# - Outputs:
+#   (1) Saved CS estimates per rate period in scratch/
+#   (2) Plots: dynamic + calendar (per period + combined)
+#   (3) Main LaTeX table: TWFE from fixest::etable, then “CS columns”
+#       are injected into tables/did.tex
+# ============================================================
 
+# ----------------------------
+# User inputs / paths / colors
+# ----------------------------
+# datapath must exist in your environment
+# flexible_color / cosy_color must exist in your environment
 
-# Load data
+cat("\n>>> Script start <<<\n")
+
+# ----------------------------
+# Helper formatting functions
+# ----------------------------
+format_number <- function(number) {
+  format(round(number), big.mark = ",", scientific = FALSE)
+}
+
+format_decimal <- function(number, decimals = 4) {
+  format(round(number, decimals), nsmall = decimals, big.mark = ",", scientific = FALSE)
+}
+
+# Confidence “star”: *** if (1-alpha)% CI does NOT include 0
+confidence_star <- function(coefficient, se, alpha) {
+  ci_lower <- coefficient - qnorm(1 - alpha / 2) * se
+  ci_upper <- coefficient + qnorm(1 - alpha / 2) * se
+  if (ci_lower > 0 | ci_upper < 0) "***" else ""
+}
+
+# ----------------------------
+# Helper: drop duplicate-named columns (keeps first occurrence)
+# ----------------------------
+drop_duplicate_named_cols <- function(x) {
+  if (anyDuplicated(names(x))) {
+    if (inherits(x, "data.table")) {
+      x <- x[, names(x)[!duplicated(names(x))], with = FALSE]
+    } else {
+      x <- x[, !duplicated(names(x)), drop = FALSE]
+    }
+  }
+  x
+}
+
+# ----------------------------
+# Helper: extract pre-treatment average from aggte_simple (numeric scalar)
+# ----------------------------
+extract_pre_treatment_avg <- function(aggte_simple, anticipation = 1) {
+  dat <- aggte_simple$DIDparams$data
+  dat <- drop_duplicate_named_cols(dat)
+  dat <- as.data.frame(dat)
+
+  dat %>%
+    ungroup() %>%
+    filter(week < firstweek - anticipation) %>%
+    summarise(pre_avg = mean(consumption_hh, na.rm = TRUE)) %>%
+    pull(pre_avg)
+}
+
+# ----------------------------
+# Helper: edit fixest LaTeX table and inject CS results into cols 6–10
+# ----------------------------
+replace_columns <- function(line, new_values) {
+  parts <- strsplit(line, "&")[[1]]
+  for (i in seq_along(new_values)) {
+    parts[6 + i] <- str_trim(new_values[[i]])
+  }
+  paste(parts, collapse = " & ")
+}
+
+clear_columns <- function(line) {
+  parts <- strsplit(line, "&")[[1]]
+  for (i in 7:length(parts)) parts[i] <- ""
+  paste(parts, collapse = " & ")
+}
+
+inject_cs_into_did_tex <- function(file_path,
+                                  cs_estimates, cs_se, cs_n, cs_nG, cs_nT, cs_pre_avg) {
+  file_content <- readLines(file_path)
+
+  # Locate rows
+  coeff_line   <- grep("Contract Active \\\\\\$=\\\\\\$ 1", file_content)
+  se_line      <- coeff_line + 1
+  obs_line     <- grep("Observations", file_content)
+  sample_line  <- grep("Number of Households", file_content)
+  periods_line <- grep("Number of Time Periods", file_content)
+  hdd_line     <- grep("HDD", file_content)
+  mpan_line    <- grep("Household", file_content)[1]
+  day_line     <- grep("Day", file_content)
+  pre_avgs     <- grep("Half Hourly Consumption", file_content)[2]
+  r2_line      <- grep("R", file_content)[-1]
+
+  # Format estimates/se for LaTeX
+  cs_estimates_fmt <- lapply(cs_estimates, function(x) sprintf("%.4f", x))
+  cs_se_fmt        <- lapply(cs_se, function(x) sprintf("%.4f", x))
+
+  # Column order expected by your table
+  new_estimates <- c(
+    paste0(cs_estimates_fmt[["Morning Off-peak"]], "***"),
+    paste0(cs_estimates_fmt[["Afternoon Off-peak"]], "***"),
+    paste0(cs_estimates_fmt[["Peak Rate"]], "***"),
+    paste0(cs_estimates_fmt[["Other"]], "***"),
+    paste0(cs_estimates_fmt[["Overall"]])
+  )
+
+  new_se <- c(
+    paste0("(", cs_se_fmt[["Morning Off-peak"]], ")"),
+    paste0("(", cs_se_fmt[["Afternoon Off-peak"]], ")"),
+    paste0("(", cs_se_fmt[["Peak Rate"]], ")"),
+    paste0("(", cs_se_fmt[["Other"]], ")"),
+    paste0("(", cs_se_fmt[["Overall"]], ")")
+  )
+
+  # Replace CS columns (6–10)
+  file_content[sample_line]  <- paste0(replace_columns(file_content[sample_line],  cs_n),       " \\\\")
+  file_content[coeff_line]   <- paste0(replace_columns(file_content[coeff_line],   new_estimates), " \\\\")
+  file_content[se_line]      <- paste0(replace_columns(file_content[se_line],      new_se),     " \\\\")
+  file_content[periods_line] <- paste0(replace_columns(file_content[periods_line], cs_nT),      " \\\\")
+  file_content[pre_avgs]     <- paste0(replace_columns(file_content[pre_avgs],     cs_pre_avg), " \\\\")
+
+  # Clear TWFE-only rows in CS columns
+  file_content[obs_line]  <- paste0(clear_columns(file_content[obs_line]),  " \\\\")
+  file_content[hdd_line]  <- paste0(clear_columns(file_content[hdd_line]),  " \\\\")
+  file_content[mpan_line] <- paste0(clear_columns(file_content[mpan_line]), " \\\\")
+  file_content[day_line]  <- paste0(clear_columns(file_content[day_line]),  " \\\\")
+  file_content[r2_line]   <- paste0(clear_columns(file_content[r2_line]),   " \\\\")
+
+  # Update clustering row + add CS clustering row
+  clustering_line_index <- grep("Clustered \\\\\\(Household\\\\\\)", file_content)
+  if (length(clustering_line_index) > 0) {
+    file_content[clustering_line_index] <-
+      "\\multicolumn{10}{l}{\\emph{Clustered (Household) standard-errors in parentheses for TWFE}}\\\\"
+    file_content <- append(
+      file_content,
+      "\\multicolumn{5}{l}{\\emph{Clustered cohort (Household) standard-errors in parentheses for CS}}\\\\",
+      after = clustering_line_index
+    )
+  }
+
+  # Add “Number of cohorts (CS)” under sample size
+  new_row <- paste0(
+    "Number of cohorts (CS) & &  &  &  &  & ",
+    paste(cs_nG, collapse = " & "),
+    " \\\\"
+  )
+  file_content <- append(file_content, new_row, after = sample_line)
+
+  writeLines(file_content, file_path)
+}
+
+# ----------------------------
+# Helper: CleanPreAverage (kept from your code)
+# ----------------------------
+CleanPreAverage <- function(file_path) {
+  file_content <- readLines(file_path)
+
+  idx <- grep("Half Hourly Consumption", file_content)
+  pre_avg_line_index <- if (length(idx) == 1) idx else idx[2]
+
+  pre_avg_lines <- file_content[pre_avg_line_index]
+  file_content  <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
+
+  coeff_end_index <- grep("Fixed-effects", file_content) - 2
+
+  file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
+  file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
+  file_content <- append(file_content, "\\midrule", after = coeff_end_index)
+
+  sample_line <- grep("Size of the 'effective' sample", file_content)
+  if (length(sample_line) > 0) {
+    file_content[sample_line] <- gsub(
+      "Size of the 'effective' sample",
+      "Number of Households",
+      file_content[sample_line]
+    )
+  }
+
+  writeLines(file_content, file_path)
+}
+
+# ============================================================
+# 1) Load data + define periods
+# ============================================================
+cat("\n>>> Loading aggregated data <<<\n")
 aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
+cat(">>> Data loaded: ", nrow(aggregated_data), " rows <<<\n")
 
-# Unique periods 
-periods <- unique(aggregated_data$rate_period)
+periods      <- unique(aggregated_data$rate_period)
+main_periods <- unique(aggregated_data$rate_period)
 
-# Define base periods
 base_periods <- c("varying", "universal")
+start_date   <- min(floor_date(aggregated_data$date, "week"))
 
-start_date <- min(floor_date(aggregated_data$date, "week"))
+# ============================================================
+# 2) Estimate and save CS objects (heavy; skip if files exist)
+# ============================================================
+cat("\n>>> CS estimation: att_gt (heavy step) <<<\n")
 
-
-### this exact same code is actually ran on the jupyter notebook, it takes too long on laptop
 for (period in periods) {
   for (base_period in base_periods) {
-    
-    # Determine the filename based on the base period
+
+    cat(">>> Period:", period, "| Base period:", base_period, "<<<\n")
+
     file_suffix <- ifelse(base_period == "universal", "_universal", "")
     filename <- file.path(datapath, paste0("scratch/did_cosy_", period, file_suffix, ".RDS"))
-    
-    # Check if the file already exists
+
     if (!file.exists(filename)) {
-      
-      # Adjust your existing code to calculate 'week' and 'firstweek' as the number of weeks from the start_date
+
+      cat(">>> Estimating & saving:", basename(filename), "<<<\n")
+
       did_data <- aggregated_data %>%
         ungroup() %>%
-        filter(rate_period == period, !hashed_mpan == "1185945433") %>% # exclude this odd mpan because it only has others periods
-        mutate(settlement_week = floor_date(date, "week"),
-               week = difftime(settlement_week, start_date, units = "weeks"),
-               firstweek =  difftime(floor_date(first_adoption, "week"), start_date, units = "weeks")) %>%
+        filter(rate_period == period, !hashed_mpan == "1185945433") %>%
+        mutate(
+          settlement_week = floor_date(date, "week"),
+          week      = difftime(settlement_week, start_date, units = "weeks"),
+          firstweek  = difftime(floor_date(first_adoption, "week"), start_date, units = "weeks")
+        ) %>%
         group_by(hashed_mpan, firstweek, week) %>%
-        summarise(consumption_hh = mean(consumption_hh)) %>%
+        summarise(consumption_hh = mean(consumption_hh), .groups = "drop") %>%
         mutate(
           firstweek = as.numeric(firstweek),
-          week = as.numeric(week)
-        ) %>% group_by(hashed_mpan) %>%
+          week      = as.numeric(week)
+        ) %>%
+        group_by(hashed_mpan) %>%
         mutate(id = cur_group_id()) %>%
         ungroup()
-      
-      # Estimating the treatment effect using the Callaway and Sant'Anna method
-      est_cs <- att_gt(yname = "consumption_hh",
-                       tname = "week",
-                       idname = "id",
-                       gname = "firstweek",
-                       data = did_data,
-                       clustervars = "id",
-                       anticipation = 1,
-                       control_group = "notyettreated",
-                       allow_unbalanced_panel = TRUE,
-                       base_period = base_period,
-                       cores = 10)
-      
-      # Save the result
+
+      est_cs <- att_gt(
+        yname = "consumption_hh",
+        tname = "week",
+        idname = "id",
+        gname = "firstweek",
+        data = did_data,
+        clustervars = "id",
+        anticipation = 1,
+        control_group = "notyettreated",
+        allow_unbalanced_panel = TRUE,
+        base_period = base_period,
+        cores = 10
+      )
+
       saveRDS(est_cs, filename)
+      cat(">>> Saved:", basename(filename), "<<<\n")
+
+    } else {
+      cat(">>> Skipping (exists):", basename(filename), "<<<\n")
     }
   }
 }
 
-# Unique periods 
-for(period in periods) {
-  
-  # Load CS
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
-  
-  # create the graphs
-  est_cs$first_week <- (weeks(est_cs$group -1) + floor_date(start_date, "week"))
-  est_cs$week <- (floor_date(start_date, "week") + weeks(est_cs$t-1))
-  p <- data.frame(group = est_cs$group,
-                  se = est_cs$se,
-                  t = est_cs$t, date = est_cs$week, att = est_cs$att, first_week = est_cs$first_week)
-  
-  p <- p %>%
-    filter(first_week<= date) 
-  
-  # Plot with a gradient color scale
-  ggplot(p, aes(x = date, y = att, color = first_week, group = first_week)) +
-    geom_ribbon(aes(ymin = att - se, ymax = att + se), fill = "grey80", alpha = 0.5, color=NA) +  # Shaded area for standard error
-    geom_line() +
-    geom_point() +
-    scale_x_date(
-      labels = scales::date_format("%b %y"),  # Formatting months and years
-      date_breaks = "3 month"  # Adjust this based on your data density
-    ) +
-    labs(
-      x = "Calendar Time",
-      y = "Average ATT",
-      color = "Adoption Week"
-    ) +
-    scale_color_gradientn(colors = c("lightblue", "blue", "darkblue"),
-                          breaks = as.Date(seq(19337, 19885, 100)),
-                          labels = format(format(as.Date(seq(19337, 19885, 100)), "%b %Y"))) +
-    theme_minimal() +
-    theme(
-      axis.text.x = element_text(angle = 45, hjust = 1),  # Tilt x-axis labels for better readability
-      legend.position = "right"  # Position the legend on the right
-    )
-  ggsave(paste0("graphs/monthly_att_", period %>% tolower() %>% str_replace(" ", "_"), ".png"))
-  
-}
+cat("\n>>> Finished CS estimation <<<\n")
 
+# ============================================================
+# 3) Calendar-time ATT-by-cohort plot (per period)
+# ============================================================
+cat("\n>>> Calendar-time ATT plots <<<\n")
 
-
-# Function to create the ggplot for each period
-create_ggplot <- function(period_data, period_name) {
-  # Extract coefficients, standard errors, and event time
-  coefficients <- period_data$att.egt   # Convert to daily values
-  standard_errors <- period_data$se.egt   # Convert to daily values
-  event_time <- period_data$egt
-  
-  # Create a data frame for plotting
-  plot_data <- data.frame(
-    event_time = event_time,
-    coefficient = coefficients,
-    lower_ci = coefficients - 1.96 * standard_errors,
-    upper_ci = coefficients + 1.96 * standard_errors,
-    period = ifelse(event_time < 0, "No", "Yes")
-  )
-  
-  # Reverse the color order
-  plot_data$period <- factor(plot_data$period, levels = c("Yes", "No"))
-  
-  # Create the ggplot
-  p <- ggplot(plot_data, aes(x = event_time, y = coefficient, color = period)) +
-    geom_point() +
-    geom_line() +
-    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, , alpha = 0.6) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
-    scale_color_manual(
-      name = "Has Adopted Tariff", 
-      labels = c("No" = "No", "Yes" = "Yes"),
-      values = c("No" = flexible_color, "Yes" = cosy_color)  # Custom colors
-    ) +
-    scale_x_continuous(breaks = seq(-50, 50, 10)) +
-    labs(
-      x = "Weeks since adoption",
-      y = "Dynamic ATT for Half Hourly Consumption (kWh)"
-    ) +
-    theme_minimal()
-  
-  return(p)
-}
-
-# Loop through each period and create/save the plots
-for(period in periods) {
-  
-  # Load CS
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
-  
-  # Retrieve estimates
-  period_data <- aggte(est_cs, type="dynamic",alp = 0.01, min_e = -52, max_e = 52)
-  
-  # Create the plot
-  p <- create_ggplot(period_data, period)
-  
-  # Print the plot
-  print(p)
-  
-  # Define the filename
-  file_name <- paste("graphs/plot_", period, ".png", sep = "")
-  
-  # Save the plot
-  ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
-}
-
-# Function to create the data frame for each period
-create_dynamic_data <- function(period_data, period_name) {
-  # Extract coefficients, standard errors, and event time
-  coefficients <- period_data$att.egt
-  standard_errors <- period_data$se.egt
-  event_time <- period_data$egt
-  
-  # Create a data frame for plotting
-  plot_data <- data.frame(
-    event_time = event_time,
-    coefficient = coefficients,
-    lower_ci = coefficients - 1.96 * standard_errors,
-    upper_ci = coefficients + 1.96 * standard_errors,
-    period = period_name,
-    cosy_status = ifelse(event_time < 0, "No", "Yes")
-  )
-  
-  return(plot_data)
-}
-
-# Initialize an empty data frame to store all period data
-start_date <- min(aggregated_data$date)
-all_period_data <- data.frame()
-
-# Loop through each period to create the combined data frame
-for(period in periods) {
-  # Load CS
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
-  
-  # Retrieve estimates
-  period_data <- aggte(est_cs, type = "dynamic", alp = 0.01, min_e = -52, max_e = 52)
-  
-  # Create the data frame for the current period
-  period_plot_data <- create_dynamic_data(period_data, period)
-  
-  # Combine the data
-  all_period_data <- bind_rows(all_period_data, period_plot_data)
-}
-
-all_period_data <- all_period_data %>% 
-  filter(!period=="Overall") %>%
-  mutate(period = factor(period, levels = c("Morning Off-peak",
-                                            "Afternoon Off-peak",
-                                            "Peak Rate",
-                                            "Other", 
-                                            "Overall")))
-
-# Define global y-axis limits
-y_min <- min(all_period_data$lower_ci)
-y_max <- max(all_period_data$upper_ci)
-
-# Create the ggplot for all periods using facet_wrap
-ggplot(all_period_data, aes(x = event_time, y = coefficient, color = cosy_status)) +
-  geom_point() +
-  geom_line() +
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
-  scale_color_manual(
-    name = "Has Adopted Tariff", 
-    labels = c("No" = "No", "Yes" = "Yes"),
-    values = c("No" = flexible_color, "Yes" = cosy_color)  # Adjust these colors as needed
-  ) +
-  scale_x_continuous(breaks = scales::pretty_breaks(n = 10)) +
-  scale_y_continuous(limits = c(y_min, y_max)) +  # Set consistent y-axis range
-  labs(
-    x = "Weeks since adoption",
-    y = "Dynamic ATT for Half Hourly Consumption in kWh"
-  ) +
-  theme_minimal() +
-  theme(legend.position="bottom") +
-  facet_wrap(~ period, scales = "free")
-
-
-
-# Save the combined plot
-ggsave("graphs/dynamic_att_combined.png",  device = "png", width = 16, height = 12, dpi = 300)
-
-
-
-# Function to create the ggplot for each period
-create_calendar_ggplot <- function(period_data, period_name, start_date, y_min, y_max) {
-  # Extract estimates, standard errors, and egt (event time)
-  estimates <- period_data$att.egt   # Convert to daily values
-  standard_errors <- period_data$se.egt   # Convert to daily values
-  event_time <- period_data$egt
-  
-  # Calculate the week dates based on the start_date
-  week_dates <- start_date + weeks(event_time)
-  
-  # Create a data frame for plotting
-  plot_data <- data.frame(
-    week_date = week_dates,
-    estimate = estimates,
-    lower_ci = estimates - 1.96 * standard_errors,
-    upper_ci = estimates + 1.96 * standard_errors
-  )
-  
-  
-  # Create the ggplot for calendar effect
-  p <- ggplot(plot_data, aes(x = week_date, y = estimate)) +
-    geom_point(color = cosy_color) +
-    geom_line(color = cosy_color) +
-    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, color = cosy_color, alpha = 0.6) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
-    scale_x_date(
-      labels = scales::date_format("%b %y"),  # Formatting months and years
-      date_breaks = "1 month"  # Adjust this based on your data density
-    ) +    
-    scale_y_continuous(limits = c(y_min, y_max)) +  # Set consistent y-axis range
-    labs(
-      x = "Week",
-      y = "Calendar ATT for Half Hourly Consumption in kWh"
-    ) +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
-  
-  return(p)
-}
-
-# # Find the global y-axis limits
-# all_estimates <- unlist(lapply(estimates_list, function(period) period$calendar$att.egt ))
-# all_standard_errors <- unlist(lapply(estimates_list, function(period) period$calendar$se.egt ))
-# all_lower_ci <- all_estimates - 1.96 * all_standard_errors
-# all_upper_ci <- all_estimates + 1.96 * all_standard_errors
-# 
-# y_min <- min(all_lower_ci)
-# y_max <- max(all_upper_ci)
-
-# Loop through each period and create/save the plots
-for(period in periods) {
-  
-  # Load CS
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
-  
-  # Retrieve estimates
-  period_data <- aggte(est_cs, type="calendar",alp = 0.01)
-  
-  # Create the plot
-  p <- create_calendar_ggplot(period_data, period, start_date, -0.6, 1)
-  
-  # Print the plot
-  print(p)
-  
-  # Define the filename
-  file_name <- paste("graphs/calendarplot_", period, ".png", sep = "")
-  
-  # Save the plot
-  ggsave(file_name, plot = p, device = "png", width = 5, height = 4, dpi = 300)
-}
-
-# 
-# y_min <- -5
-# y_max <- 5
-# 
-# # Loop through each period and create/save the calendar effect plots
-# for (period in c("Peak Rate", "Afternoon Off-peak")) {
-#   period_data <- estimates_list[[period]]$calendar
-#   
-#   # Create the plot
-#   p <- create_calendar_ggplot(period_data, period, start_date, y_min, y_max)
-#   
-#   # Print the plot
-#   print(p)
-#   
-#   # Define the filename
-#   file_name <- paste("graphs/calendarplot_", period, ".png", sep = "")
-#   
-#   # Save the plot
-#   ggsave(file_name, plot = p, device = "png", width = 5, height = 4, dpi = 300)
-# }
-
-
-# Function to create the data frame for each period
-create_calendar_data <- function(period_data, period_name, start_date) {
-  # Extract estimates, standard errors, and egt (event time)
-  estimates <- period_data$att.egt   # Convert to daily values
-  standard_errors <- period_data$se.egt   # Convert to daily values
-  event_time <- period_data$egt
-  
-  # Calculate the week dates based on the start_date
-  week_dates <- start_date + weeks(event_time)
-  
-  # Create a data frame for plotting
-  plot_data <- data.frame(
-    week_date = week_dates,
-    estimate = estimates,
-    lower_ci = estimates - 1.96 * standard_errors,
-    upper_ci = estimates + 1.96 * standard_errors,
-    period = period_name
-  )
-  
-  return(plot_data)
-}
-
-# Initialize an empty data frame to store all period data
-all_period_data <- data.frame()
-
-# Loop through each period to create the combined data frame
-for(period in periods) {
-  # Load CS
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
-  
-  # Retrieve estimates
-  period_data <- aggte(est_cs, type = "calendar", alp = 0.01)
-  
-  # Create the data frame for the current period
-  period_plot_data <- create_calendar_data(period_data, period, start_date)
-  
-  # Combine the data
-  all_period_data <- bind_rows(all_period_data, period_plot_data)
-}
-
-all_period_data <- all_period_data %>%
-  filter(period != "Overall") %>%
-  mutate(period = factor(period, levels = c("Morning Off-peak",
-                                            "Afternoon Off-peak",
-                                            "Peak Rate",
-                                            "Other", 
-                                            "Overall")))
-
-# Define global y-axis limits (if needed)
-y_min <- min(all_period_data$lower_ci)
-y_max <- max(all_period_data$upper_ci)
-
-# Create the ggplot for all periods using facet_wrap
-ggplot(all_period_data, aes(x = week_date, y = estimate)) +
-  geom_point(color = cosy_color) +  # Use your desired color
-  geom_line(color = cosy_color) +   # Use your desired color
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, color = cosy_color, alpha = 0.6) +  # Use your desired color
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
-  scale_x_date(
-    labels = scales::date_format("%b %y"),  # Formatting months and years
-    date_breaks = "1 month"  # Adjust this based on your data density
-  ) +
-  scale_y_continuous(limits = c(y_min, y_max)) +  # Set consistent y-axis range
-  labs(
-    x = "Week",
-    y = "Calendar ATT for Half Hourly Consumption in kWh"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.position="bottom") +  # Rotate x-axis labels for better readability
-  facet_wrap(~ period, scales = "free")
-
-# Save the combined plot
-ggsave("graphs/calendarplot_combined.png",  device = "png", width = 16, height = 12, dpi = 300)
-
-# Function to format numbers
-format_number <- function(number) {
-  return(format(round(number), big.mark = ",", scientific = FALSE))
-}
-
-# Function to format numbers with four decimal places
-format_decimal <- function(number, decimals = 4) {
-  return(format(round(number, decimals), nsmall = decimals, big.mark = ",", scientific = FALSE))
-}
-
-
-# Register the pre-treatment average fit statistic
-fitstat_register("pre_avg", function(x) {
-  
-  # Extract the formula
-  formula <- x$fml_all$linear
-  
-  # Extract the outcome variable from the formula
-  outcome_variable <- all.vars(formula)[1]
-  
-  # Extract the call object and evaluate the data argument
-  call_object <- x$call
-  data_expr <- call_object$data
-  data <- eval(data_expr)
-  
-  # Get the logical vector of observations used in the model
-  obs_used <- obs(x)
-  
-  # Subset the original dataset using this logical vector
-  data_used <- data[obs_used, ]
-  
-  # Ensure the outcome variable is treated as a column name
-  outcome_values <- data_used[[outcome_variable]]
-  
-  # Create pre-avg for non-HP installed group
-  pre_avg <- mean(outcome_values[data_used$cosy_contract_active == 0], na.rm = TRUE)
-  
-  # Format the pre-avg
-  formatted_pre_avg <- format_decimal(pre_avg)
-  
-  return(formatted_pre_avg)
-}, "Half Hourly Consumption")
-
-
-
-# Add number of time periods
-fitstat_register("t_obs", function(x) {
-  
-  # time variable
-  t_var <- x$fixef_vars[3]
-  
-  # nbr of unique val for t var
-  t_obs <- x$fixef_sizes[t_var]
-  
-  return(format_number(t_obs))
-}, "Number of Time Periods")
-
-CleanPreAverage <- function(file_path) {
-  
-  # Read the generated LaTeX file
-  file_content <- readLines(file_path)
-  
-  # Find the lines with the pre-treatment average and remove them
-  if (length(grep("Half Hourly Consumption", file_content))==1) {
-    pre_avg_line_index <- grep("Half Hourly Consumption", file_content)
-  } else {
-    pre_avg_line_index <- grep("Half Hourly Consumption", file_content)[2]
-  }
-  
-  pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
-  file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
-  
-  # Find the position just after the coefficients
-  coeff_end_index <- grep("Fixed-effects", file_content) -2
-  
-  # Insert the pre-treatment average row after the coefficients
-  file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
-  file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
-  
-  # Add a \midrule after the pre-treatment average
-  file_content <- append(file_content, "\\midrule", after = coeff_end_index)
-  
-  # Modify the label for "Size of the 'effective' sample" to "Number of Households"
-  sample_line <- grep("Size of the 'effective' sample", file_content)
-  file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
-  
-  # Write the modified content back to the LaTeX file
-  writeLines(file_content, file_path)
-}
-
-main_periods <- unique(aggregated_data$rate_period)
-
-
-#if (!file.exists("tables/did.tex")) {
-m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date, 
-            data = aggregated_data, 
-            cluster = ~account_id, 
-            split = ~ rate_period)
-stop()
-etable(m1, m1, tex=TRUE, title = "Adoption",
-       headers = list(list("TWFE" = 5, "CS" = 5),
-                      list(rep(as.character(sort(main_periods)), times = 2))), 
-       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/did.tex", 
-       replace = TRUE, label="tab:did-main", 
-       style.tex = style.tex(tpt = TRUE))
-
-CleanPreAverage("tables/did.tex")
-
-
-
-main_periods <- unique(aggregated_data$rate_period)
-
-# Initialize variables to store estimates and standard errors
-cs_estimates <- list()
-cs_se <- list()
-cs_n <- list()
-cs_nG <- list()
-cs_nT <- list()
-cs_pre_avg <- list()
-
-# Loop through each period to get the Callaway and Sant'Anna estimates
-for(period in main_periods) {
-  # Load CS
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
-  
-  # Simple Aggte
-  aggte_simple <- aggte(est_cs, type = "simple", na.rm = TRUE, clustervars="id", bstrap=TRUE, alp = 0.01)
-  print(aggte_simple)
-  
-  # Pre treatment average
-  pre_treatment_average <- aggte_simple$DIDparams$data %>%
-    ungroup() %>%
-    filter(week < firstweek - 1) %>%
-    summarise(consumption_hh = mean(consumption_hh))
-  
-  cs_estimates[[period]] <- aggte_simple$overall.att
-  cs_se[[period]] <- aggte_simple$overall.se
-  cs_n[[period]] <- format_number(aggte_simple$DIDparams$n)
-  cs_nG[[period]] <- format_number(aggte_simple$DIDparams$nG)
-  cs_nT[[period]] <- format_number(aggte_simple$DIDparams$nT)
-  cs_pre_avg[[period]] <- format_decimal(pre_treatment_average)
-}
-
-# Define the file path
-file_path <- "tables/did.tex"
-
-# Read the generated LaTeX file
-file_content <- readLines(file_path)
-
-# Format the estimates and standard errors to four decimal places
-cs_estimates <- lapply(cs_estimates, function(x) sprintf("%.4f", x))
-cs_se <- lapply(cs_se, function(x) sprintf("%.4f", x))
-
-# Find the rows that need to be updated
-coeff_line <- grep("Contract Active \\$=\\$ 1", file_content)
-se_line <- coeff_line + 1
-obs_line <- grep("Observations", file_content)
-sample_line <- grep("Number of Households", file_content)
-periods_line <- grep("Number of Time Periods", file_content)
-hdd_line <- grep("HDD", file_content)
-mpan_line <- grep("Household", file_content)[1]
-day_line <- grep("Day", file_content)
-pre_avgs <- grep("Half Hourly Consumption", file_content)[2]
-r2_line <- grep("R", file_content)[-1]
-
-# Function to replace the 6th to 10th columns in a LaTeX table row
-replace_columns <- function(line, new_values) {
-  parts <- strsplit(line, "&")[[1]]
-  for (i in seq_along(new_values)) {
-    parts[6 + i] <- str_trim(new_values[[i]])
-  }
-  return(paste(parts, collapse = " & "))
-}
-
-# Function to clear the 6th to 10th columns in a LaTeX table row
-clear_columns <- function(line) {
-  parts <- strsplit(line, "&")[[1]]
-  for (i in 7:length(parts)) {
-    parts[i] <- ""
-  }
-  return(paste(parts, collapse = " & "))
-}
-
-# Ensure each replacement maintains the LaTeX table structure
-new_estimates <- c(paste0(cs_estimates[["Morning Off-peak"]], "***"), 
-                   paste0(cs_estimates[["Afternoon Off-peak"]], "***"), 
-                   paste0(cs_estimates[["Peak Rate"]], "***"), 
-                   paste0(cs_estimates[["Other"]], "***"), 
-                   paste0(cs_estimates[["Overall"]]))
-new_se <- c(paste0("(", cs_se[["Morning Off-peak"]], ")"), 
-            paste0("(", cs_se[["Afternoon Off-peak"]], ")"), 
-            paste0("(", cs_se[["Peak Rate"]], ")"), 
-            paste0("(", cs_se[["Other"]], ")"), 
-            paste0("(", cs_se[["Overall"]], ")"))
-file_content[sample_line] <- replace_columns(file_content[sample_line], cs_n) %>% paste0(" \\\\")
-file_content[coeff_line] <- replace_columns(file_content[coeff_line], new_estimates) %>% paste0(" \\\\")
-file_content[se_line] <- replace_columns(file_content[se_line], new_se) %>% paste0(" \\\\")
-file_content[periods_line] <- replace_columns(file_content[periods_line], cs_nT) %>% paste0(" \\\\")
-file_content[pre_avgs] <- replace_columns(file_content[pre_avgs], cs_pre_avg) %>% paste0(" \\\\")
-file_content[obs_line] <- clear_columns(file_content[obs_line]) %>% paste0(" \\\\")
-file_content[hdd_line] <- clear_columns(file_content[hdd_line]) %>% paste0(" \\\\")
-file_content[mpan_line] <- clear_columns(file_content[mpan_line]) %>% paste0(" \\\\")
-file_content[day_line] <- clear_columns(file_content[day_line]) %>% paste0(" \\\\")
-file_content[r2_line] <- clear_columns(file_content[r2_line]) %>% paste0(" \\\\")
-
-# Update the line with the clustering information
-clustering_line_index <- grep("Clustered \\(Household\\)", file_content)
-if (length(clustering_line_index) > 0) {
-  file_content[clustering_line_index] <- "\\multicolumn{10}{l}{\\emph{Clustered (Household) standard-errors in parentheses for TWFE}}\\\\"
-}
-# Add CS clustering explanation
-new_row <- "\\multicolumn{5}{l}{\\emph{Clustered (Household) standard-errors in parentheses for CS}}\\\\"
-file_content <- append(file_content, new_row, after = clustering_line_index)
-
-# Add new row for "Number of cohorts (CS)"
-new_row <- paste0("Number of cohorts (CS) & &  &  &  &  & ", paste(cs_nG, collapse = " & "), " \\\\")
-file_content <- append(file_content, new_row, after = sample_line)
-
-# Write the modified content back to the LaTeX file
-writeLines(file_content, file_path)
-
-
-
-format_number <- function(x) {
-  formatC(x, format = "d", big.mark = ",")
-}
-
-# Function to check if the confidence interval contains zero
-confidence_star <- function(coefficient, se, alpha) {
-  ci_lower <- coefficient - qnorm(1 - alpha / 2) * se
-  ci_upper <- coefficient + qnorm(1 - alpha / 2) * se
-  if (ci_lower > 0 | ci_upper < 0) {
-    return("***")
-  } else {
-    return("")
-  }
-}
-
-# Function to create LaTeX table
-create_latex_table <- function(models, headers, title, file, label, pre_treatment_averages, note = "") {
-  # Extract data from models
-  # Extract coefficients and pre-treatment averages
-  coefficients <- sapply(models, function(model) {
-    # Coefficient, standard error, and confidence stars
-    coef <- model$overall.att
-    se <- model$overall.se
-    alpha <- model$DIDparams$alp
-    
-    # Combine coefficient and confidence star
-    paste0(format_decimal(coef, 4), confidence_star(coef, se, alpha))
-  })
-  
-  # Extract pre-treatment averages
-  pre_treatment_values <- sapply(models, function(model) {
-    pre_treatment_average <- model$DIDparams$data %>%
-      filter(week < firstweek) %>%
-      summarise(mean = mean(consumption_hh, na.rm = TRUE)) %>%
-      pull(mean)
-    
-    # Format the pre-treatment average to 4 decimal places
-    format_decimal(pre_treatment_average, 4)
-  })
-  
-  # Extract standard errors, observations, number of cohorts, and time periods
-  standard_errors <- sapply(models, function(model) paste0("(", format_decimal(model$overall.se, 4), ")"))
-  observations <- sapply(models, function(model) format_number(model$DIDparams$n))
-  nG <- sapply(models, function(model) format_number(model$DIDparams$nG))
-  nT <- sapply(models, function(model) format_number(model$DIDparams$nT))
-  alpha <- models[[1]]$DIDparams$alp
-  conf_level <- (1 - alpha) * 100
-  
-  # Begin LaTeX table
-  latex_table <- "\\begin{table}[htbp]\n"
-  latex_table <- paste0(latex_table, "   \\caption{\\label{", label, "} ", title, "}\n")
-  if (note != "") {
-    latex_table <- paste0(latex_table, "   \\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} ", note, "}\n")
-  }
-  
-  latex_table <- paste0(latex_table, "   \\centering\n")
-  latex_table <- paste0(latex_table, "   \\begin{tabular}{l", paste(rep("c", length(headers)), collapse = ""), "}\n")
-  latex_table <- paste0(latex_table, "      \\tabularnewline \\midrule \\midrule\n")
-  latex_table <- paste0(latex_table, "                                     & ", paste(headers, collapse = "     & "), " \\\\   \n")
-  latex_table <- paste0(latex_table, "      Model:                         & ", paste(paste0("(", 1:length(headers), ")"), collapse = "              & "), "\\\\  \n")
-  latex_table <- paste0(latex_table, "      \\midrule\n")
-  latex_table <- paste0(latex_table, "      \\emph{Variable}\\\\\n")
-  latex_table <- paste0(latex_table, "      Has Adopted Tariff $=$ 1     & ", paste(coefficients, collapse = " & "), "\\\\   \n")
-  latex_table <- paste0(latex_table, "                                     & ", paste(standard_errors, collapse = "         & "), "\\\\   \n")
-  latex_table <- paste0(latex_table, "      \\midrule\n")
-  latex_table <- paste0(latex_table, "      \\emph{Pre-treatment Average}\\\\\n")
-  latex_table <- paste0(latex_table, "      Half Hourly Consumption              & ", paste(pre_treatment_values, collapse = " & "), "\\\\   \n")
-  latex_table <- paste0(latex_table, "      \\midrule\n")
-  latex_table <- paste0(latex_table, "      \\emph{Fit statistics}\\\\\n")
-  latex_table <- paste0(latex_table, "      Number of Households                   & ", paste(observations, collapse = "           & "), "\\\\  \n")
-  latex_table <- paste0(latex_table, "      Number of Cohorts              & ", paste(nG, collapse = "              & "), "\\\\  \n")
-  latex_table <- paste0(latex_table, "      Number of Time Periods         & ", paste(nT, collapse = "             & "), "\\\\  \n")
-  latex_table <- paste0(latex_table, "      \\midrule \\midrule\n")
-  latex_table <- paste0(latex_table, "      \\multicolumn{", length(headers) + 1, "}{l}{Clustered (Household) standard-errors in parentheses}\\\\\n")
-  latex_table <- paste0(latex_table, "      \\multicolumn{", length(headers) + 1, "}{l}{Estimation Method: Doubly Robust}\\\\\n")
-  latex_table <- paste0(latex_table, "      \\multicolumn{", length(headers) + 1, "}{l}{Control Group: Not Yet Treated, Anticipation Periods: 0}\\\\\n")
-  latex_table <- paste0(latex_table, "      \\multicolumn{", length(headers) + 1, "}{l}{Signif. Codes: *** ", conf_level, "\\% confidence band does not cover 0}\\\\\n")
-  latex_table <- paste0(latex_table, "   \\end{tabular}\n")
-  latex_table <- paste0(latex_table, "\\end{table}\n")
-  
-  # Write to file
-  writeLines(latex_table, file)
-}
-
-# Example usage for Tariff Adoption
-main_periods <- sort(unique(aggregated_data$rate_period))
-
-# Creating models list for the new table
-models <- lapply(main_periods, function(period) {
-  aggte(readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS"))), 
-        type = "simple", 
-        na.rm = TRUE, 
-        clustervars="id",
-        bstrap=TRUE, 
-        alp = 0.01)
-})
-
-
-
-# Headers for each period
-headers <- main_periods
-
-# File details
-title <- "Tariff Adoption on Half Hourly Electricity Consumption in kWh"
-file <- "tables/cosy_did_cs.tex"
-label <- "tab:cosy-did-cs"
-
-# Create the LaTeX table
-create_latex_table(models, headers, title, file, label, pre_treatment_averages, note = "We show estimates from five CS estimates of the impact of consumption on customers’ electricity during 
-the morning off-peak period 4am-7am (column 1), afternoon off-peak period 1pm-4pm (column 2), peak period 4pm-7pm (column 3), 
-other hours of the day (column 4), and ``overall’’, i.e,. across all 48 half-hours of the day (column 5).")
-
-
-m1 <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date, 
-            data = aggregated_data, 
-            cluster = ~account_id, 
-            split = ~ rate_period)
-
-etable(m1, m1, tex=TRUE, title =  "Adoption",
-       headers = list(list("TWFE" = 5, "CS" = 5),
-                      list(rep(as.character(sort(main_periods)), times = 2))), 
-       fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/did.tex", replace = TRUE, label="tab:did-main")
-
-CleanPreAverage("tables/did.tex")
-
-file_content <- readLines("tables/did.tex")
-
-# Modify the table formatting
-file_content[5] <- gsub("\\\\begin\\{tabular\\}\\{lcccccccccc\\}", "\\\\begin{tabular}{@{}l@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}}", file_content[5])
-
-# Write the modified content back to the LaTeX file
-writeLines(file_content, "tables/did.tex")
-
-# Find main periods
-main_periods <- unique(aggregated_data$rate_period)
-
-# Initialize variables to store estimates and standard errors
-cs_estimates <- list()
-cs_se <- list()
-cs_n <- list()
-cs_nG <- list()
-cs_nT <- list()
-cs_pre_avg <- list()
-
-# Loop through each period to get the Callaway and Sant'Anna estimates
-for(period in main_periods) {
-  # Load CS
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
-  
-  # Simple Aggte
-  aggte_simple <- aggte(est_cs, type = "simple", na.rm = TRUE, clustervars="id", bstrap=TRUE, alp = 0.01)
-  print(aggte_simple)
-  
-  # Pre treatment average
-  pre_treatment_average <- aggte_simple$DIDparams$data %>%
-    ungroup() %>%
-    filter(week < firstweek - 1) %>%
-    summarise(consumption_hh = mean(consumption_hh))
-  
-  cs_estimates[[period]] <- aggte_simple$overall.att
-  cs_se[[period]] <- aggte_simple$overall.se
-  cs_n[[period]] <- format_number(aggte_simple$DIDparams$n)
-  cs_nG[[period]] <- format_number(aggte_simple$DIDparams$nG)
-  cs_nT[[period]] <- format_number(aggte_simple$DIDparams$nT)
-  cs_pre_avg[[period]] <- format_decimal(pre_treatment_average)
-}
-
-# Define the file path
-file_path <- "tables/did.tex"
-
-# Read the generated LaTeX file
-file_content <- readLines(file_path)
-
-# Format the estimates and standard errors to four decimal places
-cs_estimates <- lapply(cs_estimates, function(x) sprintf("%.4f", x))
-cs_se <- lapply(cs_se, function(x) sprintf("%.4f", x))
-
-# Find the rows that need to be updated
-coeff_line <- grep("Contract Active \\$=\\$ 1", file_content)
-se_line <- coeff_line + 1
-obs_line <- grep("Observations", file_content)
-sample_line <- grep("Number of Households", file_content)
-periods_line <- grep("Number of Time Periods", file_content)
-hdd_line <- grep("HDD", file_content)
-mpan_line <- grep("Household", file_content)[1]
-day_line <- grep("Day", file_content)
-pre_avgs <- grep("Half Hourly Consumption", file_content)[2]
-r2_line <- grep("R", file_content)[-1]
-
-# Function to replace the 6th to 10th columns in a LaTeX table row
-replace_columns <- function(line, new_values) {
-  parts <- strsplit(line, "&")[[1]]
-  for (i in seq_along(new_values)) {
-    parts[6 + i] <- str_trim(new_values[[i]])
-  }
-  return(paste(parts, collapse = " & "))
-}
-
-# Function to clear the 6th to 10th columns in a LaTeX table row
-clear_columns <- function(line) {
-  parts <- strsplit(line, "&")[[1]]
-  for (i in 7:length(parts)) {
-    parts[i] <- ""
-  }
-  return(paste(parts, collapse = " & "))
-}
-
-# Ensure each replacement maintains the LaTeX table structure
-new_estimates <- c(paste0(cs_estimates[["Morning Off-peak"]], "***"), 
-                   paste0(cs_estimates[["Afternoon Off-peak"]], "***"), 
-                   paste0(cs_estimates[["Peak Rate"]], "***"), 
-                   paste0(cs_estimates[["Other"]], "***"), 
-                   paste0(cs_estimates[["Overall"]]))
-new_se <- c(paste0("(", cs_se[["Morning Off-peak"]], ")"), 
-            paste0("(", cs_se[["Afternoon Off-peak"]], ")"), 
-            paste0("(", cs_se[["Peak Rate"]], ")"), 
-            paste0("(", cs_se[["Other"]], ")"), 
-            paste0("(", cs_se[["Overall"]], ")"))
-file_content[sample_line] <- replace_columns(file_content[sample_line], cs_n) %>% paste0(" \\\\")
-file_content[coeff_line] <- replace_columns(file_content[coeff_line], new_estimates) %>% paste0(" \\\\")
-file_content[se_line] <- replace_columns(file_content[se_line], new_se) %>% paste0(" \\\\")
-file_content[periods_line] <- replace_columns(file_content[periods_line], cs_nT) %>% paste0(" \\\\")
-file_content[pre_avgs] <- replace_columns(file_content[pre_avgs], cs_pre_avg) %>% paste0(" \\\\")
-file_content[obs_line] <- clear_columns(file_content[obs_line]) %>% paste0(" \\\\")
-file_content[hdd_line] <- clear_columns(file_content[hdd_line]) %>% paste0(" \\\\")
-file_content[mpan_line] <- clear_columns(file_content[mpan_line]) %>% paste0(" \\\\")
-file_content[day_line] <- clear_columns(file_content[day_line]) %>% paste0(" \\\\")
-file_content[r2_line] <- clear_columns(file_content[r2_line]) %>% paste0(" \\\\")
-
-# Update the line with the clustering information
-clustering_line_index <- grep("Clustered \\(Household\\)", file_content)
-if (length(clustering_line_index) > 0) {
-  file_content[clustering_line_index] <- "\\multicolumn{10}{l}{\\emph{Clustered (Household) standard-errors in parentheses for TWFE}}\\\\"
-}
-# Add CS clustering explanation
-new_row <- "\\multicolumn{5}{l}{\\emph{Clustered cohort (Household) standard-errors in parentheses for CS}}\\\\"
-file_content <- append(file_content, new_row, after = clustering_line_index)
-
-# Add new row for "Number of cohorts (CS)"
-new_row <- paste0("Number of cohorts (CS) & &  &  &  &  & ", paste(cs_nG, collapse = " & "), " \\\\")
-file_content <- append(file_content, new_row, after = sample_line)
-
-# Write the modified content back to the LaTeX file
-writeLines(file_content, file_path)
-
-# DID IMPUTATION ESTIMATOR
-                
-# Initialize an empty list to store the results
-imputation_results_list <- list()
-
-# Loop over periods and base periods
 for (period in periods) {
-  
-  # Create a unique key for each period and base period combination to store the results
-  list_key <- paste0("period_", period)
-  
-  # Adjust your existing code to calculate 'week' and 'firstweek' as the number of weeks from the start_date
-  did_data <- aggregated_data %>%
-    ungroup() %>%
-    filter(rate_period == period, !hashed_mpan == "1185945433") %>% # exclude this odd mpan because it only has others periods
-    mutate(settlement_week = floor_date(date, "week"),
-           week = difftime(settlement_week, start_date, units = "weeks"),
-           firstweek =  difftime(floor_date(first_adoption, "week"), start_date, units = "weeks")) %>%
-    group_by(hashed_mpan, firstweek, week) %>%
-    summarise(consumption_hh = mean(consumption_hh)) %>%
-    mutate(
-      firstweek = as.numeric(firstweek),
-      week = as.numeric(week)
-    ) %>% 
-    group_by(hashed_mpan) %>%
-    mutate(id = cur_group_id()) %>%
-    ungroup()
-  
-  # Estimating the treatment effect using the `did_imputation` method
-  imputation_result <- did_imputation(
-    data = did_data,
-    yname = "consumption_hh",          # Outcome variable
-    gname = "firstweek",               # Group identifier (treatment start time)
-    tname = "week",                    # Time variable
-    idname = "id",                     # Unit identifier
-    first_stage = NULL,                # Default to time and unit fixed effects
-    wname = NULL,                      # No weights
-    wtr = NULL,                        # No treatment weights
-    horizon = seq(-52,52),                    # Include all event time horizons
-    pretrends = -52:-1,                  # Pre-trends
-    cluster_var = "id"                 # Clustering by ID
-  )
-  
-  # Save the result in the list
-  imputation_results_list[[list_key]] <- imputation_result
-  
+
+  cat(">>> Calendar-time plot for:", period, "<<<\n")
+
+  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
+
+  est_cs$first_week <- (weeks(est_cs$group - 1) + floor_date(start_date, "week"))
+  est_cs$week       <- (floor_date(start_date, "week") + weeks(est_cs$t - 1))
+
+  p <- data.frame(
+    group = est_cs$group,
+    se = est_cs$se,
+    t = est_cs$t,
+    date = est_cs$week,
+    att = est_cs$att,
+    first_week = est_cs$first_week
+  ) %>%
+    filter(first_week <= date)
+
+  ggplot(p, aes(x = date, y = att, color = first_week, group = first_week)) +
+    geom_ribbon(aes(ymin = att - se, ymax = att + se),
+                fill = "grey80", alpha = 0.5, color = NA) +
+    geom_line() +
+    geom_point() +
+    scale_x_date(labels = scales::date_format("%b %y"), date_breaks = "3 month") +
+    labs(x = "Calendar Time", y = "Average ATT", color = "Adoption Week") +
+    scale_color_gradientn(
+      colors = c("lightblue", "blue", "darkblue"),
+      breaks = as.Date(seq(19337, 19885, 100)),
+      labels = format(as.Date(seq(19337, 19885, 100)), "%b %Y")
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "right")
+
+  ggsave(paste0("graphs/monthly_att_", tolower(period) %>% str_replace(" ", "_"), ".png"))
+
+  cat(">>> Saved calendar-time plot for:", period, "<<<\n")
 }
 
-# At the end, you will have all the results stored in `imputation_results_list`
+# ============================================================
+# 4) Dynamic ATT plots (per period + combined facet)
+# ============================================================
+cat("\n>>> Dynamic ATT plots <<<\n")
 
-# Initialize an empty data frame to store all period data
-all_period_data <- data.frame()
+create_dynamic_data <- function(period_data, period_name) {
+  data.frame(
+    event_time = period_data$egt,
+    coefficient = period_data$att.egt,
+    lower_ci = period_data$att.egt - 1.96 * period_data$se.egt,
+    upper_ci = period_data$att.egt + 1.96 * period_data$se.egt,
+    period = period_name,
+    cosy_status = ifelse(period_data$egt < 0, "No", "Yes")
+  )
+}
 
-# Loop through each period in the list and create/save the plots
-for(i in seq_along(imputation_results_list)) {
-  
-  # Get the name of the period
-  period_name <- gsub("period_", "", names(imputation_results_list)[i])
-  print(paste0("Creating plot for ", period_name)) 
-  
-  # Get the imputation result for this period
-  period_data <- imputation_results_list[[i]] %>% 
-    rename(coefficient = estimate) %>%
-    mutate(event_time = as.numeric(term)) %>%
-    filter(event_time > -52, event_time < 52) %>%
-    mutate(lower_ci =  conf.low,
-           upper_ci =  conf.high,
-           period = factor(ifelse(event_time < 0, "No", "Yes"), levels = c("Yes", "No")),
-           cosy_status = ifelse(event_time < 0, "No", "Yes"),
-           period = factor(period_name, levels = c("Morning Off-peak",
-                                                   "Afternoon Off-peak",
-                                                   "Peak Rate",
-                                                   "Other", 
-                                                   "Overall")))
-  
-  
-  
-  
-  # Create the plot
-  p <- ggplot(period_data, aes(x = event_time, y = coefficient, color = cosy_status)) +
+all_dynamic <- data.frame()
+
+for (period in periods) {
+
+  cat(">>> Dynamic plot for:", period, "<<<\n")
+
+  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
+  period_data <- aggte(est_cs, type = "dynamic", alp = 0.01, min_e = -52, max_e = 52)
+
+  plot_data <- create_dynamic_data(period_data, period) %>%
+    mutate(cosy_status = factor(cosy_status, levels = c("Yes", "No")))
+
+  p <- ggplot(plot_data, aes(x = event_time, y = coefficient, color = cosy_status)) +
     geom_point() +
     geom_line() +
     geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
     scale_color_manual(
-      name = "Has Adopted Tariff", 
+      name = "Has Adopted Tariff",
       labels = c("No" = "No", "Yes" = "Yes"),
-      values = c("No" = flexible_color, "Yes" = cosy_color)  # Custom colors
+      values = c("No" = flexible_color, "Yes" = cosy_color)
     ) +
     scale_x_continuous(breaks = seq(-50, 50, 10)) +
-    labs(
-      x = "Weeks since adoption",
-      y = "Dynamic ATT for Half Hourly Consumption (kWh)"
-    ) +
+    labs(x = "Weeks since adoption",
+         y = "Dynamic ATT for Half Hourly Consumption (kWh)") +
     theme_minimal()
-  
-  # Print the plot
-  print(p)
-  
-  # Define the filename
-  file_name <- paste("graphs/imputation_plot_", period_name, ".png", sep = "")
-  
-  # Save the plot
-  ggsave(file_name, plot = p, device = "png", width = 10, height = 8, dpi = 300)
-  
-  # Combine the data
-  all_period_data <- bind_rows(all_period_data, period_data)
+
+  ggsave(paste0("graphs/plot_", period, ".png"),
+         plot = p, device = "png", width = 10, height = 8, dpi = 300)
+
+  cat(">>> Saved dynamic plot for:", period, "<<<\n")
+
+  all_dynamic <- bind_rows(all_dynamic, plot_data)
 }
 
-# Check summary of combined data
-summary(all_period_data)
+cat("\n>>> Combined dynamic ATT plot <<<\n")
 
-# Define global y-axis limits
-y_min <- min(all_period_data$lower_ci, na.rm = TRUE)
-y_max <- max(all_period_data$upper_ci, na.rm = TRUE)
+all_dynamic <- all_dynamic %>%
+  filter(period != "Overall") %>%
+  mutate(period = factor(period, levels = c("Morning Off-peak",
+                                           "Afternoon Off-peak",
+                                           "Peak Rate",
+                                           "Other",
+                                           "Overall")))
 
-# Create the ggplot for all periods using facet_wrap
-ggplot(all_period_data %>% filter(!period == "Overall"), aes(x = event_time, y = coefficient, color = cosy_status)) +
+y_min <- min(all_dynamic$lower_ci, na.rm = TRUE)
+y_max <- max(all_dynamic$upper_ci, na.rm = TRUE)
+
+p_dynamic_combined <- ggplot(all_dynamic, aes(x = event_time, y = coefficient, color = cosy_status)) +
   geom_point() +
   geom_line() +
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
   scale_color_manual(
-    name = "Has Adopted Tariff", 
+    name = "Has Adopted Tariff",
     labels = c("No" = "No", "Yes" = "Yes"),
-    values = c("No" = flexible_color, "Yes" = cosy_color)  # Adjust these colors as needed
+    values = c("No" = flexible_color, "Yes" = cosy_color)
   ) +
   scale_x_continuous(breaks = scales::pretty_breaks(n = 10)) +
-  scale_y_continuous(limits = c(y_min, y_max)) +  # Set consistent y-axis range
-  labs(
-    x = "Weeks since adoption",
-    y = "Dynamic ATT for Half Hourly Consumption in kWh"
-  ) +
+  scale_y_continuous(limits = c(y_min, y_max)) +
+  labs(x = "Weeks since adoption",
+       y = "Dynamic ATT for Half Hourly Consumption in kWh") +
   theme_minimal() +
   theme(legend.position = "bottom") +
   facet_wrap(~ period, scales = "free")
 
-# Save the combined plot
-ggsave("graphs/dynamic_att_combined_imputation.png", device = "png", width = 16, height = 12, dpi = 300)
+ggsave("graphs/dynamic_att_combined.png", plot = p_dynamic_combined,
+       device = "png", width = 16, height = 12, dpi = 300)
+
+cat(">>> Saved combined dynamic ATT plot <<<\n")
+
+# ============================================================
+# 5) Calendar ATT plots (per period + combined facet)
+# ============================================================
+cat("\n>>> Calendar ATT plots <<<\n")
+
+create_calendar_data <- function(period_data, period_name, start_date) {
+  week_dates <- start_date + weeks(period_data$egt)
+  data.frame(
+    week_date = week_dates,
+    estimate = period_data$att.egt,
+    lower_ci = period_data$att.egt - 1.96 * period_data$se.egt,
+    upper_ci = period_data$att.egt + 1.96 * period_data$se.egt,
+    period = period_name
+  )
+}
+
+all_calendar <- data.frame()
+
+for (period in periods) {
+
+  cat(">>> Calendar plot for:", period, "<<<\n")
+
+  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
+  period_data <- aggte(est_cs, type = "calendar", alp = 0.01)
+
+  plot_data <- create_calendar_data(period_data, period, start_date)
+
+  p <- ggplot(plot_data, aes(x = week_date, y = estimate)) +
+    geom_point(color = cosy_color) +
+    geom_line(color = cosy_color) +
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci),
+                  width = 0.2, color = cosy_color, alpha = 0.6) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    scale_x_date(labels = scales::date_format("%b %y"), date_breaks = "1 month") +
+    scale_y_continuous(limits = c(-0.6, 1)) +
+    labs(x = "Week", y = "Calendar ATT for Half Hourly Consumption in kWh") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  ggsave(paste0("graphs/calendarplot_", period, ".png"),
+         plot = p, device = "png", width = 5, height = 4, dpi = 300)
+
+  cat(">>> Saved calendar plot for:", period, "<<<\n")
+
+  all_calendar <- bind_rows(all_calendar, plot_data)
+}
+
+cat("\n>>> Combined calendar ATT plot <<<\n")
+
+all_calendar <- all_calendar %>%
+  filter(period != "Overall") %>%
+  mutate(period = factor(period, levels = c("Morning Off-peak",
+                                           "Afternoon Off-peak",
+                                           "Peak Rate",
+                                           "Other",
+                                           "Overall")))
+
+y_min <- min(all_calendar$lower_ci, na.rm = TRUE)
+y_max <- max(all_calendar$upper_ci, na.rm = TRUE)
+
+p_calendar_combined <- ggplot(all_calendar, aes(x = week_date, y = estimate)) +
+  geom_point(color = cosy_color) +
+  geom_line(color = cosy_color) +
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci),
+                width = 0.2, color = cosy_color, alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  scale_x_date(labels = scales::date_format("%b %y"), date_breaks = "1 month") +
+  scale_y_continuous(limits = c(y_min, y_max)) +
+  labs(x = "Week", y = "Calendar ATT for Half Hourly Consumption in kWh") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom") +
+  facet_wrap(~ period, scales = "free")
+
+ggsave("graphs/calendarplot_combined.png", plot = p_calendar_combined,
+       device = "png", width = 16, height = 12, dpi = 300)
+
+cat(">>> Saved combined calendar ATT plot <<<\n")
+
+# ============================================================
+# 6) TWFE table (fixest) -> write did.tex -> CleanPreAverage
+# ============================================================
+cat("\n>>> TWFE table (fixest::etable) <<<\n")
+
+m1 <- feols(
+  consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
+  data = aggregated_data,
+  cluster = ~account_id,
+  split = ~ rate_period
+)
+
+etable(
+  m1, m1,
+  tex = TRUE,
+  title = "Adoption",
+  headers = list(
+    list("TWFE" = 5, "CS" = 5),
+    list(rep(as.character(sort(main_periods)), times = 2))
+  ),
+  fitstat = ~ N + g + pre_avg + t_obs + r2,
+  file = "tables/did.tex",
+  replace = TRUE,
+  label = "tab:did-main",
+  style.tex = style.tex(tpt = TRUE)
+)
+
+CleanPreAverage("tables/did.tex")
+
+# Optional: tweak tabular preamble (kept from your later block)
+file_content <- readLines("tables/did.tex")
+file_content[5] <- gsub(
+  "\\\\begin\\{tabular\\}\\{lcccccccccc\\}",
+  "\\\\begin{tabular}{@{}l@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}}",
+  file_content[5]
+)
+writeLines(file_content, "tables/did.tex")
+
+cat(">>> Saved tables/did.tex (TWFE base) <<<\n")
+
+# ============================================================
+# 7) CS “simple” estimates per period -> inject into did.tex
+# ============================================================
+cat("\n>>> CS simple aggregation + LaTeX injection <<<\n")
+
+cs_estimates <- list()
+cs_se        <- list()
+cs_n         <- list()
+cs_nG        <- list()
+cs_nT        <- list()
+cs_pre_avg   <- list()
+
+for (period in main_periods) {
+
+  cat(">>> CS simple for:", period, "<<<\n")
+
+  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
+
+  aggte_simple <- aggte(
+    est_cs,
+    type = "simple",
+    na.rm = TRUE,
+    clustervars = "id",
+    bstrap = TRUE,
+    alp = 0.01
+  )
+
+  pre_avg <- extract_pre_treatment_avg(aggte_simple, anticipation = 1)
+
+  cs_estimates[[period]] <- aggte_simple$overall.att
+  cs_se[[period]]        <- aggte_simple$overall.se
+  cs_n[[period]]         <- format_number(aggte_simple$DIDparams$id_count)
+  cs_nG[[period]]        <- format_number(aggte_simple$DIDparams$treated_groups_count)
+  cs_nT[[period]]        <- format_number(aggte_simple$DIDparams$time_periods_count)
+  cs_pre_avg[[period]]   <- format_decimal(pre_avg, 4)
+}
+
+inject_cs_into_did_tex(
+  file_path    = "tables/did.tex",
+  cs_estimates = cs_estimates,
+  cs_se        = cs_se,
+  cs_n         = cs_n,
+  cs_nG        = cs_nG,
+  cs_nT        = cs_nT,
+  cs_pre_avg   = cs_pre_avg
+)
+
+cat(">>> Injected CS results into tables/did.tex <<<\n")
+
+# ============================================================
+# 8) DiD imputation estimator + plots
+# ============================================================
+cat("\n>>> DiD imputation estimator <<<\n")
+
+imputation_results_list <- list()
+
+for (period in periods) {
+
+  cat(">>> Imputation estimation for:", period, "<<<\n")
+
+  did_data <- aggregated_data %>%
+    ungroup() %>%
+    filter(rate_period == period, !hashed_mpan == "1185945433") %>%
+    mutate(
+      settlement_week = floor_date(date, "week"),
+      week      = difftime(settlement_week, start_date, units = "weeks"),
+      firstweek  = difftime(floor_date(first_adoption, "week"), start_date, units = "weeks")
+    ) %>%
+    group_by(hashed_mpan, firstweek, week) %>%
+    summarise(consumption_hh = mean(consumption_hh), .groups = "drop") %>%
+    mutate(firstweek = as.numeric(firstweek),
+           week      = as.numeric(week)) %>%
+    group_by(hashed_mpan) %>%
+    mutate(id = cur_group_id()) %>%
+    ungroup()
+
+  imputation_results_list[[paste0("period_", period)]] <- did_imputation(
+    data = did_data,
+    yname = "consumption_hh",
+    gname = "firstweek",
+    tname = "week",
+    idname = "id",
+    first_stage = NULL,
+    wname = NULL,
+    wtr = NULL,
+    horizon = seq(-52, 52),
+    pretrends = -52:-1,
+    cluster_var = "id"
+  )
+}
+
+cat("\n>>> Imputation plots (per period + combined) <<<\n")
+
+all_imp <- data.frame()
+
+for (nm in names(imputation_results_list)) {
+
+  period_name <- gsub("period_", "", nm)
+  cat(">>> Plotting imputation:", period_name, "<<<\n")
+
+  period_data <- imputation_results_list[[nm]] %>%
+    rename(coefficient = estimate) %>%
+    mutate(event_time = as.numeric(term)) %>%
+    filter(event_time > -52, event_time < 52) %>%
+    mutate(
+      lower_ci = conf.low,
+      upper_ci = conf.high,
+      cosy_status = ifelse(event_time < 0, "No", "Yes"),
+      period = factor(period_name, levels = c("Morning Off-peak",
+                                             "Afternoon Off-peak",
+                                             "Peak Rate",
+                                             "Other",
+                                             "Overall"))
+    )
+
+  p <- ggplot(period_data, aes(x = event_time, y = coefficient, color = cosy_status)) +
+    geom_point() +
+    geom_line() +
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    scale_color_manual(
+      name = "Has Adopted Tariff",
+      labels = c("No" = "No", "Yes" = "Yes"),
+      values = c("No" = flexible_color, "Yes" = cosy_color)
+    ) +
+    labs(x = "Weeks since adoption",
+         y = "Dynamic ATT for Half Hourly Consumption (kWh)") +
+    theme_minimal()
+
+  ggsave(paste0("graphs/imputation_plot_", period_name, ".png"),
+         plot = p, device = "png", width = 10, height = 8, dpi = 300)
+
+  all_imp <- bind_rows(all_imp, period_data)
+}
+
+cat(">>> Combined imputation plot <<<\n")
+
+y_min <- min(all_imp$lower_ci, na.rm = TRUE)
+y_max <- max(all_imp$upper_ci, na.rm = TRUE)
+
+p_imp_combined <- ggplot(all_imp %>% filter(period != "Overall"),
+                         aes(x = event_time, y = coefficient, color = cosy_status)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  scale_color_manual(
+    name = "Has Adopted Tariff",
+    labels = c("No" = "No", "Yes" = "Yes"),
+    values = c("No" = flexible_color, "Yes" = cosy_color)
+  ) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 10)) +
+  scale_y_continuous(limits = c(y_min, y_max)) +
+  labs(x = "Weeks since adoption",
+       y = "Dynamic ATT for Half Hourly Consumption in kWh") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~ period, scales = "free")
+
+ggsave("graphs/dynamic_att_combined_imputation.png",
+       plot = p_imp_combined, device = "png",
+       width = 16, height = 12, dpi = 300)
+
+cat("\n>>> Script finished successfully <<<\n")

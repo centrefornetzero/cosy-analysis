@@ -74,7 +74,7 @@ ggplot(weekly_adoptions, aes(x = first_week, y = adoptions)) +
            label = "Announcement:\nBoiler Upgrade Scheme\nincrease to £7,500", hjust = 1, color = cosy_color) +  # Annotate the vertical line
   labs(
     x = "Week",
-    y = "Households Adopting Heat Pump Tariff"
+    y = "Households Adopting the \nHeat Pump Tariff"
   ) +
   scale_x_date(
     labels = scales::date_format("%b %y"),
