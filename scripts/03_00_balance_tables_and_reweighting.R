@@ -551,34 +551,45 @@ format_number <- function(x) {
 
 # Create a table with separate rows for mean and sd, no renaming yet
 final_table_with_sd <- final_table %>%
-  pivot_longer(cols = starts_with("mean_") | starts_with("sd_"), 
-               names_to = c("Statistic", "Sample"), 
-               names_sep = "_") %>%
+  pivot_longer(
+    cols = matches("^(mean|sd)_"),
+    names_to = c("Statistic", "Sample"),
+    names_pattern = "^(mean|sd)_(.*)$"
+  ) %>%
   pivot_wider(names_from = Sample, values_from = value) %>%
   arrange(Variable, Statistic) %>%
-  mutate(Variable = ifelse(Statistic == "mean", Variable, ""),
-         Cosy = ifelse(Statistic == "mean", format_number(`Heat Pump Tariff`), paste0("(", format_number(`Heat Pump Tariff`), ")")),
-         HP = ifelse(Statistic == "mean", format_number(`Heat Pump Adopters`), paste0("(", format_number(`Heat Pump Adopters`), ")")),
-         Random = ifelse(Statistic == "mean", format_number(`Random Sample`), paste0("(", format_number(`Random Sample`), ")"))) %>%
-  mutate(Variable = case_when(Variable == "energy_efficiency" ~ "Energy Efficiency", 
-                             Variable == "estimated_annual_consumption" ~ "EAC", 
-                             Variable == "floor_area" ~ "Floor Area", 
-                             Variable == "property_value" ~ "Property Value"))
-
-
-# Finally, rename the sample columns to include the number of observations
-final_table_with_sd <- final_table_with_sd %>%
+  mutate(
+    Variable = ifelse(Statistic == "mean", Variable, ""),
+    `Heat Pump Tariff`    = ifelse(Statistic == "mean",
+                                  format_number(`Heat Pump Tariff`),
+                                  paste0("(", format_number(`Heat Pump Tariff`), ")")),
+    `Heat Pump Adopters`  = ifelse(Statistic == "mean",
+                                  format_number(`Heat Pump Adopters`),
+                                  paste0("(", format_number(`Heat Pump Adopters`), ")")),
+    `Random Sample`       = ifelse(Statistic == "mean",
+                                  format_number(`Random Sample`),
+                                  paste0("(", format_number(`Random Sample`), ")")),
+    Variable = case_when(
+      Variable == "energy_efficiency" ~ "Energy Efficiency",
+      Variable == "estimated_annual_consumption" ~ "EAC",
+      Variable == "floor_area" ~ "Floor Area",
+      Variable == "property_value" ~ "Property Value",
+      TRUE ~ Variable
+    )
+  ) %>%
+  select(-Statistic)%>%
   rename(
     !!paste0("Heat Pump Tariff (N = ", n_cosy, ")") := `Heat Pump Tariff`,
     !!paste0("Heat Pump Adopters (N = ", n_hp, ")") := `Heat Pump Adopters`,
     !!paste0("Random Sample (N = ", n_random, ")") := `Random Sample`
-  ) %>%
-  select(-Statistic)
+  )
+
+
 
 
 # LaTeX table using stargazer (unchanged)
 stargazer(final_table_with_sd, type = "latex", summary = FALSE, 
-          title = "External Validity by Area for \\textit{Cosy} and Heat Pump Adopters",
+          title = "External Validity by Area for Tariff and Heat Pump Adopters",
           rownames = FALSE,
           digits = 2,
           label = "tab:cosy-hp-random",

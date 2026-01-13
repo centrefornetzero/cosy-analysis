@@ -350,8 +350,8 @@ checkpoint("CS simple: load RDS + build CS-only table")
 
 # ---- CS files (FULL sample) ----
 cs_files_full <- list(
-  Electricity = file.path("data/scratch/est_cs_elec_weekly.RDS"),
-  Gas         = file.path("data/scratch/est_cs_gas_weekly.RDS")
+  Electricity = file.path(datapath, "scratch/est_cs_elec_weekly.RDS"),
+  Gas         = file.path(datapath, "scratch/est_cs_gas_weekly.RDS")
 )
 
 aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple",
@@ -395,8 +395,8 @@ checkpoint("Saved tables/hp_did_overall_cs.tex")
 checkpoint("CS simple: gas-only subsample table")
 
 cs_files_gas_only <- list(
-  Electricity = file.path("data/scratch/est_cs_elec_weekly_gas_only.RDS"),
-  Gas         = file.path("data/scratch/est_cs_gas_weekly.RDS")
+  Electricity = file.path(datapath, "scratch/est_cs_elec_weekly_gas_only.RDS"),
+  Gas         = file.path(datapath, "scratch/est_cs_gas_weekly.RDS")
 )
 
 aggte_simple_elec_gasonly <- aggte(readRDS(cs_files_gas_only$Electricity), type = "simple",
@@ -630,8 +630,8 @@ checkpoint("NEVER-TREATED: load CS results")
 
 # CS files for never-treated robustness
 cs_files_never <- list(
-  Electricity = file.path("data/scratch/est_cs_never_treated_elec_weekly.RDS"),
-  Gas         = file.path("data/scratch/est_cs_never_treated_gas_weekly.RDS")
+  Electricity = file.path(datapath, "scratch/est_cs_never_treated_elec_weekly.RDS"),
+  Gas         = file.path(datapath, "scratch/est_cs_never_treated_gas_weekly.RDS")
 )
 
 aggte_simple_elec_never <- aggte(readRDS(cs_files_never$Electricity), type = "simple",

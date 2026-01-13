@@ -212,12 +212,12 @@ formatted_results <- results %>%
   select(Variable, `Weighted Mean Treated`, `Weighted Mean Others`)
 
 # Add the N values to the column names
-colnames(formatted_results)[2] <- paste0("MSOAs with Cosy Adopters (N = ", results$`N 1`[1], ")")
+colnames(formatted_results)[2] <- paste0("MSOAs with Tariff Adopters (N = ", results$`N 1`[1], ")")
 colnames(formatted_results)[3] <- paste0("Other MSOAs (N = ", results$`N 0`[1], ")")
 
 # Create the LaTeX table using stargazer
 stargazer(formatted_results, type = "latex", summary = FALSE, 
-          title = "External Validity by Area for Adopters",
+          title = "External Validity by Area for Tariff Adopters",
           rownames = FALSE,
           digits = 2,
           label = "tab:msoa-stats-cosy",
