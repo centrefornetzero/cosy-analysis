@@ -223,7 +223,19 @@ rm(list = ls(pattern = "^m[0-9]_"))
 gc()
 
 
-## Moderators
+## Using Poisson estimation
+tempreg <- fepois(consumption_hh ~ i(cosy_contract_active, temp_degree, ref=0) |
+                   temp_degree,
+                 data = aggregated_data %>% 
+                   mutate(temp_degree = factor(
+                     case_when(
+                       daily_avg_air_temperature_celsius < 0 ~ 0,
+                       daily_avg_air_temperature_celsius < 25.5 ~ round(daily_avg_air_temperature_celsius),
+                       TRUE ~ 25
+                     )
+                   )),
+                 split = ~ rate_period,
+                 cluster = ~account_id)
 
 # ===========================================================================
 ### Table A.12: Cosy Adoption by Previous Tariff Type
