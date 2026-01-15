@@ -696,5 +696,7 @@ patch_etable_twfe_cs(
 )
 
 checkpoint("Saved tables/hp_did_never_treated_detailed.tex (patched)")
+                   
+                     
                          
 checkpoint("DONE")

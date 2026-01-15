@@ -125,10 +125,11 @@ ggsave(paste0("graphs/hp_temperature_gas_elec_blog_version.png"),
 # --------- Figure 5: COP - Energy Demand Ratio --------------
 # ====================================================================  
 # Calculate the average value for the dashed line
-avg_cop <- round(abs(m1$`lhs: gas_consumption`$coefficients / m1$`lhs: elec_consumption`$coefficients), digits = 2)
+avg_cop <- round(abs(0.9 * m1$`lhs: gas_consumption`$coefficients / m1$`lhs: elec_consumption`$coefficients), digits = 2)
+print(paste0("Average CPO ~ ", avg_cop))
 
 # actually use the average COP inferred from CS estimation (Table A1) is 3.04
-avg_cop <- 3.04
+avg_cop <- 2.73
 
 set.seed(123)  # for reproducibility
 B <- 500  # number of bootstrap samples
@@ -162,7 +163,7 @@ for (b in 1:B) {
              into = c("is_hp_installed", "remove1", "temp", "remove2"), sep = "::") %>%
     select(lhs, Estimate, temp) %>%
     pivot_wider(names_from = lhs, values_from = Estimate) %>%
-    mutate(quasi_cop = abs(gas_consumption / elec_consumption)) %>%
+    mutate(quasi_cop = abs(0.9 * gas_consumption / elec_consumption)) %>%
     select(temp, quasi_cop)
   
   results[[b]] <- boot_coefs
@@ -223,7 +224,7 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 16),
   geom_hline(yintercept = 3.49, linetype = "dashed", color = hp_color) +
   annotate("text", 
            x = 2.5,
-           y = avg_cop + 1,
+           y = avg_cop + 1.5,
            label = paste0("italic('Sample average ≈", 
                           avg_cop, "')"),
            parse = TRUE,
@@ -254,7 +255,7 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 16),
   geom_hline(yintercept = avg_cop, linetype = "dashed", color = hp_color) +
   annotate("text", 
            x = 2.5,
-           y = avg_cop + 1,
+           y = avg_cop + 1.5,
            label = paste0("italic('Sample average ≈", 
                           avg_cop, "')"),
            parse = TRUE,

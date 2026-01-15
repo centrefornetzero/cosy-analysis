@@ -223,19 +223,85 @@ rm(list = ls(pattern = "^m[0-9]_"))
 gc()
 
 
-## Using Poisson estimation
-tempreg <- fepois(consumption_hh ~ i(cosy_contract_active, temp_degree, ref=0) |
-                   temp_degree,
-                 data = aggregated_data %>% 
+## Using share estimation
+df <- aggregated_data %>% 
                    mutate(temp_degree = factor(
                      case_when(
                        daily_avg_air_temperature_celsius < 0 ~ 0,
                        daily_avg_air_temperature_celsius < 25.5 ~ round(daily_avg_air_temperature_celsius),
                        TRUE ~ 25
                      )
-                   )),
+                   )) %>%
+                  filter(rate_period != "overall") %>%        # drop overall
+                  mutate(date = as.Date(date)) %>%             # adjust if your date column differs
+                  group_by(account_id, date) %>%
+                  mutate(
+                    daily_total = sum(consumption_hh, na.rm = TRUE),
+                    share_daily = consumption_hh / daily_total
+                  ) %>%
+                  ungroup()
+
+tempreg <- feols(share_daily ~ i(cosy_contract_active, temp_degree, ref=0) |
+                   temp_degree,
+                 data = df,
                  split = ~ rate_period,
                  cluster = ~account_id)
+m1_share <-   feols(share_daily ~ i(cosy_contract_active, ref=0) |
+                   temp_degree,
+                 data = df,
+                 split = ~ rate_period,
+                 cluster = ~account_id)                  
+
+# Get coefficient tables
+all_coefs <- coeftable(tempreg) %>%
+  data.frame() %>%
+  # keep only the i() terms (avoid intercept/other terms if any)
+  filter(str_detect(coefficient, "^cosy_contract_active::")) %>%
+  # if an Overall sample exists for some reason, drop it
+  filter(!tolower(sample) %in% "overall") %>%
+  # Extract the temp bin from the coefficient name:
+  # expected like: "cosy_contract_active::1:temp_degree::5" (exact pattern depends on fixest)
+  mutate(
+    temp_degree = str_extract(coefficient, "(?<=temp_degree::)\\-?\\d+"),
+    temp_degree = as.numeric(temp_degree)
+  ) %>%
+  # join the "average" line per sample from m1
+  inner_join(
+    coeftable(m1_share) %>%
+      select(sample, Estimate) %>%
+      rename(average = Estimate),
+    by = "sample"
+  ) %>%
+  mutate(
+    lower_ci = Estimate - 1.96 * `Std..Error`,
+    upper_ci = Estimate + 1.96 * `Std..Error`,
+    `/% ATE` = Estimate / abs(average) * 100,
+    lower_ci_ATE = `/% ATE` - 1.96 * (`Std..Error` / abs(average) * 100),
+    upper_ci_ATE = `/% ATE` + 1.96 * (`Std..Error` / abs(average) * 100)
+  ) %>%
+  mutate(
+    sample = factor(sample, levels = c(
+      "Morning Off-peak",
+      "Afternoon Off-peak",
+      "Peak Rate",
+      "Other"
+    ))
+  )
+
+# Plot (levels in kWh-share log model won't be "kWh" anymore, so adjust label if needed)
+p <- ggplot(all_coefs, aes(x = temp_degree, y = Estimate)) +
+  geom_point(color = cosy_color) +
+  geom_line(color = cosy_color) +
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci),
+                width = 0.2, alpha = 0.6, color = cosy_color) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  geom_hline(aes(yintercept = average), linetype = "dashed", alpha = 0.6, color = cosy_color) +
+  scale_y_continuous(name = "Change in daily share (pp)") +
+  labs(x = "Daily Temperature in Degrees (°C)") +
+  theme_minimal() +
+  facet_wrap(~sample)
+
+ggsave("graphs/cosy_temperature_share_all.png", plot = p, width = 16, height = 8, units = "cm")
 
 # ===========================================================================
 ### Table A.12: Cosy Adoption by Previous Tariff Type
