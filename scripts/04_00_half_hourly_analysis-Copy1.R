@@ -1,193 +1,204 @@
 # -*- coding: utf-8 -*-
-# Half hourly analysis for HP installation and Cosy
+# Half hourly analysis for HP installation and Cosy (sample non-half-hourly accounts)
 
 library(arrow)
 library(dplyr)
 library(data.table)
-library(data.table)
 library(stringr)
+library(fixest)
 
-################################################################################ 
-## HP consumption
+################################################################################
+## Paths
 ################################################################################
 
 parquet_base_path <- "../gcs/cosy/hp_adopters_elec/"
-out_csv  <- file.path(datapath, "scratch/account_id_to_hashed_mpan.csv")
-done_csv <- file.path(datapath, "scratch/account_id_to_hashed_mpan_done.csv")
+parquet_base_path_cosy <- "../gcs/cosy/cosy_elec/"
 
-# list account folders
+hh_flag_path   <- file.path(datapath, "input/cosy_-_is_charged_half_hourly_hp_accounts_2025_06_11.csv")
+hp_details_path <- file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")
+ev_path        <- file.path(datapath, "input/cosy_-_ev_detection_2024_07_04.csv")
+weather_path   <- file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.csv")
+
+
+################################################################################
+## Load covariates / joins
+################################################################################
+
+ev_charging <- fread(ev_path) %>%
+  mutate(ev_charging = 1,
+         account_id = as.character(account_id))
+
+weather <- fread(weather_path) %>%
+  rename_with(.cols = starts_with("weekly"),
+              .fn = ~ sub("^weekly", "daily", .)) %>%
+  rename(tariff_gsp_group_id = gsp_group_id) %>%
+  mutate(date = as.Date(date_day, format = "%Y-%m-%d"))
+
+hp_details <- fread(hp_details_path) %>%
+  distinct(hashed_mpan, .keep_all = TRUE)  %>%
+  mutate(installed_at = as.Date(installed_at),
+         account_id = as.character(account_id))
+
+################################################################################
+## Identify eligible non-half-hourly accounts AND present in parquet
+################################################################################
+
+# list account folders in parquet
 account_dirs <- list.files(parquet_base_path, pattern = "^account_id=", full.names = TRUE)
 account_ids  <- str_replace(basename(account_dirs), "^account_id=", "")
 
-# Resume support: load already processed account_ids
-done_ids <- character(0)
-if (file.exists(done_csv)) {
-  done_ids <- fread(done_csv)$account_id
-}
+# read HH flag file
+hh_flag <- fread(hh_flag_path)
 
-# Create output file with header if it doesn't exist
-if (!file.exists(out_csv)) {
-  fwrite(data.table(account_id=character(), hashed_mpan=integer()), out_csv)
-}
+# IMPORTANT: user wants NON half-hourly accounts
+non_hh_accounts <- hh_flag[is_charged_half_hourly == FALSE, unique(account_id)]
+non_hh_accounts <- as.character(non_hh_accounts)
 
-# helper: read hashed_mpan from a single account folder (minimal read)
-extract_mpan_from_folder <- function(one_account_dir, max_files = 10) {
-  parquet_files <- list.files(one_account_dir,
-                              pattern = "\\.parquet$",
-                              recursive = TRUE,
-                              full.names = TRUE)
+# keep only those that actually exist in parquet
+eligible_accounts <- intersect(account_ids, non_hh_accounts)
 
-  if (length(parquet_files) == 0) return(integer(0))
+set.seed(12345)
+sample_accounts <- sample(eligible_accounts, size = min(500, length(eligible_accounts)))
 
-  # Try first N files (sometimes first file can be empty/corrupt)
-  parquet_files <- parquet_files[seq_len(min(max_files, length(parquet_files)))]
+message("Eligible non-HH accounts in parquet: ", length(eligible_accounts))
+message("Sampled accounts: ", length(sample_accounts))
 
-  for (pf in parquet_files) {
-    # read ONLY hashed_mpan column
-    out <- tryCatch({
-      x <- arrow::read_parquet(pf, col_select = "hashed_mpan")
-      unique(x$hashed_mpan)
-    }, error = function(e) NULL)
-
-    if (!is.null(out) && length(out) > 0) return(out)
-  }
-
-  integer(0)
-}
-
-# main loop
-for (i in seq_along(account_dirs)) {
-  aid <- account_ids[i]
-  dir <- account_dirs[i]
-
-  if (aid %in% done_ids) next
-
-  mpans <- extract_mpan_from_folder(dir)
-
-  if (length(mpans) > 0) {
-    dt_out <- data.table(account_id = aid, hashed_mpan = mpans)
-    fwrite(dt_out, out_csv, append = TRUE)
-  } else {
-    # still mark as done so you don't get stuck
-    message("No mpans found for account_id=", aid)
-  }
-
-  # mark done (append)
-  fwrite(data.table(account_id = aid), done_csv, append = file.exists(done_csv))
-
-  if (i %% 100 == 0) message("Processed ", i, " / ", length(account_dirs))
-}
-    
-# find all mpans                    
-account_mapping <- fread(out_csv)
-  
-# hh contracts (true and false)
-half_hourly_accounts <- fread(file.path(datapath, "input/cosy_-_is_charged_half_hourly_hp_accounts_2025_06_11.csv"))
-
-# flat contracts
-account_mapping <- account_mapping %>%
-                    inner_join(half_hourly_accounts)
-                
-                    
-# Read the CSV file for EV charging events
-ev_charging <- fread(file.path(datapath, "input/cosy_-_ev_detection_2024_07_04.csv")) %>%
-  mutate(ev_charging = 1)
-
-head(ev_charging)
-
-
-# Read the files (HP Installation, Cosy Adoption and Daily Weather)
-#hp <- fread(file.path(datapath, "input/cosy_-_half_hourly_data_for_hp_sample_2024_09_26.csv")) %>%
-#  rename(interval_start = adjusted_interval_start)
-
-# weather data
-weather <- fread(file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.csv")) %>% 
-  rename_with(.cols = starts_with("weekly"), 
-              .fn = ~ sub("^weekly", "daily", .)) %>%
-  rename(tariff_gsp_group_id=gsp_group_id) %>%
-  mutate(date=as.Date(date_day, format = "%Y-%m-%d"))
-
-
-################################################################################ 
-## HP consumption
+################################################################################
+## Load the 500 account parquet folders
 ################################################################################
 
-# Base path
-parquet_base_path <- "../gcs/cosy/hp_adopters_elec/"
+hp_list <- lapply(sample_accounts, function(aid) {
+  path <- file.path(parquet_base_path, paste0("account_id=", aid))
 
-# Get folders with account ids
-folders <- list.files(parquet_base_path, pattern = "^account_id=")
+  tryCatch({
+    df <- open_dataset(path, format = "parquet") %>% collect()
+    if (nrow(df) == 0) return(NULL)
+
+    # If account_id column not in parquet, add it from folder name
+    if (!("account_id" %in% names(df))) df$account_id <- aid
+
+    df
+  }, error = function(e) {
+    message("Failed to read account_id=", aid, " | ", e$message)
+    NULL
+  })
+})
+
+hp <- bind_rows(hp_list)
+
+rm(hp_list); gc()
+
+message("Rows loaded: ", nrow(hp))
+message("Unique accounts loaded: ", dplyr::n_distinct(hp$account_id))
 
 
+################################################################################
+## Construct variables used in regressions
+################################################################################
 
+# NOTE: your original code expects interval_start to exist in hp
+# If your parquet uses a different timestamp column, rename it here.
+# e.g. hp <- hp %>% rename(interval_start = adjusted_interval_start)
 
-# Select some random mpans
-# set.seed(12345)
-# sample_selection <- sample(unique(hp$account_id), 350)
-
-# Create Treatment dummy and Settlement Categorical
 hp <- hp %>%
-  #filter(account_id %in% sample_selection) %>%
-  inner_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")) %>% 
-               distinct(hashed_mpan, .keep_all=TRUE), by=c("hashed_mpan")) %>%
-  mutate(settlement_date = as.Date(interval_start),
-         installed_at = as.Date(installed_at),
-         settlement_time = format(as.POSIXct(interval_start),
-                                  format="%H:%M"), #format time
-         is_hp_installed = as.numeric(installed_at <= settlement_date)
+  inner_join(hp_details) %>%
+  mutate(
+    settlement_date = as.Date(interval_start),
+    installed_at    = as.Date(installed_at),
+    settlement_time = format(as.POSIXct(interval_start, tz = "UTC"),
+                         tz = "Europe/London", "%H:%M"),
+    is_hp_installed = as.numeric(installed_at <= settlement_date)
   ) %>%
   left_join(weather, by = c("settlement_date" = "date", "tariff_gsp_group_id")) %>%
   arrange(interval_start) %>%
   group_by(settlement_time) %>%
-  mutate(settlement_period = cur_group_id())   # Read the CSV file for EV charging events
-
+  mutate(settlement_period = cur_group_id()) %>%
+  ungroup()
 
 hp <- hp %>%
-  left_join(ev_charging %>% select(account_id, interval_start, ev_charging) %>%
-              distinct(account_id, interval_start, ev_charging, .keep_all =TRUE)) %>%
+  left_join(
+    ev_charging %>%
+      select(account_id, interval_start, ev_charging) %>%
+      distinct(account_id, interval_start, .keep_all = TRUE),
+    by = c("account_id", "interval_start")
+  ) %>%
   mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging))
 
-length(unique(hp$hashed_mpan))
+################################################################################
+## Regression
+################################################################################
 
-# Event study style regressions
-# Midnight is the omitted category
-
-m_hourly_hp <- feols(read_value ~ i(settlement_period, ref=1) +
-                       i(settlement_period,is_hp_installed, ref2=0) 
-                     | account_id + settlement_date + daily_avg_heating_degree + ev_charging,
-                     cluster = ~ account_id,
-                     data =  hp,
-                     lean = TRUE,
-                     mem.clean = TRUE)
+m_hourly_hp <- feols(
+  value ~ i(settlement_period, ref = 1) +
+    i(settlement_period, is_hp_installed, ref2 = 0) |
+    account_id + settlement_date + daily_avg_heating_degree + ev_charging,
+  cluster = ~account_id,
+  data = hp,
+  lean = TRUE,
+  mem.clean = TRUE
+)
 
 # clean up
 rm(hp)
 gc()
 
 
+
+################################################################################
+## Load the 500 account parquet folders for cosy tariff
+################################################################################
+library(arrow)
+library(dplyr)
+library(stringr)
+
+parquet_base_path_cosy <- "../gcs/cosy/cosy_elec/"
+
+# 1) list + sample
+account_dirs <- list.files(parquet_base_path_cosy, pattern="^account_id=", full.names=TRUE)
+account_ids  <- str_replace(basename(account_dirs), "^account_id=", "")
+
+set.seed(123)
+sample_accounts <- sample(account_ids, size = min(500, length(account_ids)))
+
+# 2) build the 500 paths directly
+paths_500 <- file.path(parquet_base_path_cosy, paste0("account_id=", sample_accounts))
+
+# 3) open only those paths (Arrow still detects hive partition column from paths)
+options(arrow.use_threads = TRUE)
+
+ds_500 <- open_dataset(paths_500, format = "parquet")
+
+# 4) filter/select as usual (import filter may still help if any EXPORT sneaks in)
+cosy <- ds_500 %>%
+  filter(import_or_export_product == "IMPORT") %>%
+  select(account_id, hashed_mpan, interval_start, value) %>%
+  collect()
+
+message("Rows loaded: ", nrow(cosy))
+message("Unique accounts loaded: ", dplyr::n_distinct(cosy$account_id))
+
+rm(ds_500); gc()
+
 # load cosy first adoption
-first_adoption <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS")) %>%
-  ungroup() %>%
-  select(hashed_mpan, first_adoption, account_id, tariff_gsp_group_id) %>%
-  distinct(hashed_mpan, first_adoption, .keep_all=TRUE)
+first_adoption <- 
+    fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
+    filter(product_display_name == "Cosy Octopus") %>%
+    mutate(to = as_date(replace_na(agreement_valid_to, ymd(20240724))),
+           from = as_date(agreement_valid_from)) %>%
+    group_by(hashed_mpan = as.character(hashed_mpan), tariff_gsp_group_id) %>%
+    summarise(first_adoption = min(agreement_valid_from)) %>%
+    ungroup()
 
-# Read the files (Cosy Adoption)
-# prev file: _half_hourly_data_for_cosy_sample_2024_10_29.csv
-cosy <- fread(file.path(datapath, "input/cosy_-_half_hourly_data_for_cosy_sample_2025_07_07.csv")) %>%
-  rename(interval_start = adjusted_interval_start)
-
-# Select some random mpans
-# set.seed(12345)
-# sample_selection <- sample(unique(cosy$mpan_hashed), 350)
+summary(first_adoption)
 
 # Create Treatment dummy and Settlement Categorical
 cosy <- cosy %>%
   #filter(account_id %in% sample_selection) %>%
-  inner_join(first_adoption, by = "hashed_mpan") %>%
+  inner_join(first_adoption) %>%
   mutate(settlement_date = as.Date(interval_start),
          first_adoption = as.Date(first_adoption),
-         settlement_time = format(as.POSIXct(interval_start),
-                                  format="%H:%M"), #format time
+         settlement_time = format(as.POSIXct(interval_start, tz = "UTC"),
+                         tz = "Europe/London", "%H:%M"),
          is_cosy = as.numeric(first_adoption<=settlement_date)) %>%
   left_join(weather, by = c("settlement_date" = "date", c("tariff_gsp_group_id"="tariff_gsp_group_id"))) %>%
   arrange(interval_start) %>%
