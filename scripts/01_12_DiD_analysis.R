@@ -163,7 +163,56 @@ saveRDS(est_cs_gas_only, gas_only_output_filename)
 message("Saved: ", gas_only_output_filename)
 
 
+# ---------------------- Create CS trends ---------------------
 
+did_data <- overall_weekly %>%
+  ungroup() %>%
+  mutate(
+    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1,
+    month = month(settlement_week)
+  ) %>%
+  group_by(account_id) %>%
+  mutate(id = cur_group_id()) %>%
+  ungroup() %>%
+  select(id, firstweek, week, month, total_consumption, elec_consumption, gas_consumption) %>%
+  filter(week <= 129, firstweek <= 129) 
+
+
+# Step 2: Estimate CS models and save results
+
+# Define the output filenames for the main analysis
+output_filenames <- c(
+  "scratch/est_cs_elec_weekly_with_trends.RDS",
+  "scratch/est_cs_gas_weekly_with_trends.RDS"
+)
+
+# Define the corresponding variable names
+yname_vars <- c("elec_consumption", "gas_consumption")
+
+# Estimate and save the results for the main analysis (not yet treated control group)
+for (i in seq_along(yname_vars)) {
+  yname <- yname_vars[i]
+  filename <- file.path(datapath, output_filenames[i])
+  
+  message("Estimating treatment effect for ", yname, " and saving to ", filename)
+  
+  est_cs <- att_gt(yname = yname,
+                   tname = "week",
+                   idname = "id",
+                   gname = "firstweek",
+                   data = did_data,
+                   xformla = ~id:month,
+                   anticipation = 1,
+                   clustervars = "id",
+                   control_group = c("notyettreated"),
+                   est_method = "ipw",   # <— avoids fastglm in most setups
+                   allow_unbalanced_panel = TRUE,
+                   base_period = "varying")
+  
+  saveRDS(est_cs, filename)
+  message("Saved: ", filename)
+}
 
 
 

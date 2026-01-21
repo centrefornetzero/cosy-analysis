@@ -697,6 +697,30 @@ patch_etable_twfe_cs(
 
 checkpoint("Saved tables/hp_did_never_treated_detailed.tex (patched)")
                    
-                     
+            
+                         
+                         
+# ============================================================
+# X) Dynamic plots with trends
+# ============================================================
+
+checkpoint("Dynamic plot for monthly trends")
+
+# ---- CS files (FULL sample) ----
+cs_files_full <- list(
+  Electricity = file.path(datapath, "scratch/est_cs_elec_weekly_with_trends.RDS"),
+  Gas         = file.path(datapath, "scratch/est_cs_gas_weekly_with_trends.RDS")
+)
+                         
+elec_dyn <- aggte(readRDS(cs_files_full$Electricity), type = "dynamic",
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
+gas_dyn  <- aggte(readRDS(cs_files_full$Gas), type = "dynamic",
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
+
+p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color)
+ggsave("graphs/dynamic_hp_plot_combined_with_trends.png", plot = p_dyn, width = 10, height = 8, dpi = 300)
+checkpoint("Saved graphs/dynamic_hp_plot_combined_with_trends.png")
+                         
+                         
                          
 checkpoint("DONE")
