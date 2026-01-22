@@ -671,15 +671,13 @@ models <- lapply(main_periods, function(period) {
 headers <- shortstack_period(c("Morning Off-peak","Afternoon Off-peak","Peak Rate","Other","Overall"))
 
 note_text <- paste0(
-  "We show estimates from five CS estimates of the impact of consumption on customers’ electricity during ",
-  "the Morning Off-peak 4am-7am (column 1), Afternoon Off-peak 1pm-4pm (column 2), Peak 4pm-7pm (column 3), ",
-  "other hours of the day (column 4), and ``Overall’’, i.e,. across all 48 half-hours of the day (column 5)."
+  "We report five Callaway–Sant’Anna (CS) estimates of the impact of tariff adoption on customers’ half-hourly electricity consumption (in kWh). Columns (1)–(4) correspond to average effects during the Morning off-peak period (4am–7am), the Afternoon off-peak period (1pm–4pm), the Peak period (4pm–7pm), and all other hours of the day, respectively. Column (5) reports the overall effect, averaged across all 48 half-hour settlement periods. Cohorts are defined by the week in which households adopt the tariff."
 )
 
 create_latex_table(
   models = models,
   headers = headers,
-  title = "Heat Pump Tariff Adoption on Half Hourly Electricity Consumption in kWh",
+  title = "Effect of Time-of-Use Tariff on Electricity Consumption",
   file  = "tables/cosy_did_cs.tex",
   label = "tab:cosy-did-cs",
   note  = note_text
