@@ -15,7 +15,7 @@ suppressPackageStartupMessages({
 # -----------------------------
 # USER SETTINGS
 # -----------------------------
-n_sample_accounts <- 500
+n_sample_accounts <- 250
 R_runs <- 100                # set to 1000 if you want
 use_parallel <- TRUE
 n_workers <- 4
@@ -132,12 +132,12 @@ run_one_draw <- function(draw_id) {
   # ---------- HP ----------
   hp <- NULL
   tryCatch({
+    hp_cols <- c("interval_start", "value", "hashed_mpan", "tariff_gsp_group_id")
     hp_list <- lapply(sample_hp, function(aid) {
       path <- file.path(parquet_base_path, paste0("account_id=", aid))
-      df <- safe_collect_dataset(path)
+      df <- safe_collect_dataset(path, hp_cols)
       if (is.null(df) || nrow(df) == 0) return(NULL)
-      if (!("account_id" %in% names(df))) df$account_id <- aid
-      df$account_id <- as.character(df$account_id)
+      df$account_id <- as.character(aid)
       df$hashed_mpan <- as.character(df$hashed_mpan)
       df
     })
@@ -231,7 +231,8 @@ run_one_draw <- function(draw_id) {
   tryCatch({
     cosy_list <- lapply(sample_cosy, function(aid) {
       path <- file.path(parquet_base_path_cosy, paste0("account_id=", aid))
-      df <- safe_collect_dataset(path)
+      cosy_cols <- c("interval_start", "value", "hashed_mpan","import_or_export_product")
+      df <- safe_collect_dataset(path, cosy_cols)
       if (is.null(df) || nrow(df) == 0) return(NULL)
 
       df <- df %>%

@@ -11,6 +11,11 @@
 #  - Checkpoints printed throughout.
 # ============================================================
 
+# Define your colors (assumes hp_color/not_hp_color exist in your environment)
+elec_color <- hp_color
+gas_color  <- not_hp_color
+
+
 # ============================================================
 # 0) Small utilities
 # ============================================================
@@ -320,10 +325,6 @@ create_calendar_plot_data <- function(start_date, elec_data, gas_data) {
 
 checkpoint("Load data + setup")
 
-# Define your colors (assumes hp_color/not_hp_color exist in your environment)
-elec_color <- hp_color
-gas_color  <- not_hp_color
-
 overall_weekly <- read_rds(file.path(datapath, "output/overall_weekly.rds"))
 
 # Build DID data index (used for filtering)
@@ -372,7 +373,7 @@ label_cs_full   <- "tab:hp-did-cs"
 note_cs_full <- paste(
   "This table reports CS estimates",
   "of the impact of heat pump installation on households\u2019 yearly electricity consumption (column 1)",
-  "and gas consumption (column 2).",
+  "and gas consumption (column 2). Cohorts refer to households with the same week of installation. ",
   sep = " "
 )
 

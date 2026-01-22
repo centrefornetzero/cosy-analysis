@@ -218,8 +218,8 @@ for (i in seq_along(yname_vars)) {
 
 
 # ============================================================
-# 9) DID IMPUTATION (patched)
-# Output: tables/hp_did_never_treated_detailed.tex
+# 9) DID IMPUTATION (not working)
+# Output: graphs/hp_dynamic_att_combined_imputation.png
 # ============================================================
                          
 did_data <- overall_weekly %>%
