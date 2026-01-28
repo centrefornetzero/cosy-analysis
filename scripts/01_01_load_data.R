@@ -146,7 +146,7 @@ all_combinations <- expand.grid(
 )
 
 # Merge with original unbalanced gas data
-merged_data2 <- all_combinations %>%
+merged_data <- all_combinations %>%
   left_join(cosy_hp_install_gas_consumption %>% 
               distinct(account_id, settlement_week, weekly_consumption, 
                        min_settlement_week, installed_at)) %>%

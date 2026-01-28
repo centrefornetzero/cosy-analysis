@@ -215,6 +215,64 @@ for (i in seq_along(yname_vars)) {
 }
 
 
+# ============================================================
+# Anticipation robustness: re-estimate CS for anticipation = 0:10
+# ============================================================
+
+# read in elec + gas consumption data
+overall_weekly <- read_rds(file.path(datapath, "output/overall_weekly.rds"))
+
+# create a dataset that fits the needs of did() function
+start_date <- min(overall_weekly$settlement_week)
+did_data <- overall_weekly %>%
+  ungroup() %>%
+  mutate(
+    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
+  ) %>%
+  group_by(account_id) %>%
+  mutate(id = cur_group_id()) %>%
+  ungroup() %>%
+  select(id, firstweek, week, total_consumption, elec_consumption, gas_consumption) %>%
+  filter(week <= 129, firstweek <= 129) 
+
+
+anticipation_periods <- 0:10
+yname_vars <- c("elec_consumption", "gas_consumption")
+output_stub <- c("est_cs_elec_weekly", "est_cs_gas_weekly")
+
+for (a in anticipation_periods) {
+
+  message("Estimating CS models with anticipation = ", a)
+
+  for (i in seq_along(yname_vars)) {
+
+    yname <- yname_vars[i]
+
+    filename <- file.path(
+      datapath,
+      "scratch",
+      paste0(output_stub[i], "_anticipation_", a, ".RDS")
+    )
+
+    est_cs <- att_gt(
+      yname = yname,
+      tname = "week",
+      idname = "id",
+      gname = "firstweek",
+      data = did_data,
+      anticipation = a,
+      clustervars = "id",
+      control_group = "notyettreated",
+      est_method = "ipw",
+      allow_unbalanced_panel = TRUE,
+      base_period = "varying"
+    )
+
+    saveRDS(est_cs, filename)
+    message("Saved: ", filename)
+  }
+}
 
 
 # ============================================================
