@@ -15,9 +15,8 @@
 elec_color <- hp_color
 gas_color  <- not_hp_color
 
-
 # ============================================================
-# 0) Small utilities
+# Small utilities
 # ============================================================
 
 checkpoint <- function(msg) cat(paste0(">>> ", msg, " <<<\n"))
@@ -59,7 +58,7 @@ pre_avg_from_aggte <- function(aggte_simple, outcome_col) {
 }
 
 # ============================================================
-# 1) LaTeX table creator for CS-only (2-column: Electricity / Gas)
+# LaTeX table creator for CS-only (2-column: Electricity / Gas)
 # ============================================================
 create_latex_table_cs <- function(models, headers, title, file, label,
                                   pre_treatment_values,
@@ -194,7 +193,7 @@ latex <- paste0(latex, "\\end{table}\n")
   writeLines(latex, file)
 }
 # ============================================================
-# 2) LaTeX patcher for TWFE+CS combined table produced by fixest::etable
+# LaTeX patcher for TWFE+CS combined table produced by fixest::etable
 #    Works for EXACT structure: m1,m2,m1,m2  => 4 models => 5 columns total
 # ============================================================
 
@@ -287,7 +286,7 @@ patch_etable_twfe_cs <- function(file_path,
 }
 
 # ============================================================
-# 3) Plot helpers
+# Plot helpers
 # ============================================================
 
 create_dynamic_plot <- function(elec_data, gas_data, elec_color, gas_color) {
@@ -345,11 +344,59 @@ create_calendar_plot_data <- function(start_date, elec_data, gas_data) {
     )
 }
                          
- 
+# ---- Rolling 12-month sum (yearly effect in kWh/year) + CI ----
+add_rolling_12m_sum <- function(df, window_weeks = 52) {
+  df %>%
+    arrange(type, week_date) %>%
+    group_by(type) %>%
+    mutate(
+      estimate_12m = zoo::rollapply(
+        estimate, width = window_weeks, FUN = sum,
+        align = "right", fill = NA, na.rm = TRUE
+      ),
+      se_12m = sqrt(zoo::rollapply(
+        se^2, width = window_weeks, FUN = sum,
+        align = "right", fill = NA, na.rm = TRUE
+      )),
+      lower_ci_12m = estimate_12m - 1.96 * se_12m,
+      upper_ci_12m = estimate_12m + 1.96 * se_12m
+    ) %>%
+    ungroup()
+}
+
+# ---- Rolling pre-treatment mean baseline (calendar time) + 52w rolling mean ----
+rolling_pre_avg_calendar_52w <- function(aggte_obj, start_date, outcome_col, window_weeks = 52) {
+
+  dat <- clean_didparams_data(aggte_obj$DIDparams$data)
+  a   <- as.numeric(aggte_obj$DIDparams$anticipation)
+
+  stopifnot(all(c("week", "firstweek") %in% names(dat)))
+  stopifnot(outcome_col %in% names(dat))
+
+  dat %>%
+    mutate(is_pre = week < (firstweek - a)) %>%
+    filter(is_pre) %>%
+    group_by(week) %>%
+    summarise(
+      pre_avg_weekly = mean(.data[[outcome_col]], na.rm = TRUE),
+      n_pre = sum(!is.na(.data[[outcome_col]])),
+      .groups = "drop"
+    ) %>%
+    arrange(week) %>%
+    mutate(
+      # align week=1 to start_date
+      week_date = as.Date(start_date + weeks(week - 1)),
+      pre_avg_52w = zoo::rollapply(
+        pre_avg_weekly, width = window_weeks, FUN = mean,
+        align = "right", fill = NA, na.rm = TRUE
+      ),
+      pre_52w_kwhyr = pre_avg_52w 
+    )
+}
    
 
 # ============================================================
-# 4) Load data + set colors
+# Load data + set colors
 # ============================================================
 
 checkpoint("Load data + setup")
@@ -373,7 +420,7 @@ did_data <- overall_weekly %>%
 checkpoint("DID index built")
 
 # ============================================================
-# 5) CS simple tables (full vs gas-only) — build once, reuse helpers
+# CS simple tables (full vs gas-only) — build once, reuse helpers
 # ============================================================
 
 checkpoint("CS simple: load RDS + build CS-only table")
@@ -385,9 +432,9 @@ cs_files_full <- list(
 )
 
 aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple", max_e=80,min_e=-80,
-                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
 aggte_simple_gas  <- aggte(readRDS(cs_files_full$Gas), type = "simple",  max_e=80,min_e=-80,
-                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
 
 # Pre-treatment means (use DIDparams$data safely)
 pre_elec <- pre_avg_from_aggte(aggte_simple_elec, "elec_consumption")
@@ -455,7 +502,7 @@ for (a in anticipation_periods) {
     na.rm = TRUE,
     clustervars = "id",
     bstrap = TRUE,
-    alp = 0.01
+    alp = 0.05
   )
 
   aggte_simple_gas <- aggte(
@@ -464,7 +511,7 @@ for (a in anticipation_periods) {
     na.rm = TRUE,
     clustervars = "id",
     bstrap = TRUE,
-    alp = 0.01
+    alp = 0.05
   )
 
   # ---- Pre-treatment means (using your helper) ----
@@ -522,9 +569,9 @@ cs_files_gas_only <- list(
 )
 
 aggte_simple_elec_gasonly <- aggte(readRDS(cs_files_gas_only$Electricity), type = "simple",
-                                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+                                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
 aggte_simple_gas_gasonly  <- aggte(readRDS(cs_files_gas_only$Gas), type = "simple",
-                                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+                                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
 
 pre_elec_gasonly <- pre_avg_from_aggte(aggte_simple_elec_gasonly, "elec_consumption")
 pre_gas_gasonly  <- pre_avg_from_aggte(aggte_simple_gas_gasonly,  "gas_consumption")
@@ -557,7 +604,7 @@ create_latex_table_cs(
 checkpoint("Saved tables/hp_did_overall_cs_gas_only.tex")
 
 # ============================================================
-# 6) Dynamic plot (CS)
+# Dynamic plot (CS)
 # ============================================================
 
 checkpoint("Dynamic CS plot (electricity + gas)")
@@ -572,7 +619,7 @@ ggsave("graphs/dynamic_hp_plot_combined.png", plot = p_dyn, width = 10, height =
 checkpoint("Saved graphs/dynamic_hp_plot_combined.png")
 
 # ============================================================
-# 7) Calendar plot (CS)
+# Calendar plot (CS)
 # ============================================================
 
 checkpoint("Calendar CS plot (electricity + gas)")
@@ -621,56 +668,6 @@ checkpoint("Saved graphs/hp_calendarplot_combined.png and output/hp_calendarplot
 
 
 checkpoint("Calendar ATT: 12-month rolling SUM plot + baseline share labels")
-
-# ---- Rolling 12-month sum (yearly effect in kWh/year) + CI ----
-add_rolling_12m_sum <- function(df, window_weeks = 52) {
-  df %>%
-    arrange(type, week_date) %>%
-    group_by(type) %>%
-    mutate(
-      estimate_12m = zoo::rollapply(
-        estimate, width = window_weeks, FUN = sum,
-        align = "right", fill = NA, na.rm = TRUE
-      ),
-      se_12m = sqrt(zoo::rollapply(
-        se^2, width = window_weeks, FUN = sum,
-        align = "right", fill = NA, na.rm = TRUE
-      )),
-      lower_ci_12m = estimate_12m - 1.96 * se_12m,
-      upper_ci_12m = estimate_12m + 1.96 * se_12m
-    ) %>%
-    ungroup()
-}
-
-# ---- Rolling pre-treatment mean baseline (calendar time) + 52w rolling mean ----
-rolling_pre_avg_calendar_52w <- function(aggte_obj, start_date, outcome_col, window_weeks = 52) {
-
-  dat <- clean_didparams_data(aggte_obj$DIDparams$data)
-  a   <- as.numeric(aggte_obj$DIDparams$anticipation)
-
-  stopifnot(all(c("week", "firstweek") %in% names(dat)))
-  stopifnot(outcome_col %in% names(dat))
-
-  dat %>%
-    mutate(is_pre = week < (firstweek - a)) %>%
-    filter(is_pre) %>%
-    group_by(week) %>%
-    summarise(
-      pre_avg_weekly = mean(.data[[outcome_col]], na.rm = TRUE),
-      n_pre = sum(!is.na(.data[[outcome_col]])),
-      .groups = "drop"
-    ) %>%
-    arrange(week) %>%
-    mutate(
-      # align week=1 to start_date
-      week_date = as.Date(start_date + weeks(week - 1)),
-      pre_avg_52w = zoo::rollapply(
-        pre_avg_weekly, width = window_weeks, FUN = mean,
-        align = "right", fill = NA, na.rm = TRUE
-      ),
-      pre_52w_kwhyr = pre_avg_52w 
-    )
-}
 
 # ---- 1) Calendar ATT weekly series -> 12m rolling yearly series ----
 plot_data_weekly <- create_calendar_plot_data(start_date, elec_cal, gas_cal) %>%
@@ -809,7 +806,7 @@ p_cal_12m_fixed <- ggplot(plot_data_12m, aes(x = week_date, y = estimate_12m, co
         plot.margin = margin(5, 50, 5, 5))  # extra right margin so labels don't clip
 
 # save
-out_file <- file.path("graphs", "calendar_att_12m_rolling_sum_labeled_fixed.png")
+out_file <- file.path("graphs", "calendar_att_12m_rolling_sum.png")
 dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
 ggsave(out_file, plot = p_cal_12m_fixed, width = 10, height = 8, dpi = 300)
 
@@ -818,7 +815,7 @@ message("Saved ", out_file)
                          
                                                
 # ============================================================
-# 8) TWFE models + combined TWFE/CS LaTeX table (patched)
+# TWFE models + combined TWFE/CS LaTeX table (patched)
 # ============================================================
 
 checkpoint("TWFE models + TWFE/CS combined LaTeX table")
@@ -913,7 +910,7 @@ patch_etable_twfe_cs(
 checkpoint("Saved tables/hp_did_overall_detailed.tex (patched)")
 
 # ============================================================
-# 9) NEVER-TREATED robustness: TWFE + CS detailed table (patched)
+# NEVER-TREATED robustness: TWFE + CS detailed table (patched)
 # Output: tables/hp_did_never_treated_detailed.tex
 # ============================================================
 
@@ -960,9 +957,9 @@ cs_files_never <- list(
 )
 
 aggte_simple_elec_never <- aggte(readRDS(cs_files_never$Electricity), type = "simple",
-                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
 aggte_simple_gas_never  <- aggte(readRDS(cs_files_never$Gas), type = "simple",
-                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
 
 # Stats used to patch CS columns (store formatted strings for LaTeX)
 cs_estimates_never <- list(
@@ -1024,7 +1021,7 @@ checkpoint("Saved tables/hp_did_never_treated_detailed.tex (patched)")
                    
    
 # ============================================================
-# X) anticipation
+# Compare simple CS estimates using various anticipation periods
 # ============================================================
 
 checkpoint("Plotting anticipation graph")                         
@@ -1042,8 +1039,8 @@ process_week <- function(anticipation_week) {
   gas_file  <- paste0(output_base_path, output_filenames[2], "_anticipation_", anticipation_week, ".RDS")
   
   # Read and calculate aggregate estimates
-  elec_agg <- aggte(readRDS(elec_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
-  gas_agg  <- aggte(readRDS(gas_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+  elec_agg <- aggte(readRDS(elec_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+  gas_agg  <- aggte(readRDS(gas_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
   
   # Create data frames for each type
   df_elec <- data.frame(
@@ -1175,7 +1172,7 @@ for (a in anticipation_periods) {
 checkpoint("Finished saving dynamic CS plots for anticipation = 0..10")
                          
 # ============================================================
-# X) Dynamic plots with trends
+# Dynamic plots with trends
 # ============================================================
 
 checkpoint("Dynamic plot for monthly trends")
@@ -1187,9 +1184,9 @@ cs_files_full <- list(
 )
                          
 elec_dyn <- aggte(readRDS(cs_files_full$Electricity), type = "dynamic",
-                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -80, max_e = 80)
 gas_dyn  <- aggte(readRDS(cs_files_full$Gas), type = "dynamic",
-                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -80, max_e = 80)
 
 p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color)
 ggsave("graphs/dynamic_hp_plot_combined_with_trends.png", plot = p_dyn, width = 10, height = 8, dpi = 300)
