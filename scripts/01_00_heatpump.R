@@ -44,6 +44,8 @@ setFixest_dict(c(consumption_hh = "Consumption in kWh per half hour",
                  ev_charging = "EV Charging",
                  has_ev = "EV User"))
 
+# Set estimation to mirror CS
+fixest::setFixest_estimation(fixef.rm = "none")
 
 ## Define most used functions
 
@@ -182,8 +184,6 @@ rm(list = setdiff(ls(), list_env))
 
 source("scripts/01_10_data_availability.R")
 rm(list = setdiff(ls(), list_env))
-
-
 
 source("scripts/01_11_event_study.R")
 rm(list = setdiff(ls(), list_env))

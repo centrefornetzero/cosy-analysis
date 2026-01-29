@@ -795,7 +795,6 @@ p_cal_12m_fixed <- ggplot(plot_data_12m, aes(x = week_date, y = estimate_12m, co
                           max(plot_data_12m$week_date, na.rm = TRUE))) +
 
   labs(
-    title = "Calendar-time ATT (12-month rolling sum)",
     x = NULL,
     y = "ATT (kWh/year)",
     color = "Type",
@@ -843,13 +842,30 @@ fitstat_register("t_obs", function(x) {
   format_number(x$fixef_sizes[t_var])
 }, "Number of Time Periods")
 
+# Build week / firstweek and the anticipation=5 treatment indicator
+overall_weekly_fe <-  overall_weekly %>%
+  ungroup() %>%
+  mutate(
+    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
+  ) %>%
+  group_by(account_id) %>%
+  mutate(id = cur_group_id()) %>%
+  ungroup() %>%
+  filter(week <= 129, firstweek <= 129)  %>%
+  filter(week <= firstweek - 5 | week > firstweek)
+
+
+
 # TWFE models (filtered to DID ids)
-m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week,
-            data = overall_weekly %>% filter(account_id %in% did_data$account_id),
+m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id  + settlement_week,
+            data = overall_weekly_fe %>% filter(id %in% unique(aggte_simple_elec$DIDparams$data$id)),
+            fixef.rm = "none", 
             cluster = ~account_id)
 
-m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week,
-            data = overall_weekly %>% filter(account_id %in% did_data$account_id),
+m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + settlement_week,
+            data = overall_weekly_fe %>% filter(id %in% unique(aggte_simple_gas$DIDparams$data$id)),
+            fixef.rm = "none", 
             cluster = ~account_id)
 
 # CS stats for patching (use *formatted strings* for LaTeX injection)
@@ -916,6 +932,16 @@ checkpoint("Saved tables/hp_did_overall_detailed.tex (patched)")
 
 checkpoint("NEVER-TREATED: build DID index and models")
 
+# CS files for never-treated robustness
+cs_files_never <- list(
+  Electricity = file.path(datapath, "scratch/est_cs_never_treated_elec_weekly.RDS"),
+  Gas         = file.path(datapath, "scratch/est_cs_never_treated_gas_weekly.RDS")
+)
+
+aggte_simple_elec_never <- aggte(readRDS(cs_files_never$Electricity), type = "simple",
+                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+aggte_simple_gas_never  <- aggte(readRDS(cs_files_never$Gas), type = "simple",
+                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
 # Rebuild DID index with 'never treated' coding (firstweek=0 if after window)
 start_date <- min(overall_weekly$settlement_week)
 
@@ -929,37 +955,24 @@ did_data_never <- overall_weekly %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
   filter(week <= 129) %>%
-  mutate(firstweek = ifelse(firstweek > 129, 0, firstweek))
+  mutate(firstweek = ifelse(firstweek > 129, 0, firstweek)) %>%
+  filter(week <= firstweek - 5 | week > firstweek)
+
 
 # TWFE models (your original date cut)
 m1_never <- feols(
   elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week,
-  data = overall_weekly %>%
-    filter(settlement_week < as.Date("2024-06-03"),
-           account_id %in% did_data_never$account_id),
+  data = did_data_never %>% filter(id %in% unique(aggte_simple_elec_never$DIDparams$data$id)),
   cluster = ~account_id
 )
 
 m2_never <- feols(
   gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week,
-  data = overall_weekly %>%
-    filter(settlement_week < as.Date("2024-06-03"),
-           account_id %in% did_data_never$account_id),
+  data = did_data_never %>% filter(id %in% unique(aggte_simple_gas_never$DIDparams$data$id)),
   cluster = ~account_id
 )
 
 checkpoint("NEVER-TREATED: load CS results")
-
-# CS files for never-treated robustness
-cs_files_never <- list(
-  Electricity = file.path(datapath, "scratch/est_cs_never_treated_elec_weekly.RDS"),
-  Gas         = file.path(datapath, "scratch/est_cs_never_treated_gas_weekly.RDS")
-)
-
-aggte_simple_elec_never <- aggte(readRDS(cs_files_never$Electricity), type = "simple",
-                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
-aggte_simple_gas_never  <- aggte(readRDS(cs_files_never$Gas), type = "simple",
-                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
 
 # Stats used to patch CS columns (store formatted strings for LaTeX)
 cs_estimates_never <- list(
@@ -1076,7 +1089,6 @@ ggplot(plot_data, aes(x = anticipation_week, y = estimate, color = type, fill = 
   scale_color_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
   scale_fill_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
   labs(
-    title = "Anticipation Period Estimates for Electricity and Gas",
     x = "Anticipation Week",
     y = "Estimate",
     color = "Type",
