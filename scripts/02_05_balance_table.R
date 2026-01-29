@@ -1,60 +1,4 @@
-## External Validity Tables 
-
-# start date
-start_date <- aggregated_data %>% ungroup() %>% summarise(date=min(first_adoption, na.rm = TRUE))
-start_date <- start_date$date
-
-# Found the previous contract before adopting cosy
-Prev_contract <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
-  arrange(hashed_mpan, as.Date(agreement_valid_from)) %>%
-  group_by(hashed_mpan) %>%
-  mutate(
-    previous_contract = lag(product_display_name),
-    previous_is_variable = lag(is_variable),
-    previous_is_charged_half_hourly = lag(is_charged_half_hourly),
-    is_cosy = product_display_name == "Cosy Octopus"
-  ) %>%
-  filter(is_cosy) %>%
-  slice_head(n=1)
-
-# Create a hashed_mpan dataset
-first_adoption <- aggregated_data %>%
-  left_join(Prev_contract) %>%
-  ungroup() %>%
-  select(hashed_mpan, tariff_gsp_group_id, first_adoption, urbanity, previous_is_charged_half_hourly,
-         floor_area, eac_mwh, property_value, energy_efficiency, estimated_annual_consumption) %>%
-  distinct() %>%
-  mutate(adoption_week =  round(as.numeric(difftime(floor_date(first_adoption, "week"), start_date, units = "weeks"))),
-         urban = case_when(
-           urbanity %in% c('Large Urban Areas', 'Smaller Urban Areas') ~ 1,
-           urbanity %in% c('Accessible Settlements', 'Sparse/Remote Villages/Dwellings', 'Accessible Villages/Dwellings', 'Sparse/Remote Settlements') ~ 0,
-           TRUE ~ NA
-         ))
-
-# early adoptors table
-m_adopters <- feols(adoption_week ~ i(urban, ref=0) + log(floor_area) + log(property_value) + log(energy_efficiency) + log(estimated_annual_consumption) + previous_is_charged_half_hourly, data = first_adoption, se = "hetero")
-etable(m_adopters)
-
-# Extract coefficients and standard errors
-coefs <- coeftable(m_adopters) %>%
-  data.frame() %>%
-  tibble::rownames_to_column("term") %>%
-  filter(term != "(Intercept)") %>%
-  mutate(term = case_when(term == "i(factor_var = urban, ref = 0)" ~ "Urban",
-                          term == "log(floor_area)" ~ "Log Floor Area",
-                          term == "log(property_value)" ~ "Log Property Value",
-                          term == "log(energy_efficiency)" ~ "Log Energy Efficiency",
-                          term == "log(estimated_annual_consumption)" ~ "Log Estimated Consumption",
-                          term == "previous_is_touTRUE" ~ "Previous Contract Is ToU",
-                          TRUE ~ term),
-         lower_ci = Estimate - 1.96 * `Std..Error`,
-         upper_ci = Estimate + 1.96 * `Std..Error`
-  ) %>%
-  arrange(Estimate)
-
-
-# Add a note below the graph
-note <- "Note: The dependent variable is adoption week (0 for the first week adopters up to 65 for the later). \n Early adopters are more urban, have higher electricity consumption and more energy efficient homes. \n Data: Domus dataset and OE energy."
+### Table A.15: External Validity by Area for Heat Pump Installation
 
 # Function to calculate weighted standard deviation
 weighted_sd <- function(x, w) {
@@ -109,40 +53,42 @@ summarize_and_test <- function(data, var_name, weight_name) {
     mutate(`P Value` = p_value)
 }
 
-rm(m_adopters)
-
 # Read and process each dataset
-# https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/middlesuperoutputareamidyearpopulationestimates
-
 population2022 <- read_excel(file.path(datapath, "input/sapemsoasyoatablefinal.xlsx"), sheet = "Mid-2022 MSOA 2021", skip = 3)
 
-cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_24.csv")) %>%
-  inner_join(aggregated_data %>% select(hashed_mpan) %>% distinct()) %>%
-  select(hashed_mpan, postcode) %>%
+cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_hp_details_2024_07_03.csv")) %>%
+  inner_join(hp_installed %>% filter(treated == 1) %>% select(account_id) %>% distinct()) %>%
+  select(account_id, postcode) %>%
   distinct() %>%
   group_by(postcode) %>%
   tally() %>%
   filter(!postcode == "")
-# https://www.data.gov.uk/dataset/c2235117-cbfd-480d-8fc7-b564bd0f4d58/output-area-2021-to-lsoas-to-msoas-to-lep-to-lad-dec-2022-best-fit-lookup-in-en-v2
+
 postcode_msoa <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv")) %>%
   left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
   mutate(n = ifelse(is.na(n), 0, 1)) %>%
   select(msoa21cd, n) %>%
   group_by(msoa21cd) %>%
   summarise(treated = sum(n))
-# https://www.ons.gov.uk/peoplepopulationandcommunity/personalandhouseholdfinances/incomeandwealth/bulletins/smallareamodelbasedincomeestimates/financialyearending2020
-income <- readxl::read_excel(file.path(datapath,"input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
+
+income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct() 
 
+net_income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Net annual income", skip = 4) %>%
+  select(`MSOA code`, `Net annual income (£)`) %>%
+  distinct() 
+
+net_housing_income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Net income after housing costs", skip = 4) %>%
+  select(`MSOA code`, `Net annual income after housing costs (£)`) %>%
+  distinct()
+
 # Load and preprocess the property_prices data
-# https://www.ons.gov.uk/peoplepopulationandcommunity/housing/datasets/hpssadataset3meanhousepricebymsoaquarterlyrollingyear
-property_prices <- read_excel(file.path(datapath, "input/HPSSA Dataset 3 - Mean price paid by MSOA.xls"), 
+property_prices <- read_excel(file.path(datapath, "/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls"), 
                               sheet = "1a", skip = 4) %>%
   select(`MSOA code`, `Year ending Mar 2023`) %>%
   rename(msoa21cd = `MSOA code`, `Property price (£)` = `Year ending Mar 2023`)
 
-# customs dataset from https://www.ons.gov.uk/datasets/create
 hh_size <- fread(file.path(datapath, "input/custom-filtered-2024-07-03T10_58_30Z.csv")) %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
   mutate(sum_obs = sum(Observation), weight = Observation / sum_obs) %>%
@@ -160,13 +106,14 @@ avg_age <- fread(file.path(datapath, "input/custom-filtered-2024-07-03T11_15_15Z
 
 education <- fread(file.path(datapath, "input/custom-filtered-2024-07-03T11_22_39Z.csv")) %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
-  mutate(sum_obs = sum(Observation), `Share Level 4 Qualifications (%)` = 100 * Observation / sum_obs) %>%
+  mutate(sum_obs = sum(Observation), 
+         `Share Level 4 Qualifications (%)` = 100 * Observation / sum_obs) %>%
   filter(`Highest level of qualification (7 categories) Code` == 4)
 
 # Merge all datasets by `MSOA code` or `Middle layer Super Output Areas Code`
 merged_data <- postcode_msoa %>%
   inner_join(income, by = c("msoa21cd"="MSOA code")) %>%
-  inner_join(property_prices,by = c("msoa21cd")) %>%
+  inner_join(property_prices,by = c("msoa21cd"="msoa21cd")) %>%
   inner_join(hh_size, by = c("msoa21cd" = "Middle layer Super Output Areas Code")) %>%
   inner_join(hh_deprivaton, by = c("msoa21cd" = "Middle layer Super Output Areas Code")) %>%
   inner_join(avg_age, by = c("msoa21cd" = "Middle layer Super Output Areas Code")) %>%
@@ -212,19 +159,19 @@ formatted_results <- results %>%
   select(Variable, `Weighted Mean Treated`, `Weighted Mean Others`)
 
 # Add the N values to the column names
-colnames(formatted_results)[2] <- paste0("MSOAs with Tariff Adopters (N = ", results$`N 1`[1], ")")
+colnames(formatted_results)[2] <- paste0("MSOAs with HP Installations (N = ", results$`N 1`[1], ")")
 colnames(formatted_results)[3] <- paste0("Other MSOAs (N = ", results$`N 0`[1], ")")
 
 # Create the LaTeX table using stargazer
 stargazer(formatted_results, type = "latex", summary = FALSE, 
-          title = "External Validity by Area for Tariff Adopters",
+          title = "External Validity by Area for Heat Pump Installations",
           rownames = FALSE,
           digits = 2,
-          label = "tab:msoa-stats-cosy",
-          out = "tables/balance_table_cosy.tex")
+          label = "tab:msoa_stats",
+          out = "tables/balance_table_temp.tex")
 
 # Read the content of the generated LaTeX table
-latex_table <- readLines("tables/balance_table_cosy.tex")
+latex_table <- readLines("tables/balance_table_temp.tex")
 
 # Insert custom headers with multicolumn
 header_row <- " & \\multicolumn{2}{c}{Weighted Mean} \\\\"
@@ -239,68 +186,5 @@ if (length(hline_ex_lines) >= 2) {
 }
 
 # Write the modified LaTeX table to a new file
-writeLines(latex_table, "tables/balance_table_cosy.tex")
-
-
-
-# DELETE?
-# Load and preprocess the property_prices data
-# Merge all datasets
-merged_data <- postcode_msoa %>%
-  inner_join(property_prices, by = "msoa21cd") %>%
-  mutate(country = substr(msoa21cd, 1, 1)) %>%
-  filter(msoa21cd != "", country %in% c("E", "W"))
-
-# Create combined data frame for plotting
-treated_1 <- merged_data %>%
-  filter(treated == 1) %>%
-  select(property_value = `Property price (£)`) %>%
-  mutate(group = "MSOAs with Adopters")
-
-treated_0 <- merged_data %>%
-  filter(treated == 0) %>%
-  select(property_value = `Property price (£)`) %>%
-  mutate(group = "MSOAs without Adopters")
-
-property_value_data <- merged_data %>%
-  select(property_value = `Property price (£)`) %>%
-  filter(!is.na(property_value)) %>%
-  mutate(group = "Adopters")
-
-combined_data <- bind_rows(
-  treated_1,
-  treated_0,
-  property_value_data
-)
-
-# Trim outliers by removing values outside the 1st and 99th percentiles
-trimmed_combined_data <- combined_data %>%
-  group_by(group) %>%
-  filter(property_value > quantile(property_value, 0.01) & property_value < quantile(property_value, 0.99))
-
-# Calculate means for each group
-means <- trimmed_combined_data %>%
-  group_by(group) %>%
-  summarise(mean_value = mean(property_value, na.rm = TRUE))
-
-ggplot(trimmed_combined_data, aes(x = property_value, color = group, fill = group)) +
-  geom_density(alpha = 0.5, aes(y = ..scaled..)) +
-  geom_vline(data = means, aes(xintercept = mean_value, color = group), linetype = "dashed") +
-  scale_color_manual(values = c("skyblue", "lightgreen", "orange")) +
-  scale_fill_manual(values = c("skyblue", "lightgreen", "orange")) +
-  scale_x_continuous(labels = dollar_format(prefix = "£", suffix = "k", scale = 1e-3, big.mark = ",")) +
-  labs(
-    title = "Density Plot of Property Prices",
-    x = "Property Value",
-    y = "Density",
-    color = NULL,  # Remove the legend title for color
-    fill = NULL    # Remove the legend title for fill
-  ) +
-  theme_classic() +
-  theme(legend.position = "bottom")
-
-
-ggsave("graphs/average_property_price.png", width = 12, height = 8, dpi = 300)
-
-
-
+writeLines(latex_table, "tables/balance_table.tex")
+file.remove("tables/balance_table_temp.tex")
