@@ -148,8 +148,9 @@ all_combinations <- expand.grid(
 # Merge with original unbalanced gas data
 merged_data <- all_combinations %>%
   left_join(cosy_hp_install_gas_consumption %>% 
-              distinct(account_id, settlement_week, weekly_consumption, 
-                       min_settlement_week, installed_at)) %>%
+              distinct(account_id,min_settlement_week, installed_at)) %>%
+  left_join(cosy_hp_install_gas_consumption %>% 
+              distinct(account_id, settlement_week, weekly_consumption)) %>%
   filter(as.Date(min_settlement_week) < as.Date(settlement_week)) %>%
   mutate(
     weekly_consumption = ifelse(is.na(weekly_consumption), 0, 

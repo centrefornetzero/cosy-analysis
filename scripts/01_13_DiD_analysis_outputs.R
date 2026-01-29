@@ -698,8 +698,75 @@ patch_etable_twfe_cs(
 
 checkpoint("Saved tables/hp_did_never_treated_detailed.tex (patched)")
                    
-            
+   
+# ============================================================
+# X) anticipation
+# ============================================================
+
+checkpoint("Plotting anticipation graph")                         
                          
+                         
+# Define paths and base filenames for each anticipation period
+output_base_path <- file.path(datapath, "/scratch/")
+output_filenames <- c("est_cs_elec_weekly", "est_cs_gas_weekly")
+anticipation_periods <- 0:10  # The range of anticipation periods
+
+# Define a function to process each anticipation week
+process_week <- function(anticipation_week) {
+  # File paths
+  elec_file <- paste0(output_base_path, output_filenames[1], "_anticipation_", anticipation_week, ".RDS")
+  gas_file  <- paste0(output_base_path, output_filenames[2], "_anticipation_", anticipation_week, ".RDS")
+  
+  # Read and calculate aggregate estimates
+  elec_agg <- aggte(readRDS(elec_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+  gas_agg  <- aggte(readRDS(gas_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
+  
+  # Create data frames for each type
+  df_elec <- data.frame(
+    anticipation_week = anticipation_week,
+    estimate = elec_agg$overall.att ,
+    lower_ci = elec_agg$overall.att  - 1.96 * elec_agg$overall.se,
+    upper_ci = elec_agg$overall.att  + 1.96 * elec_agg$overall.se,
+    type = "Electricity"
+  )
+  
+  df_gas <- data.frame(
+    anticipation_week = anticipation_week,
+    estimate = gas_agg$overall.att ,
+    lower_ci = gas_agg$overall.att  - 1.96 * gas_agg$overall.se,
+    upper_ci = gas_agg$overall.att  + 1.96 * gas_agg$overall.se,
+    type = "Gas"
+  )
+  
+  list(df_elec, df_gas)
+}
+
+# Apply the function over anticipation weeks and combine results
+results_list <- lapply(anticipation_periods, process_week)
+
+# Flatten the list and bind rows into one data frame
+plot_data <- do.call(rbind, unlist(results_list, recursive = FALSE))
+
+# Plotting the results with confidence intervals
+ggplot(plot_data, aes(x = anticipation_week, y = estimate, color = type, fill = type)) +
+  geom_line() +
+  geom_point() +
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.2) +
+  scale_color_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
+  scale_fill_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
+  labs(
+    title = "Anticipation Period Estimates for Electricity and Gas",
+    x = "Anticipation Week",
+    y = "Estimate",
+    color = "Type",
+    fill = "Type"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+ggsave("graphs/HP_anticipation.png") 
+                         
+checkpoint("Anticipation graph saved: graphs/HP_anticipation.png")                         
                          
 # ============================================================
 # X) Dynamic plots with trends

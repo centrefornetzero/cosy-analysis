@@ -266,7 +266,7 @@ for (a in anticipation_periods) {
       control_group = "notyettreated",
       est_method = "ipw",
       allow_unbalanced_panel = TRUE,
-      base_period = "varying"
+      base_period = "universal"
     )
 
     saveRDS(est_cs, filename)
