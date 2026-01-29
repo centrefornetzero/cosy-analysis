@@ -54,9 +54,9 @@ red_palette <- c("#FF9999", "#FF8080", "#FF6666", "#FF4D4D", "#FF3333", "#FF1A1A
 random_subsample <- FALSE
 
 # Cosy reproduction
-source("scripts/02_00_cosy.R")
+source("scripts/01_00_cosy.R")
 
-source("scripts/01_00_heatpump.R")
+source("scripts/02_00_heatpump.R")
 
 source("scripts/03_00_balance_tables_and_reweighting.R")
 

@@ -168,40 +168,40 @@ as.Date <- function(x, ...) {
 # # Data processing
 # # -----------------------------
 
-source("scripts/02_01_load_data.R")
+source("scripts/01_01_load_data.R")
 print("loaded data")
 
 # List objects in the environment
 list_env <- c(ls(), "list_env")
 
-source("scripts/02_02_rate_graphs.R")
+source("scripts/01_02_rate_graphs.R")
 rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_03_summary_graphs.R")
+source("scripts/01_03_summary_graphs.R")
 list_env <- c(list_env, "contract_analysis")
 rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_04_data_availability.R")
+source("scripts/01_04_data_availability.R")
 rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_05_balance_table.R")
+source("scripts/01_05_balance_table.R")
 rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_06_lct_ownership_and_leavers.R")
+source("scripts/01_06_lct_ownership_and_leavers.R")
 rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_07_heterogeneity_analysis.R")
+source("scripts/01_07_heterogeneity_analysis.R")
 rm(list = setdiff(ls(), list_env))
 gc()   
 
-source("scripts/02_08_cosy_and_hp_coadoption.R")
+source("scripts/01_08_cosy_and_hp_coadoption.R")
 rm(list = setdiff(ls(), list_env))
 gc()  
 
-source("scripts/02_09_structural_winner.R")
+source("scripts/01_09_structural_winner.R")
 rm(list = setdiff(ls(), list_env))
 gc()  
 
-source("scripts/02_10_DiD_analysis.R")
+source("scripts/01_10_DiD_analysis.R")
 rm(list = setdiff(ls(), list_env))
 gc()  
