@@ -50,9 +50,10 @@ clean_didparams_data <- function(x) {
 # outcome_col must exist in DIDparams$data (e.g., "elec_consumption" / "gas_consumption" / "consumption_hh")
 pre_avg_from_aggte <- function(aggte_simple, outcome_col) {
   dat <- clean_didparams_data(aggte_simple$DIDparams$data)
+  a <- as.numeric(aggte_simple$DIDparams$anticipation)
   stopifnot(outcome_col %in% names(dat))
   dat %>%
-    filter(week < firstweek - 1) %>%
+    filter(week < firstweek - a) %>%
     summarise(pre_avg = mean(.data[[outcome_col]], na.rm = TRUE)) %>%
     pull(pre_avg)
 }
@@ -67,12 +68,11 @@ create_latex_table_cs <- function(models, headers, title, file, label,
                                   variable_label = "Is HP Installed $=$ 1",
                                   pretreat_row_label = "Yearly Consumption",
                                   estimation_method = "Doubly Robust",
-                                  control_group = "Not Yet Treated",
-                                  anticipation = 1) {
+                                  control_group = "Not Yet Treated") {
 
   stopifnot(length(headers) == length(models))
   stopifnot(length(pre_treatment_values) == length(models))
-
+  
   # --- Coefs + stars ---
   coefficients <- sapply(models, function(m) {
     coef  <- m$overall.att
@@ -85,32 +85,54 @@ create_latex_table_cs <- function(models, headers, title, file, label,
   standard_errors <- sapply(models, function(m) {
     paste0("(", format_decimal(m$overall.se, digits), ")")
   })
-
+ 
+  # Anticipation
+  anticipation <-  sapply(models, function(m) {
+      m$DIDparams$anticipation
+  })
+    
   # --- Fit stats (use the fields that actually exist in your objects) ---
     get_did_stat <- function(m, stat) {
-    dp <- m$DIDparams
+      dp <- m$DIDparams
 
-    # new names
-    if (stat == "n_households") {
-    if (!is.null(dp$id_count)) return(dp$id_count)
-    if (!is.null(dp$n))       return(dp$n)      # old
+      if (stat == "n_households") {
+        if (!is.null(dp$id_count)) return(dp$id_count)
+        if (!is.null(dp$n))        return(dp$n)      # old
+      }
+
+      if (stat == "nG") {
+        if (!is.null(dp$treated_groups_count)) return(dp$treated_groups_count)
+        if (!is.null(dp$nG))                   return(dp$nG)  # old
+      }
+
+      if (stat == "nT") {
+        if (!is.null(dp$time_periods_count)) return(dp$time_periods_count)
+        if (!is.null(dp$nT))                 return(dp$nT)    # old
+      }
+
+      if (stat == "anticipation") {
+        if (!is.null(dp$anticipation)) return(dp$anticipation)
+      }
+
+      NA
     }
 
-    if (stat == "nG") {
-    if (!is.null(dp$treated_groups_count)) return(dp$treated_groups_count)
-    if (!is.null(dp$nG))                   return(dp$nG)  # old
-    }
+    # Extract and format fit stats exactly the same way
+    n_households <- sapply(models, function(m)
+      format_number(get_did_stat(m, "n_households"))
+    )
 
-    if (stat == "nT") {
-    if (!is.null(dp$time_periods_count)) return(dp$time_periods_count)
-    if (!is.null(dp$nT))                 return(dp$nT)   # old
-    }
+    nG <- sapply(models, function(m)
+      format_number(get_did_stat(m, "nG"))
+    )
 
-    NA
-    }
-    n_households <- sapply(models, function(m) format_number(get_did_stat(m, "n_households")))
-    nG           <- sapply(models, function(m) format_number(get_did_stat(m, "nG")))
-    nT           <- sapply(models, function(m) format_number(get_did_stat(m, "nT")))
+    nT <- sapply(models, function(m)
+      format_number(get_did_stat(m, "nT"))
+    )
+
+    anticipation <- sapply(models, function(m)
+      format_number(get_did_stat(m, "anticipation"))
+    )
 
   # if anything came back empty, fail loudly instead of writing character(0)
   if (any(nchar(n_households) == 0) || any(nchar(nG) == 0) || any(nchar(nT) == 0)) {
@@ -137,33 +159,37 @@ create_latex_table_cs <- function(models, headers, title, file, label,
     )
   }
 
-  latex <- paste0(latex, "   \\centering\n")
-  latex <- paste0(latex, "   \\begin{tabular}{l", paste(rep("c", k), collapse = ""), "}\n")
-  latex <- paste0(latex, "      \\tabularnewline \\midrule \\midrule\n")
-  latex <- paste0(latex, "                                     & ", paste(headers, collapse = " & "), " \\\\\n")
-  latex <- paste0(latex, "      Model:                         & ",
-                  paste(paste0("(", seq_len(k), ")"), collapse = " & "), " \\\\\n")
-  latex <- paste0(latex, "      \\midrule\n")
-  latex <- paste0(latex, "      \\emph{Variable}\\\\\n")
-  latex <- paste0(latex, "      ", variable_label, " & ", paste(coefficients, collapse = " & "), " \\\\\n")
-  latex <- paste0(latex, "                                     & ", paste(standard_errors, collapse = " & "), " \\\\\n")
-  latex <- paste0(latex, "      \\midrule\n")
-  latex <- paste0(latex, "      \\emph{Pre-treatment Average}\\\\\n")
-  latex <- paste0(latex, "      ", pretreat_row_label, " & ", paste(pretreat_fmt, collapse = " & "), " \\\\\n")
-  latex <- paste0(latex, "      \\midrule\n")
-  latex <- paste0(latex, "      \\emph{Fit statistics}\\\\\n")
-  latex <- paste0(latex, "      Number of Households & ", paste(n_households, collapse = " & "), " \\\\\n")
-  latex <- paste0(latex, "      Number of Cohorts & ", paste(nG, collapse = " & "), " \\\\\n")
-  latex <- paste0(latex, "      Number of Time Periods & ", paste(nT, collapse = " & "), " \\\\\n")
-  latex <- paste0(latex, "      \\midrule \\midrule\n")
-  latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Clustered (Household) standard-errors in parentheses}\\\\\n")
-  latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Estimation Method: ", estimation_method, "}\\\\\n")
-  latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Control Group: ", control_group,
-                  ", Anticipation Periods: ", anticipation, "}\\\\\n")
-  latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Signif. Codes: *** ",
-                  conf_level, "\\% confidence band does not cover 0}\\\\\n")
-  latex <- paste0(latex, "   \\end{tabular}\n")
-  latex <- paste0(latex, "\\end{table}\n")
+latex <- paste0(latex, "   \\centering\n")
+latex <- paste0(latex, "   \\begin{tabular}{l", paste(rep("c", k), collapse = ""), "}\n")
+latex <- paste0(latex, "      \\tabularnewline \\midrule \\midrule\n")
+latex <- paste0(latex, "                                     & ", paste(headers, collapse = " & "), " \\\\\n")
+latex <- paste0(latex, "      Model:                         & ",
+                paste(paste0("(", seq_len(k), ")"), collapse = " & "), " \\\\\n")
+latex <- paste0(latex, "      \\midrule\n")
+latex <- paste0(latex, "      \\emph{Variable}\\\\\n")
+latex <- paste0(latex, "      ", variable_label, " & ", paste(coefficients, collapse = " & "), " \\\\\n")
+latex <- paste0(latex, "                                     & ", paste(standard_errors, collapse = " & "), " \\\\\n")
+latex <- paste0(latex, "      \\midrule\n")
+latex <- paste0(latex, "      \\emph{Pre-treatment Average}\\\\\n")
+latex <- paste0(latex, "      ", pretreat_row_label, " & ", paste(pretreat_fmt, collapse = " & "), " \\\\\n")
+latex <- paste0(latex, "      \\midrule\n")
+latex <- paste0(latex, "      \\emph{Fit statistics}\\\\\n")
+latex <- paste0(latex, "      Number of Households & ", paste(n_households, collapse = " & "), " \\\\\n")
+latex <- paste0(latex, "      Number of Cohorts & ", paste(nG, collapse = " & "), " \\\\\n")
+latex <- paste0(latex, "      Number of Time Periods & ", paste(nT, collapse = " & "), " \\\\\n")
+latex <- paste0(latex, "      Anticipation Periods & ", paste(anticipation, collapse = " & "), " \\\\\n")
+latex <- paste0(latex, "      \\midrule \\midrule\n")
+latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Clustered (Household) standard-errors in parentheses}\\\\\n")
+latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Estimation Method: ", estimation_method, "}\\\\\n")
+
+# removed anticipation from this line, since it now varies by column
+latex <- paste0(latex, "      \\multicolumn{", k + 1,
+                "}{l}{Control Group: ", control_group, "}\\\\\n")
+
+latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Signif. Codes: *** ",
+                conf_level, "\\% confidence band does not cover 0}\\\\\n")
+latex <- paste0(latex, "   \\end{tabular}\n")
+latex <- paste0(latex, "\\end{table}\n")
 
   writeLines(latex, file)
 }
@@ -279,7 +305,7 @@ create_dynamic_plot <- function(elec_data, gas_data, elec_color, gas_color) {
   ggplot(plot_data, aes(x = event_time, y = coefficient, group = type)) +
     geom_line(aes(color = type)) +
     geom_point(aes(color = type, shape = type), size = 3) +
-    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci, color = type), width = 0.2, alpha = 0.6) +
+    geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, color = type), alpha = 0.2) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
     scale_colour_manual(
       name = "Type",
@@ -318,6 +344,9 @@ create_calendar_plot_data <- function(start_date, elec_data, gas_data) {
       upper_ci = estimate + 1.96 * se
     )
 }
+                         
+ 
+   
 
 # ============================================================
 # 4) Load data + set colors
@@ -351,13 +380,13 @@ checkpoint("CS simple: load RDS + build CS-only table")
 
 # ---- CS files (FULL sample) ----
 cs_files_full <- list(
-  Electricity = file.path(datapath, "scratch/est_cs_elec_weekly.RDS"),
-  Gas         = file.path(datapath, "scratch/est_cs_gas_weekly.RDS")
+  Electricity = file.path(datapath, "scratch/est_cs_elec_weekly_anticipation_5.RDS"),
+  Gas         = file.path(datapath, "scratch/est_cs_gas_weekly_anticipation_5.RDS")
 )
 
-aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple",
+aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple", max_e=80,min_e=-80,
                            na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
-aggte_simple_gas  <- aggte(readRDS(cs_files_full$Gas), type = "simple",
+aggte_simple_gas  <- aggte(readRDS(cs_files_full$Gas), type = "simple",  max_e=80,min_e=-80,
                            na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.01)
 
 # Pre-treatment means (use DIDparams$data safely)
@@ -391,6 +420,98 @@ create_latex_table_cs(
 )
 
 checkpoint("Saved tables/hp_did_overall_cs.tex")
+                         
+                         
+# ============================================================
+# CS simple: load RDS + build CS-only tables for anticipation = 0..10
+# ============================================================
+
+checkpoint("CS simple: loop over anticipation periods")
+
+anticipation_periods <- 0:10  # or whatever set you want
+
+for (a in anticipation_periods) {
+
+  checkpoint(paste0("CS simple (anticipation = ", a, "): load RDS + build CS-only table"))
+
+  # ---- CS files (FULL sample) ----
+  cs_files_full <- list(
+    Electricity = file.path(datapath, paste0("scratch/est_cs_elec_weekly_anticipation_", a, ".RDS")),
+    Gas         = file.path(datapath, paste0("scratch/est_cs_gas_weekly_anticipation_", a, ".RDS"))
+  )
+
+  # Optional: fail fast if something is missing
+  if (!file.exists(cs_files_full$Electricity)) {
+    stop("Electricity CS file not found for anticipation = ", a, ": ", cs_files_full$Electricity)
+  }
+  if (!file.exists(cs_files_full$Gas)) {
+    stop("Gas CS file not found for anticipation = ", a, ": ", cs_files_full$Gas)
+  }
+
+  # ---- Simple CS effects ----
+  aggte_simple_elec <- aggte(
+    readRDS(cs_files_full$Electricity),
+    type = "simple",
+    na.rm = TRUE,
+    clustervars = "id",
+    bstrap = TRUE,
+    alp = 0.01
+  )
+
+  aggte_simple_gas <- aggte(
+    readRDS(cs_files_full$Gas),
+    type = "simple",
+    na.rm = TRUE,
+    clustervars = "id",
+    bstrap = TRUE,
+    alp = 0.01
+  )
+
+  # ---- Pre-treatment means (using your helper) ----
+  pre_elec <- pre_avg_from_aggte(aggte_simple_elec, "elec_consumption")
+  pre_gas  <- pre_avg_from_aggte(aggte_simple_gas,  "gas_consumption")
+
+  models_cs_full <- list(
+    Electricity = aggte_simple_elec,
+    Gas         = aggte_simple_gas
+  )
+
+  headers_cs <- c("Electricity", "Gas")
+
+  # You can choose whether to reflect anticipation in the title or just the note/label
+  title_cs_full <- paste0(
+    "Heat Pump Installation Effects on Yearly Energy Consumption (kWh), Anticipation = ",
+    a
+  )
+
+  file_cs_full  <- file.path("tables", paste0("hp_did_overall_cs_anticipation_", a, ".tex"))
+  label_cs_full <- paste0("tab:hp-did-cs-anticipation-", a)
+
+  note_cs_full <- paste(
+    "This table reports Callaway–Sant'Anna estimates of the impact of heat pump installation",
+    "on households’ yearly electricity consumption (column 1) and gas consumption (column 2).",
+    "Cohorts refer to households with the same week of installation.",
+    "Estimates are computed using an anticipation window of", a, "period(s).",
+    sep = " "
+  )
+
+  create_latex_table_cs(
+    models = models_cs_full,
+    headers = headers_cs,
+    title = title_cs_full,
+    file = file_cs_full,
+    label = label_cs_full,
+    pre_treatment_values = c(pre_elec, pre_gas),
+    note = note_cs_full,
+    digits = 1,
+    variable_label = "Is HP Installed $= 1$",
+    pretreat_row_label = "Yearly Consumption"
+  )
+
+  checkpoint(paste0("Saved ", file_cs_full))
+}
+
+checkpoint("Finished CS simple tables for all anticipation periods")
 
 # ---- CS files (GAS-ONLY electricity + gas) ----
 checkpoint("CS simple: gas-only subsample table")
@@ -442,9 +563,9 @@ checkpoint("Saved tables/hp_did_overall_cs_gas_only.tex")
 checkpoint("Dynamic CS plot (electricity + gas)")
 
 elec_dyn <- aggte(readRDS(cs_files_full$Electricity), type = "dynamic",
-                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -80, max_e = 80)
 gas_dyn  <- aggte(readRDS(cs_files_full$Gas), type = "dynamic",
-                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -90, max_e = 90)
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -80, max_e = 80)
 
 p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color)
 ggsave("graphs/dynamic_hp_plot_combined.png", plot = p_dyn, width = 10, height = 8, dpi = 300)
@@ -466,7 +587,7 @@ plot_cal_data <- create_calendar_plot_data(start_date, elec_cal, gas_cal)
 p_cal <- ggplot(plot_cal_data, aes(x = as.Date(week_date), y = estimate, color = type)) +
   geom_point(aes(shape = type), size = 3) +
   geom_line() +
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, color = type), alpha = 0.2) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
   scale_x_date(labels = scales::date_format("%b %y"), date_breaks = "3 month") +
   scale_colour_manual(
@@ -493,6 +614,209 @@ write.csv(plot_cal_data, file.path(datapath, "output/hp_calendarplot_combined.cs
 ggsave("graphs/hp_calendarplot_combined.png", plot = p_cal, width = 8, height = 6, dpi = 300)
 checkpoint("Saved graphs/hp_calendarplot_combined.png and output/hp_calendarplot_combined.csv")
 
+                         
+# ============================================================
+# Calendar-time ATT (12-month rolling SUM, annual kWh) + rolling pre baseline
+# ============================================================
+
+
+checkpoint("Calendar ATT: 12-month rolling SUM plot + baseline share labels")
+
+# ---- Rolling 12-month sum (yearly effect in kWh/year) + CI ----
+add_rolling_12m_sum <- function(df, window_weeks = 52) {
+  df %>%
+    arrange(type, week_date) %>%
+    group_by(type) %>%
+    mutate(
+      estimate_12m = zoo::rollapply(
+        estimate, width = window_weeks, FUN = sum,
+        align = "right", fill = NA, na.rm = TRUE
+      ),
+      se_12m = sqrt(zoo::rollapply(
+        se^2, width = window_weeks, FUN = sum,
+        align = "right", fill = NA, na.rm = TRUE
+      )),
+      lower_ci_12m = estimate_12m - 1.96 * se_12m,
+      upper_ci_12m = estimate_12m + 1.96 * se_12m
+    ) %>%
+    ungroup()
+}
+
+# ---- Rolling pre-treatment mean baseline (calendar time) + 52w rolling mean ----
+rolling_pre_avg_calendar_52w <- function(aggte_obj, start_date, outcome_col, window_weeks = 52) {
+
+  dat <- clean_didparams_data(aggte_obj$DIDparams$data)
+  a   <- as.numeric(aggte_obj$DIDparams$anticipation)
+
+  stopifnot(all(c("week", "firstweek") %in% names(dat)))
+  stopifnot(outcome_col %in% names(dat))
+
+  dat %>%
+    mutate(is_pre = week < (firstweek - a)) %>%
+    filter(is_pre) %>%
+    group_by(week) %>%
+    summarise(
+      pre_avg_weekly = mean(.data[[outcome_col]], na.rm = TRUE),
+      n_pre = sum(!is.na(.data[[outcome_col]])),
+      .groups = "drop"
+    ) %>%
+    arrange(week) %>%
+    mutate(
+      # align week=1 to start_date
+      week_date = as.Date(start_date + weeks(week - 1)),
+      pre_avg_52w = zoo::rollapply(
+        pre_avg_weekly, width = window_weeks, FUN = mean,
+        align = "right", fill = NA, na.rm = TRUE
+      ),
+      pre_52w_kwhyr = pre_avg_52w 
+    )
+}
+
+# ---- 1) Calendar ATT weekly series -> 12m rolling yearly series ----
+plot_data_weekly <- create_calendar_plot_data(start_date, elec_cal, gas_cal) %>%
+  mutate(week_date = as.Date(week_date))  # <-- ensure Date
+
+plot_data_12m_all <- add_rolling_12m_sum(plot_data_weekly, window_weeks = 52)
+
+# Drop rows until rolling window exists (fixes early empty span)
+plot_data_12m <- plot_data_12m_all %>%
+  filter(!is.na(estimate_12m)) %>%
+  mutate(week_date = as.Date(week_date)) %>%
+  arrange(week_date)
+
+# ---- 2) Rolling pre baselines (annualised) ----
+pre_elec_df <- rolling_pre_avg_calendar_52w(aggte_simple_elec, start_date, "elec_consumption", window_weeks = 52) %>%
+  mutate(type = "Electricity") %>%
+  select(type, week_date, pre_52w_kwhyr)
+
+pre_gas_df  <- rolling_pre_avg_calendar_52w(aggte_simple_gas,  start_date, "gas_consumption",  window_weeks = 52) %>%
+  mutate(type = "Gas") %>%
+  select(type, week_date, pre_52w_kwhyr)
+
+pre_df <- bind_rows(pre_elec_df, pre_gas_df)
+
+# ---- 3) Median ATT and median rolling-pre baseline (both annual kWh) + share ----
+att_medians <- plot_data_12m %>%
+  group_by(type) %>%
+  summarise(
+    median_att_kwhyr = median(estimate_12m, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+pre_medians <- pre_df %>%
+  filter(!is.na(pre_52w_kwhyr)) %>%
+  group_by(type) %>%
+  summarise(
+    median_pre_kwhyr = median(pre_52w_kwhyr, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+summary_medians <- att_medians %>%
+  left_join(pre_medians, by = "type") %>%
+  mutate(
+    share_of_pre = median_att_kwhyr / median_pre_kwhyr,
+    pct_of_pre   = 100 * share_of_pre
+  )
+
+cat("\n--- Median effect as share of rolling pre baseline ---\n")
+apply(summary_medians, 1, function(r) {
+  cat(
+    r["type"], ": median ATT = ", round(as.numeric(r["median_att_kwhyr"])), " kWh/yr; ",
+    "median pre (52w rolling) = ", round(as.numeric(r["median_pre_kwhyr"])), " kWh/yr; ",
+    "share = ", sprintf("%.2f", as.numeric(r["pct_of_pre"])), "%\n",
+    sep = ""
+  )
+})
+
+
+                     
+# 1) figure y-range from data (use CI to be safe)
+y_min_data <- min(plot_data_12m$lower_ci_12m, na.rm = TRUE)
+y_max_data <- max(plot_data_12m$upper_ci_12m, na.rm = TRUE)
+
+# Add a small padding (5% of range) so labels fit nicely inside
+yrange <- y_max_data - y_min_data
+pad <- 0.05 * ifelse(yrange == 0, 1, yrange)
+
+y_min_plot <- y_min_data - pad
+y_max_plot <- y_max_data + pad
+
+# 2) create label positions per type using last available point,
+#    but clamp them inside the plotting window
+last_points <- plot_data_12m %>%
+  group_by(type) %>%
+  filter(!is.na(estimate_12m)) %>%
+  slice_max(week_date, n = 1) %>%
+  ungroup() %>%
+  select(type, last_date = week_date, last_est = estimate_12m)
+
+label_df <- summary_medians %>%
+  left_join(last_points, by = "type") %>%
+  mutate(
+    # y_lab is where we want to put the text; clamp to plotting range
+    y_lab_raw = last_est,
+    y_lab = pmin(pmax(y_lab_raw, y_min_plot + pad), y_max_plot - pad),
+
+    # x position a little left of the max date so label sits inside plot
+    x_max = max(plot_data_12m$week_date, na.rm = TRUE),
+    x_lab = x_max - weeks(8),
+
+    # format label strings clearly with sign and commas
+    label = paste0(
+      "Median: ", scales::comma(round(median_att_kwhyr)), " kWh/yr\n",
+      "Share of pre: ", ifelse(pct_of_pre >= 0, "", "-"),
+      sprintf("%.2f", abs(pct_of_pre)), "%"
+    )
+  ) %>%
+  select(type, x_lab, y_lab, label)
+
+# 3) Choose sensible y breaks (include negative and positive)
+#    Here we pick pretty breaks that include 0 and the main range
+y_breaks <- pretty(c(y_min_plot, y_max_plot), n = 6)
+if (!any(y_breaks == 0)) y_breaks <- sort(c(y_breaks, 0))
+
+# 4) Build & save plot with coord_cartesian to keep all data
+p_cal_12m_fixed <- ggplot(plot_data_12m, aes(x = week_date, y = estimate_12m, color = type, fill = type)) +
+  geom_line(linewidth = 1) +
+  geom_ribbon(aes(ymin = lower_ci_12m, ymax = upper_ci_12m), alpha = 0.2, color = NA) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+
+  # labels inside plot
+  geom_text(
+    data = label_df,
+    aes(x = x_lab, y = y_lab, label = label, color = type),
+    inherit.aes = FALSE,
+    hjust = 0, vjust = 0.5, size = 3.2, show.legend = FALSE
+  ) +
+
+  scale_color_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
+  scale_fill_manual(values  = c("Electricity" = elec_color, "Gas" = gas_color)) +
+  scale_y_continuous(breaks = y_breaks, labels = comma) +
+
+  coord_cartesian(ylim = c(y_min_plot, y_max_plot)) +  # keep data, don't drop
+  scale_x_date(limits = c(min(plot_data_12m$week_date, na.rm = TRUE),
+                          max(plot_data_12m$week_date, na.rm = TRUE))) +
+
+  labs(
+    title = "Calendar-time ATT (12-month rolling sum)",
+    x = NULL,
+    y = "ATT (kWh/year)",
+    color = "Type",
+    fill  = "Type"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.margin = margin(5, 50, 5, 5))  # extra right margin so labels don't clip
+
+# save
+out_file <- file.path("graphs", "calendar_att_12m_rolling_sum_labeled_fixed.png")
+dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
+ggsave(out_file, plot = p_cal_12m_fixed, width = 10, height = 8, dpi = 300)
+
+message("Saved ", out_file)
+                         
+                         
+                                               
 # ============================================================
 # 8) TWFE models + combined TWFE/CS LaTeX table (patched)
 # ============================================================
@@ -767,6 +1091,88 @@ ggplot(plot_data, aes(x = anticipation_week, y = estimate, color = type, fill = 
 ggsave("graphs/HP_anticipation.png") 
                          
 checkpoint("Anticipation graph saved: graphs/HP_anticipation.png")                         
+
+# ============================================================
+# Dynamic CS plot (electricity + gas) for anticipation = 0..10
+# Saves one combined plot per anticipation period
+# ============================================================
+
+
+checkpoint("Dynamic CS plots by anticipation (electricity + gas)")
+
+# ---- user settings ----
+datapath <- datapath  # assumes already defined
+elec_color <- elec_color
+gas_color  <- gas_color
+
+anticipation_periods <- 0:10
+
+# Where your CS objects live (same naming convention as earlier)
+cs_base_dir <- file.path(datapath, "scratch")
+graphs_dir  <- file.path("graphs")
+if (!dir.exists(graphs_dir)) dir.create(graphs_dir, recursive = TRUE)
+
+# Helper: build CS file paths for a given anticipation value
+get_cs_files <- function(a) {
+  list(
+    Electricity = file.path(cs_base_dir, paste0("est_cs_elec_weekly_anticipation_", a, ".RDS")),
+    Gas         = file.path(cs_base_dir, paste0("est_cs_gas_weekly_anticipation_", a, ".RDS"))
+  )
+}
+
+# Helper: safe file existence check with informative error
+assert_exists <- function(path) {
+  if (!file.exists(path)) stop("File not found: ", path, call. = FALSE)
+  invisible(TRUE)
+}
+
+# Loop over anticipation periods and save plots
+for (a in anticipation_periods) {
+
+  cs_files <- get_cs_files(a)
+
+  # Check that the underlying CS estimation objects exist
+  assert_exists(cs_files$Electricity)
+  assert_exists(cs_files$Gas)
+
+  checkpoint(paste0("Dynamic CS plot for anticipation = ", a))
+
+  # Dynamic aggregation (event-study)
+  elec_dyn <- aggte(
+    readRDS(cs_files$Electricity),
+    type = "dynamic",
+    na.rm = TRUE,
+    clustervars = "id",
+    bstrap = TRUE,
+    min_e = -90,
+    max_e = 90
+  )
+
+  gas_dyn <- aggte(
+    readRDS(cs_files$Gas),
+    type = "dynamic",
+    na.rm = TRUE,
+    clustervars = "id",
+    bstrap = TRUE,
+    min_e = -90,
+    max_e = 90
+  )
+
+  # Create combined plot (assumes your function exists)
+  p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color) +
+    labs(
+      title = paste0("Dynamic ATT (CS) by anticipation = ", a),
+      subtitle = "Electricity and gas"
+    )
+
+  out_file <- file.path(graphs_dir, paste0("dynamic_hp_plot_combined_anticipation_", a, ".png"))
+
+  ggsave(out_file, plot = p_dyn, width = 10, height = 8, dpi = 300)
+
+  checkpoint(paste0("Saved ", out_file))
+}
+
+checkpoint("Finished saving dynamic CS plots for anticipation = 0..10")
                          
 # ============================================================
 # X) Dynamic plots with trends
