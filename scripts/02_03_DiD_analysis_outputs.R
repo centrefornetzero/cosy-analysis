@@ -1189,15 +1189,15 @@ checkpoint("Finished saving dynamic CS plots for anticipation = 0..10")
 
 checkpoint("Dynamic plot for monthly trends")
 
-# ---- CS files (FULL sample) ----
-cs_files_full <- list(
+# ---- CS files (trend sample) ----
+cs_files_trends <- list(
   Electricity = file.path(datapath, "scratch/est_cs_elec_weekly_with_trends.RDS"),
   Gas         = file.path(datapath, "scratch/est_cs_gas_weekly_with_trends.RDS")
 )
                          
-elec_dyn <- aggte(readRDS(cs_files_full$Electricity), type = "dynamic",
+elec_dyn <- aggte(readRDS(cs_files_trends$Electricity), type = "dynamic",
                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -80, max_e = 80)
-gas_dyn  <- aggte(readRDS(cs_files_full$Gas), type = "dynamic",
+gas_dyn  <- aggte(readRDS(cs_files_trends$Gas), type = "dynamic",
                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -80, max_e = 80)
 
 p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color)
