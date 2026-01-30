@@ -304,7 +304,7 @@ create_dynamic_plot <- function(elec_data, gas_data, elec_color, gas_color) {
   ggplot(plot_data, aes(x = event_time, y = coefficient, group = type)) +
     geom_line(aes(color = type)) +
     geom_point(aes(color = type, shape = type), size = 3) +
-    geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, color = NA), alpha = 0.2) +
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 7, alpha = 0.6, linewidth = 0.6) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
     scale_colour_manual(
       name = "Type",
@@ -732,7 +732,6 @@ p_cal <- ggplot(plot_cal_data, aes(x = week_date, y = estimate, colour = type, g
     alpha = 0.12
   ) +
   geom_vline(xintercept = w1_end, linetype = "dotted", colour = "grey40") +
-
   # weekly series
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 7, alpha = 0.6, linewidth = 0.6) +
   geom_line(linewidth = 0.8) +
@@ -776,9 +775,6 @@ ggsave("graphs/hp_calendarplot_combined_with_annual_labels.png",
        plot = p_cal, width = 10, height = 6, dpi = 300)
 
 checkpoint("Saved graphs/hp_calendarplot_combined_with_annual_labels.png and output/hp_calendarplot_combined.csv")
-# ============================================================
-# Calendar-time ATT (12-month rolling SUM, annual kWh) + rolling pre baseline
-# ============================================================
 
 # ============================================================
 # 12m rolling ATT plot + quarterly callouts + COP panel + median label
