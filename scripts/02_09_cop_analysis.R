@@ -1,19 +1,30 @@
 # ====================================================================
 # --------- read in elec + gas consumption data ---------
 # ====================================================================
+
+# ---- CS files (FULL sample) ----
+cs_files_full <- list(
+  Electricity = file.path(datapath, "scratch/est_cs_elec_weekly.RDS"),
+  Gas         = file.path(datapath, "scratch/est_cs_gas_weekly.RDS")
+)
+
+aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple", max_e=80,min_e=-80,
+                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+
+aggte_simple_gas <- aggte(readRDS(cs_files_full$Gas), type = "simple", max_e=80,min_e=-80,
+                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+
 overall_weekly <- 
   read_rds(file.path(datapath, "output/overall_weekly.rds")) %>%
   mutate_at(vars(elec_consumption, gas_consumption, total_consumption), 
             ~.x / 52.25) %>% 
-  mutate(treated = max(is_hp_installed)) %>%
-
-  # drop cases where there's only 1 hp-temp combo - otherwise, feols gets tripped up
-  add_count(is_hp_installed, temp_degree, name = "cell_n") %>%
-  filter(cell_n > 1)
+  mutate(treated = max(is_hp_installed))
 
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
-did_data <- overall_weekly %>%
+
+# Build week / firstweek and the anticipation=5 treatment indicator
+overall_weekly <-  overall_weekly %>%
   ungroup() %>%
   mutate(
     week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
@@ -22,26 +33,27 @@ did_data <- overall_weekly %>%
   group_by(account_id) %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
-  filter(week <= 129, firstweek <= 129) 
-
+  filter(week <= 129, firstweek <= 129)  %>%
+  filter(week <= firstweek - 5 | week > firstweek)
 
 rm(all_combinations, merged_data, weather_weekly, electricity_daily, cosy_hp_install_gas_consumption)
 gc()
+
 
 # ====================================================================
 # --------- Figure 4: HP Impacts by Outside Temperature --------------
 # ====================================================================   
 # Fit the model
-m1 <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ i(is_hp_installed) | 
+m1 <- feols(c(elec_consumption, gas_consumption) ~ i(is_hp_installed) | 
               hdd + account_id + settlement_week, 
-            data =  overall_weekly %>% filter(account_id %in% did_data$account_id), 
+            data =  overall_weekly %>% filter(id %in% unique(aggte_simple_elec$DIDparams$data$id)), 
             cluster = ~account_id)
 
 # Run the regression model
-tempreg <- feols(c(elec_consumption, gas_consumption, total_consumption) ~ 
+tempreg <- feols(c(elec_consumption, gas_consumption) ~ 
                    i(is_hp_installed, temp_degree, ref=0) |
                    account_id + temp_degree  + settlement_week,
-                 data = overall_weekly,
+                 data = overall_weekly %>% filter(id %in% unique(aggte_simple_elec$DIDparams$data$id)),
                  cluster = ~account_id)
 
 # Extract coefficients and standard errors

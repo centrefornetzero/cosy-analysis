@@ -304,7 +304,7 @@ create_dynamic_plot <- function(elec_data, gas_data, elec_color, gas_color) {
   ggplot(plot_data, aes(x = event_time, y = coefficient, group = type)) +
     geom_line(aes(color = type)) +
     geom_point(aes(color = type, shape = type), size = 3) +
-    geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, color = type), alpha = 0.2) +
+    geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, color = NA), alpha = 0.2) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
     scale_colour_manual(
       name = "Type",
@@ -427,8 +427,8 @@ checkpoint("CS simple: load RDS + build CS-only table")
 
 # ---- CS files (FULL sample) ----
 cs_files_full <- list(
-  Electricity = file.path(datapath, "scratch/est_cs_elec_weekly_anticipation_5.RDS"),
-  Gas         = file.path(datapath, "scratch/est_cs_gas_weekly_anticipation_5.RDS")
+  Electricity = file.path(datapath, "scratch/est_cs_elec_weekly.RDS"),
+  Gas         = file.path(datapath, "scratch/est_cs_gas_weekly.RDS")
 )
 
 aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple", max_e=80,min_e=-80,
@@ -619,67 +619,192 @@ ggsave("graphs/dynamic_hp_plot_combined.png", plot = p_dyn, width = 10, height =
 checkpoint("Saved graphs/dynamic_hp_plot_combined.png")
 
 # ============================================================
-# Calendar plot (CS)
+# Calendar plot (CS) + shaded last-2-years windows + annual sums + COP labels
+# COP = elec_increase / (0.9 * |gas_decrease|)
 # ============================================================
 
-checkpoint("Calendar CS plot (electricity + gas)")
+checkpoint("Calendar CS plot (electricity + gas) + annual labels + COP")
 
+
+# ---- 1) Get calendar-time ATTs (weekly) ----
 elec_cal <- aggte(readRDS(cs_files_full$Electricity), type = "calendar",
                   na.rm = TRUE, clustervars = "id", bstrap = TRUE)
 gas_cal  <- aggte(readRDS(cs_files_full$Gas), type = "calendar",
                   na.rm = TRUE, clustervars = "id", bstrap = TRUE)
 
-plot_cal_data <- create_calendar_plot_data(start_date, elec_cal, gas_cal)
+plot_cal_data <- create_calendar_plot_data(start_date, elec_cal, gas_cal) %>%
+  mutate(
+    week_date = as.Date(week_date)
+  ) %>%
+  arrange(type, week_date)
 
-p_cal <- ggplot(plot_cal_data, aes(x = as.Date(week_date), y = estimate, color = type)) +
+
+# ---- 2) Define two 52-week windows ending at the latest available week ----
+max_date <- max(plot_cal_data$week_date, na.rm = TRUE)
+
+w2_start <- max_date - weeks(52) + days(1)   # most recent 52 weeks (window 2)
+w2_end   <- max_date
+
+w1_start <- max_date - weeks(104) + days(1)  # previous 52 weeks (window 1)
+w1_end   <- max_date - weeks(52)
+
+# ---- 3) Annual sums (52-week sum of weekly ATTs) + CI per window and type ----
+annual_sums <- plot_cal_data %>%
+  mutate(
+    window = case_when(
+      week_date >= w1_start & week_date <= w1_end ~ "Prev 12 months",
+      week_date >= w2_start & week_date <= w2_end ~ "Last 12 months",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(window)) %>%
+  group_by(type, window) %>%
+  summarise(
+    annual_kwh = sum(estimate, na.rm = TRUE),
+    annual_se  = sqrt(sum(se^2, na.rm = TRUE)),
+    annual_lo  = annual_kwh - 1.96 * annual_se,
+    annual_hi  = annual_kwh + 1.96 * annual_se,
+    .groups = "drop"
+  )
+
+
+# ---- 4) COP per window: Electricity / (0.9 * |Gas|) ----
+# Gas should be negative for reductions; use -Gas in denominator to make it positive.
+cop_df <- annual_sums %>%
+  select(window, type, annual_kwh) %>%
+  pivot_wider(names_from = type, values_from = annual_kwh) %>%
+  mutate(
+    denom = 0.9 * (-Gas),
+    cop   =  denom / Electricity
+  ) %>%
+  select(window, cop)
+
+# ---- 5) Build shaded regions + label positions guaranteed to be on-plot ----
+shade_df <- data.frame(
+  xmin = as.Date(c(w1_start, w2_start)),
+  xmax = as.Date(c(w1_end,   w2_end)),
+  ymin = -Inf,
+  ymax = Inf,
+  window = c("Prev 12 months", "Last 12 months")
+)
+
+# Midpoints for label x positions (by window)
+mid_df <- data.frame(
+  window = c("Prev 12 months", "Last 12 months"),
+  x = as.Date(c(
+    w1_start  -weeks(12) + (w1_end - w1_start) / 2,
+    w2_start   -weeks(12) + (w2_end - w2_start) / 2
+  ))
+)
+
+# Y positions: place labels safely inside plot range (top for elec, bottom for gas)
+y_max <- max(plot_cal_data$upper_ci, na.rm = TRUE)
+y_min <- min(plot_cal_data$lower_ci, na.rm = TRUE)
+yrng  <- y_max - y_min
+if (!is.finite(yrng) || yrng == 0) yrng <- 1
+
+label_pos <- annual_sums %>%
+  left_join(cop_df, by = "window") %>%
+  left_join(mid_df, by = "window") %>%
+  mutate(
+    y = if_else(type == "Electricity", y_max - 0.15 * yrng, y_min + 0.15 * yrng),
+    label = if_else(
+      type == "Electricity",
+      paste0(
+        window, ": ", comma(round(annual_kwh)), " kWh/yr\n",
+        "[", comma(round(annual_lo)), ", ", comma(round(annual_hi)), "]\n",
+        "COP \u2248 ", sprintf("%.2f", cop)
+      ),
+      paste0(
+        window, ": ", comma(round(annual_kwh)), " kWh/yr\n",
+        "[", comma(round(annual_lo)), ", ", comma(round(annual_hi)), "]"
+      )
+    )
+  )
+
+# ---- 6) Plot: calendar series + shading + COP/annual labels ----
+p_cal <- ggplot(plot_cal_data, aes(x = week_date, y = estimate, colour = type, group = type)) +
+  geom_rect(
+    data = shade_df,
+    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+    inherit.aes = FALSE,
+    fill = "grey60",
+    alpha = 0.12
+  ) +
+  geom_vline(xintercept = w1_end, linetype = "dotted", colour = "grey40") +
+
+  # weekly series
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 7, alpha = 0.6, linewidth = 0.6) +
+  geom_line(linewidth = 0.8) +
   geom_point(aes(shape = type), size = 3) +
-  geom_line() +
-  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, color = type), alpha = 0.2) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "black") +
+
+  # labels (annual sums + COP)
+  geom_label(
+    data = label_pos,
+    aes(x = x, y = y, label = label, colour = type),
+    inherit.aes = FALSE,
+    fill = "white",
+    alpha = 0.90,
+    label.size = 0.2,
+    size = 3.2,
+    show.legend = FALSE 
+  ) +
   scale_x_date(labels = scales::date_format("%b %y"), date_breaks = "3 month") +
   scale_colour_manual(
-    name = "Type",
-    labels = c("Electricity", "Gas"),
+    name   = "Type",
     values = c(Electricity = elec_color, Gas = gas_color)
   ) +
   scale_shape_manual(
-    name = "Type",
-    labels = c("Electricity", "Gas"),
-    values = c(16, 17)
+    name   = "Type",
+    values = c(Electricity = 16, Gas = 17)
   ) +
   labs(
     x = "Week",
     y = "Calendar ATT for Weekly Consumption (kWh)",
-    color = "Type",
-    shape = "Type"
+    colour = "Type",
+    shape  = "Type"
   ) +
   theme_minimal() +
-  theme(legend.position = "bottom") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 
-write.csv(plot_cal_data, file.path(datapath, "output/hp_calendarplot_combined.csv"), row.names = FALSE)
-ggsave("graphs/hp_calendarplot_combined.png", plot = p_cal, width = 8, height = 6, dpi = 300)
-checkpoint("Saved graphs/hp_calendarplot_combined.png and output/hp_calendarplot_combined.csv")
+# ---- 7) Save outputs ----
+ggsave("graphs/hp_calendarplot_combined_with_annual_labels.png",
+       plot = p_cal, width = 10, height = 6, dpi = 300)
 
-                         
+checkpoint("Saved graphs/hp_calendarplot_combined_with_annual_labels.png and output/hp_calendarplot_combined.csv")
 # ============================================================
 # Calendar-time ATT (12-month rolling SUM, annual kWh) + rolling pre baseline
 # ============================================================
 
+# ============================================================
+# 12m rolling ATT plot + quarterly callouts + COP panel + median label
+# ============================================================
 
-checkpoint("Calendar ATT: 12-month rolling SUM plot + baseline share labels")
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(zoo)
+library(ggplot2)
+library(scales)
+library(patchwork)
 
-# ---- 1) Calendar ATT weekly series -> 12m rolling yearly series ----
+checkpoint("Build 12m rolling plot + quarterly points + COP panel")
+
+# ---- 1) Weekly calendar ATT series -> 12m rolling yearly series ----
 plot_data_weekly <- create_calendar_plot_data(start_date, elec_cal, gas_cal) %>%
-  mutate(week_date = as.Date(week_date))  # <-- ensure Date
+  mutate(week_date = as.Date(week_date)) %>%
+  arrange(type, week_date)
 
 plot_data_12m_all <- add_rolling_12m_sum(plot_data_weekly, window_weeks = 52)
 
-# Drop rows until rolling window exists (fixes early empty span)
 plot_data_12m <- plot_data_12m_all %>%
   filter(!is.na(estimate_12m)) %>%
   mutate(week_date = as.Date(week_date)) %>%
-  arrange(week_date)
+  arrange(type, week_date)
 
 # ---- 2) Rolling pre baselines (annualised) ----
 pre_elec_df <- rolling_pre_avg_calendar_52w(aggte_simple_elec, start_date, "elec_consumption", window_weeks = 52) %>%
@@ -690,129 +815,159 @@ pre_gas_df  <- rolling_pre_avg_calendar_52w(aggte_simple_gas,  start_date, "gas_
   mutate(type = "Gas") %>%
   select(type, week_date, pre_52w_kwhyr)
 
-pre_df <- bind_rows(pre_elec_df, pre_gas_df)
+pre_df <- bind_rows(pre_elec_df, pre_gas_df) %>%
+  mutate(week_date = as.Date(week_date))
 
-# ---- 3) Median ATT and median rolling-pre baseline (both annual kWh) + share ----
-att_medians <- plot_data_12m %>%
-  group_by(type) %>%
-  summarise(
-    median_att_kwhyr = median(estimate_12m, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-pre_medians <- pre_df %>%
+# Merge pre baseline onto ATT series (for share-of-pre at each date)
+plot_data_12m <- plot_data_12m %>%
+  left_join(pre_df, by = c("type", "week_date")) %>%
   filter(!is.na(pre_52w_kwhyr)) %>%
+  mutate(share_pre = 100 * estimate_12m / pre_52w_kwhyr)
+
+# ---- 3) Quarterly points (every ~3 months) with label: total + share of pre ----
+# Create target dates every 3 months within the available period
+date_min <- min(plot_data_12m$week_date, na.rm = TRUE)
+date_max <- max(plot_data_12m$week_date, na.rm = TRUE)
+
+target_dates <- seq(from = floor_date(date_min, "month"),
+                    to   = ceiling_date(date_max, "month"),
+                    by   = "3 months")
+
+# For each type and target date, pick the closest observed week_date
+quarter_pts <- plot_data_12m %>%
   group_by(type) %>%
-  summarise(
-    median_pre_kwhyr = median(pre_52w_kwhyr, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-summary_medians <- att_medians %>%
-  left_join(pre_medians, by = "type") %>%
-  mutate(
-    share_of_pre = median_att_kwhyr / median_pre_kwhyr,
-    pct_of_pre   = 100 * share_of_pre
-  )
-
-cat("\n--- Median effect as share of rolling pre baseline ---\n")
-apply(summary_medians, 1, function(r) {
-  cat(
-    r["type"], ": median ATT = ", round(as.numeric(r["median_att_kwhyr"])), " kWh/yr; ",
-    "median pre (52w rolling) = ", round(as.numeric(r["median_pre_kwhyr"])), " kWh/yr; ",
-    "share = ", sprintf("%.2f", as.numeric(r["pct_of_pre"])), "%\n",
-    sep = ""
-  )
-})
-
-
-                     
-# 1) figure y-range from data (use CI to be safe)
-y_min_data <- min(plot_data_12m$lower_ci_12m, na.rm = TRUE)
-y_max_data <- max(plot_data_12m$upper_ci_12m, na.rm = TRUE)
-
-# Add a small padding (5% of range) so labels fit nicely inside
-yrange <- y_max_data - y_min_data
-pad <- 0.05 * ifelse(yrange == 0, 1, yrange)
-
-y_min_plot <- y_min_data - pad
-y_max_plot <- y_max_data + pad
-
-# 2) create label positions per type using last available point,
-#    but clamp them inside the plotting window
-last_points <- plot_data_12m %>%
-  group_by(type) %>%
-  filter(!is.na(estimate_12m)) %>%
-  slice_max(week_date, n = 1) %>%
+  tidyr::crossing(target_date = as.Date(target_dates)) %>%
+  mutate(dist_days = abs(as.numeric(week_date - target_date))) %>%
+  group_by(type, target_date) %>%
+  slice_min(dist_days, n = 1, with_ties = FALSE) %>%
   ungroup() %>%
-  select(type, last_date = week_date, last_est = estimate_12m)
-
-label_df <- summary_medians %>%
-  left_join(last_points, by = "type") %>%
   mutate(
-    # y_lab is where we want to put the text; clamp to plotting range
-    y_lab_raw = last_est,
-    y_lab = pmin(pmax(y_lab_raw, y_min_plot + pad), y_max_plot - pad),
-
-    # x position a little left of the max date so label sits inside plot
-    x_max = max(plot_data_12m$week_date, na.rm = TRUE),
-    x_lab = x_max - weeks(8),
-
-    # format label strings clearly with sign and commas
-    label = paste0(
-      "Median: ", scales::comma(round(median_att_kwhyr)), " kWh/yr\n",
-      "Share of pre: ", ifelse(pct_of_pre >= 0, "", "-"),
-      sprintf("%.2f", abs(pct_of_pre)), "%"
+    pt_label = paste0(
+      comma(round(estimate_12m)), " kWh/yr\n",
+      "Share: ", sprintf("%.1f", share_pre), "%"
     )
+  )
+
+# ---- 4) COP time series (from 12m sums) + simple CI (delta approx, no cov) ----
+cop_df <- plot_data_12m %>%
+  select(type, week_date, estimate_12m, se_12m) %>%
+  pivot_wider(names_from = type,
+              values_from = c(estimate_12m, se_12m),
+              names_sep = "__")
+
+# Implied COP: 0.9 * (-Gas) / Elec
+# (Gas is negative, Elec positive; if Elec is near 0, COP will blow up -> drop those points)
+cop_ts <- cop_df %>%
+  transmute(
+    week_date,
+    elec = estimate_12m__Electricity,
+    gas  = estimate_12m__Gas,
+    se_elec = se_12m__Electricity,
+    se_gas  = se_12m__Gas,
+    cop = (0.9 * (-gas)) / elec,
+    # delta approx var(cop) ~ (dC/dE)^2 Var(E) + (dC/dG)^2 Var(G)
+    # dC/dE = -0.9*(-gas)/E^2 = -cop/E ; dC/dG = -0.9/E
+    se_cop = sqrt( ( (cop/elec)^2 ) * (se_elec^2) + ( (0.9/elec)^2 ) * (se_gas^2) ),
+    cop_lo = cop - 1.96 * se_cop,
+    cop_hi = cop + 1.96 * se_cop
   ) %>%
-  select(type, x_lab, y_lab, label)
+  filter(is.finite(cop), is.finite(se_cop), abs(elec) > 1e-6)
 
-# 3) Choose sensible y breaks (include negative and positive)
-#    Here we pick pretty breaks that include 0 and the main range
-y_breaks <- pretty(c(y_min_plot, y_max_plot), n = 6)
-if (!any(y_breaks == 0)) y_breaks <- sort(c(y_breaks, 0))
+# ---- 5) Median label (top panel): median elec/gas + shares + implied COP ----
+med_elec <- plot_data_12m %>%
+  filter(type == "Electricity") %>%
+  summarise(
+    med_att = median(estimate_12m, na.rm = TRUE),
+    med_pre = median(pre_52w_kwhyr, na.rm = TRUE),
+    med_share = 100 * med_att / med_pre
+  )
 
-# 4) Build & save plot with coord_cartesian to keep all data
-p_cal_12m_fixed <- ggplot(plot_data_12m, aes(x = week_date, y = estimate_12m, color = type, fill = type)) +
+med_gas <- plot_data_12m %>%
+  filter(type == "Gas") %>%
+  summarise(
+    med_att = median(estimate_12m, na.rm = TRUE),
+    med_pre = median(pre_52w_kwhyr, na.rm = TRUE),
+    med_share = 100 * med_att / med_pre
+  )
+
+med_cop <- (0.9 * (-as.numeric(med_gas$med_att))) / as.numeric(med_elec$med_att)
+
+# label position (right side, similar to your prior approach)
+x_max <- max(plot_data_12m$week_date, na.rm = TRUE)
+x_lab <- x_max - weeks(16)
+
+y_max <- max(plot_data_12m$upper_ci_12m, na.rm = TRUE)
+y_min <- min(plot_data_12m$lower_ci_12m, na.rm = TRUE)
+yrng  <- y_max - y_min
+pad_y <- 0.4* ifelse(yrng == 0, 1, yrng)
+
+summary_label <- paste0(
+  "Median (Elec): ", comma(round(med_elec$med_att)), " kWh/yr  |  Share: ", sprintf("%.1f", med_elec$med_share), "%\n",
+  "Median (Gas): ",  comma(round(med_gas$med_att)),  " kWh/yr  |  Share: ", sprintf("%.1f", med_gas$med_share), "%\n",
+  "Implied COP (median): ", sprintf("%.2f", med_cop)
+)
+
+label_box <- data.frame(
+  x = x_lab,
+  y = y_max - pad_y,
+  label = summary_label
+)
+
+# ---- 6) TOP PANEL: 12m rolling sum with quarterly points ----
+minY= min(plot_data_12m$lower_ci_12m)*1.2
+maxY =  max(plot_data_12m$upper_ci_12m)*1.2                    
+p_top <- ggplot(plot_data_12m, aes(x = week_date, y = estimate_12m, color = type, fill = type, group = type)) +
+  geom_ribbon(aes(ymin = lower_ci_12m, ymax = upper_ci_12m), alpha = 0.20, color = NA) +
   geom_line(linewidth = 1) +
-  geom_ribbon(aes(ymin = lower_ci_12m, ymax = upper_ci_12m), alpha = 0.2, color = NA) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
 
-  # labels inside plot
-  geom_text(
-    data = label_df,
-    aes(x = x_lab, y = y_lab, label = label, color = type),
-    inherit.aes = FALSE,
-    hjust = 0, vjust = 0.5, size = 3.2, show.legend = FALSE
-  ) +
+  # quarterly callout points
+  geom_point(data = quarter_pts, aes(x = week_date, y = estimate_12m, color = type),
+             inherit.aes = FALSE, size = 2.8) +
+  geom_label(data = quarter_pts,
+             aes(x = week_date, y = estimate_12m, label = pt_label, color = type),
+             inherit.aes = FALSE,
+             fill = "white", alpha = 0.85, label.size = 0, size = 2.8,
+             vjust = -0.6, show.legend = FALSE) +
+
+  # overall median label box
+  geom_label(data = label_box,
+             aes(x = x, y = y, label = label),
+             inherit.aes = FALSE,
+             fill = "white", alpha = 0.90, label.size = 0,
+             hjust = 0, vjust = 1, size = 3.0, color = "black") +
 
   scale_color_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
   scale_fill_manual(values  = c("Electricity" = elec_color, "Gas" = gas_color)) +
-  scale_y_continuous(breaks = y_breaks, labels = comma) +
-
-  coord_cartesian(ylim = c(y_min_plot, y_max_plot)) +  # keep data, don't drop
-  scale_x_date(limits = c(min(plot_data_12m$week_date, na.rm = TRUE),
-                          max(plot_data_12m$week_date, na.rm = TRUE))) +
-
-  labs(
-    x = NULL,
-    y = "ATT (kWh/year)",
-    color = "Type",
-    fill  = "Type"
-  ) +
+  scale_x_date(labels = date_format("%b %y"), date_breaks = "3 month") +
+  scale_y_continuous(limits = c(minY,maxY))+
+  labs(x = NULL, y = "ATT (rolling 12-month sum, kWh/year)", color = "Type", fill = "Type") +
   theme_minimal() +
   theme(legend.position = "bottom",
-        plot.margin = margin(5, 50, 5, 5))  # extra right margin so labels don't clip
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.margin = margin(5, 60, 5, 5))
 
-# save
-out_file <- file.path("graphs", "calendar_att_12m_rolling_sum.png")
+# ---- 7) BOTTOM PANEL: implied COP ----
+p_cop <- ggplot(cop_ts, aes(x = week_date, y = cop)) +
+  geom_ribbon(aes(ymin = cop_lo, ymax = cop_hi), alpha = 0.20) +
+  geom_line(linewidth = 1) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  scale_x_date(labels = date_format("%b %y"), date_breaks = "3 month") +
+  labs(x = "Week", y = "Implied COP") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.margin = margin(5, 60, 5, 5))
+
+# ---- 8) Stack panels and save ----
+p_combined <- p_top / p_cop + plot_layout(heights = c(2.2, 1))
+
+out_file <- file.path("graphs", "calendar_att_12m_with_quarter_points_and_cop.png")
 dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
-ggsave(out_file, plot = p_cal_12m_fixed, width = 10, height = 8, dpi = 300)
+ggsave(out_file, plot = p_combined, width = 12, height = 9, dpi = 300)
 
 message("Saved ", out_file)
+checkpoint("DONE: 12m plot + quarterly points + COP panel")  
                          
-                         
-                                               
 # ============================================================
 # TWFE models + combined TWFE/CS LaTeX table (patched)
 # ============================================================
@@ -858,12 +1013,12 @@ overall_weekly_fe <-  overall_weekly %>%
 
 
 # TWFE models (filtered to DID ids)
-m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id  + settlement_week,
+m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id  + settlement_week ,
             data = overall_weekly_fe %>% filter(id %in% unique(aggte_simple_elec$DIDparams$data$id)),
             fixef.rm = "none", 
             cluster = ~account_id)
 
-m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + settlement_week,
+m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + settlement_week ,
             data = overall_weekly_fe %>% filter(id %in% unique(aggte_simple_gas$DIDparams$data$id)),
             fixef.rm = "none", 
             cluster = ~account_id)
@@ -1085,7 +1240,7 @@ plot_data <- do.call(rbind, unlist(results_list, recursive = FALSE))
 ggplot(plot_data, aes(x = anticipation_week, y = estimate, color = type, fill = type)) +
   geom_line() +
   geom_point() +
-  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.2) +
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.2, color = NA) +
   scale_color_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
   scale_fill_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
   labs(
@@ -1182,6 +1337,67 @@ for (a in anticipation_periods) {
 }
 
 checkpoint("Finished saving dynamic CS plots for anticipation = 0..10")
+    
+# ============================================================
+# Calendar CS plots for anticipation = 0..10 (weekly only)
+# Saves: graphs/calendar_weekly_anticipation_<a>.png
+#        output/hp_calendarplot_weekly_anticipation_<a>.csv
+# ============================================================
+
+anticipation_periods <- 0:10
+cs_base_dir <- file.path(datapath, "scratch")
+graphs_dir  <- file.path("graphs")
+dir.create(graphs_dir, recursive = TRUE, showWarnings = FALSE)
+
+for (a in anticipation_periods) {
+
+  checkpoint(paste0("Calendar plot (anticipation = ", a, ")"))
+
+  elec_path <- file.path(cs_base_dir, paste0("est_cs_elec_weekly_anticipation_", a, ".RDS"))
+  gas_path  <- file.path(cs_base_dir, paste0("est_cs_gas_weekly_anticipation_", a, ".RDS"))
+
+  if (!file.exists(elec_path)) stop("Missing file: ", elec_path)
+  if (!file.exists(gas_path))  stop("Missing file: ", gas_path)
+
+  # Calendar aggregation
+  elec_cal <- aggte(readRDS(elec_path), type = "calendar",
+                    na.rm = TRUE, clustervars = "id", bstrap = TRUE)
+  gas_cal  <- aggte(readRDS(gas_path),  type = "calendar",
+                    na.rm = TRUE, clustervars = "id", bstrap = TRUE)
+
+  # Build plotting DF (weekly)
+  plot_cal_data <- create_calendar_plot_data(start_date, elec_cal, gas_cal) %>%
+    mutate(week_date = as.Date(week_date)) %>%
+    arrange(type, week_date)
+
+  # Plot (error bars match type colour)
+  p_cal <- ggplot(plot_cal_data, aes(x = week_date, y = estimate, group = type, colour = type)) +
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 7, alpha = 0.6, linewidth = 0.6) +
+    geom_line(linewidth = 0.8) +
+    geom_point(aes(shape = type), size = 3) +
+    geom_hline(yintercept = 0, linetype = "dashed", colour = "black") +
+    scale_x_date(labels = scales::date_format("%b %y"), date_breaks = "3 month") +
+    scale_colour_manual(values = c("Electricity" = elec_color, "Gas" = gas_color)) +
+    scale_shape_manual(values = c(Electricity = 16, Gas = 17)) +
+    labs(
+      title = paste0("Calendar ATT (weekly) — anticipation = ", a),
+      x = "Week",
+      y = "Calendar ATT for Weekly Consumption (kWh)",
+      colour = "Type",
+      shape  = "Type"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom",
+          axis.text.x = element_text(angle = 45, hjust = 1))
+
+  # Save outputs
+  out_png <- file.path(graphs_dir, paste0("hp_calendarplot_combined_anticipation_", a, ".png"))
+  out_csv <- file.path(datapath, "output", paste0("hp_calendarplot_combined_anticipation_", a, ".csv"))
+
+  ggsave(out_png, plot = p_cal, width = 8, height = 6, dpi = 300)
+
+  checkpoint(paste0("Saved ", out_png, " and ", out_csv))
+}
                          
 # ============================================================
 # Dynamic plots with trends
