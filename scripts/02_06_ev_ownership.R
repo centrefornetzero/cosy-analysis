@@ -4,6 +4,8 @@
 # --------------------- Data Cleaning --------------------------
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ev half hours 
+
+
 # Read the CSV file
 ev_charging <- fread(file.path(datapath, "input/cosy_-_ev_detection_2024_07_04.csv")) %>%
   mutate(ev_charging = 1,
@@ -33,35 +35,31 @@ ev_users <- ev_charging %>%
   group_by(account_id) %>%
   summarise(is_ev_detected= min(as.Date(interval_start)))
 
+# Load IDs
+ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
+
 # Update hp_installed with the new ev_charging values using case_when
-hp_installed <- hp_installed %>%
+hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
   left_join(ev_charging_agg) %>%
-  mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging),
-         ev_charging = case_when(
-           rate_period == "Overall" ~ ev_charging / 48,
-           rate_period == "Other" ~ ev_charging / 30,
-           TRUE ~ ev_charging / 6
-         )
-  ) %>%
   left_join(ev_users) %>%
   mutate(has_ev = as.numeric(is_ev_detected <= date),
-         has_ev = ifelse(is.na(has_ev), 0, has_ev))
+         has_ev = ifelse(is.na(has_ev), 0, has_ev)) %>%
+  filter(account_id %in% ids_cs_elec)  %>%
+  filter(week <= 129, firstweek <= 129)  %>%
+  filter(week <= firstweek - 5 | week > firstweek) %>%
+  filter(rate_period %in% c("Overall")) %>% 
+  mutate(total_consumption=365.25*total_consumption)  %>%
+               ungroup()
 
 # Fit the model
-m1 <- feols(total_consumption ~ i(is_hp_installed, ref=0)  |
+m1 <- feols(total_consumption ~ i(is_hp_installed, ref=0)  |  
               hdd + account_id + date, 
-            data = hp_installed %>% 
-              filter(treated==1, rate_period %in% c("Overall")) %>% 
-              mutate(total_consumption=365.25*total_consumption) %>%
-              ungroup(), 
+            data = hp_installed, 
             cluster = ~account_id)
 
 m1c <- feols(total_consumption  ~ i(is_hp_installed, ref=0) + has_ev + i(is_hp_installed, has_ev, ref=0) |
                hdd + account_id + date, 
-             data = hp_installed %>% 
-               filter(treated==1, rate_period %in% c("Overall")) %>% 
-               mutate(total_consumption=365.25*total_consumption) %>%
-               ungroup(), 
+             data = hp_installed, 
              cluster = ~account_id)
 
 # Generate the initial LaTeX table
@@ -94,7 +92,7 @@ ev_charging_max <- ev_charging_max %>%
 ev_charging_max <- ev_charging_max %>%
   mutate(
     Morning_Cosy = ifelse(rate_period == "Morning Off-peak", 1, 0),
-    Afternoon_Cosy = ifelse(rate_period == "Afternoon Off-Peak", 1, 0),
+    Afternoon_Cosy = ifelse(rate_period == "Afternoon Off-peak", 1, 0),
     Peak_Rate = ifelse(rate_period == "Peak Rate", 1, 0),
     Other = ifelse(rate_period == "Other", 1, 0)
   )

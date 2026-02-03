@@ -138,7 +138,6 @@ run_cs_models <- function(did_data,
       clustervars = "id",
       control_group = control_group,
       est_method = est_method,             # ipw avoids fastglm issues in some setups
-      faster_mode = FALSE,                 # keep explicit (matches your original)
       allow_unbalanced_panel = TRUE,
       base_period = base_period
     )
@@ -253,7 +252,6 @@ est_cs_gas_only <- did::att_gt(
   clustervars = "id",
   control_group = "notyettreated",
   est_method = "ipw",
-  faster_mode = FALSE,
   allow_unbalanced_panel = TRUE,
   base_period = "universal"
 )

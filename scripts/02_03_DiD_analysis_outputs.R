@@ -435,7 +435,19 @@ aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple", 
                            na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
 aggte_simple_gas  <- aggte(readRDS(cs_files_full$Gas), type = "simple",  max_e=80,min_e=-80,
                            na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+                                                  
 
+# Save IDs to keep consistent sample through the analysis
+ids_cs_elec <- did_data %>% 
+ filter(id %in% unique(aggte_simple_elec$DIDparams$data$id)) %>%
+  pull(account_id)
+saveRDS(ids_cs_elec, file.path(datapath, "scratch/ids_cs_elec.RS"))
+ids_cs_gas <- did_data %>% 
+ filter(id %in% unique(aggte_simple_gas$DIDparams$data$id)) %>%
+  pull(account_id)
+saveRDS(ids_cs_gas, file.path(datapath, "scratch/ids_cs_gas.RS"))
+
+        
 # Pre-treatment means (use DIDparams$data safely)
 pre_elec <- pre_avg_from_aggte(aggte_simple_elec, "elec_consumption")
 pre_gas  <- pre_avg_from_aggte(aggte_simple_gas,  "gas_consumption")
@@ -482,22 +494,22 @@ for (a in anticipation_periods) {
   checkpoint(paste0("CS simple (anticipation = ", a, "): load RDS + build CS-only table"))
 
   # ---- CS files (FULL sample) ----
-  cs_files_full <- list(
+  cs_files_a <- list(
     Electricity = file.path(datapath, paste0("scratch/est_cs_elec_weekly_anticipation_", a, ".RDS")),
     Gas         = file.path(datapath, paste0("scratch/est_cs_gas_weekly_anticipation_", a, ".RDS"))
   )
 
   # Optional: fail fast if something is missing
-  if (!file.exists(cs_files_full$Electricity)) {
-    stop("Electricity CS file not found for anticipation = ", a, ": ", cs_files_full$Electricity)
+  if (!file.exists(cs_files_a$Electricity)) {
+    stop("Electricity CS file not found for anticipation = ", a, ": ", cs_files_a$Electricity)
   }
-  if (!file.exists(cs_files_full$Gas)) {
-    stop("Gas CS file not found for anticipation = ", a, ": ", cs_files_full$Gas)
+  if (!file.exists(cs_files_a$Gas)) {
+    stop("Gas CS file not found for anticipation = ", a, ": ", cs_files_a$Gas)
   }
 
   # ---- Simple CS effects ----
   aggte_simple_elec <- aggte(
-    readRDS(cs_files_full$Electricity),
+    readRDS(cs_files_a$Electricity),
     type = "simple",
     na.rm = TRUE,
     clustervars = "id",
@@ -506,7 +518,7 @@ for (a in anticipation_periods) {
   )
 
   aggte_simple_gas <- aggte(
-    readRDS(cs_files_full$Gas),
+    readRDS(cs_files_a$Gas),
     type = "simple",
     na.rm = TRUE,
     clustervars = "id",
@@ -619,11 +631,11 @@ ggsave("graphs/dynamic_hp_plot_combined.png", plot = p_dyn, width = 10, height =
 checkpoint("Saved graphs/dynamic_hp_plot_combined.png")
 
 # ============================================================
-# Calendar plot (CS) + shaded last-2-years windows + annual sums + COP labels
-# COP = elec_increase / (0.9 * |gas_decrease|)
+# Calendar plot (CS) + shaded last-2-years windows + annual sums + 'Empirical efficiency' labels
+# 'Empirical efficiency' = elec_increase / (0.9 * |gas_decrease|)
 # ============================================================
 
-checkpoint("Calendar CS plot (electricity + gas) + annual labels + COP")
+checkpoint("Calendar CS plot (electricity + gas) + annual labels + 'Empirical efficiency'")
 
 
 # ---- 1) Get calendar-time ATTs (weekly) ----
@@ -668,7 +680,7 @@ annual_sums <- plot_cal_data %>%
   )
 
 
-# ---- 4) COP per window: Electricity / (0.9 * |Gas|) ----
+# ---- 4) 'Empirical efficiency' per window: Electricity / (0.9 * |Gas|) ----
 # Gas should be negative for reductions; use -Gas in denominator to make it positive.
 cop_df <- annual_sums %>%
   select(window, type, annual_kwh) %>%
@@ -713,7 +725,7 @@ label_pos <- annual_sums %>%
       paste0(
         window, ": ", comma(round(annual_kwh)), " kWh/yr\n",
         "[", comma(round(annual_lo)), ", ", comma(round(annual_hi)), "]\n",
-        "COP \u2248 ", sprintf("%.2f", cop)
+        "Empiral efficiency \u2248 ", sprintf("%.2f", cop)
       ),
       paste0(
         window, ": ", comma(round(annual_kwh)), " kWh/yr\n",
@@ -779,14 +791,6 @@ checkpoint("Saved graphs/hp_calendarplot_combined_with_annual_labels.png and out
 # ============================================================
 # 12m rolling ATT plot + quarterly callouts + COP panel + median label
 # ============================================================
-
-library(dplyr)
-library(tidyr)
-library(lubridate)
-library(zoo)
-library(ggplot2)
-library(scales)
-library(patchwork)
 
 checkpoint("Build 12m rolling plot + quarterly points + COP panel")
 
@@ -900,7 +904,7 @@ pad_y <- 0.4* ifelse(yrng == 0, 1, yrng)
 summary_label <- paste0(
   "Median (Elec): ", comma(round(med_elec$med_att)), " kWh/yr  |  Share: ", sprintf("%.1f", med_elec$med_share), "%\n",
   "Median (Gas): ",  comma(round(med_gas$med_att)),  " kWh/yr  |  Share: ", sprintf("%.1f", med_gas$med_share), "%\n",
-  "Implied COP (median): ", sprintf("%.2f", med_cop)
+  "Empirical efficiency (median): ", sprintf("%.2f", med_cop)
 )
 
 label_box <- data.frame(
@@ -949,7 +953,7 @@ p_cop <- ggplot(cop_ts, aes(x = week_date, y = cop)) +
   geom_line(linewidth = 1) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
   scale_x_date(labels = date_format("%b %y"), date_breaks = "3 month") +
-  labs(x = "Week", y = "Implied COP") +
+  labs(x = "Week", y = "Empirical Efficiency") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         plot.margin = margin(5, 60, 5, 5))
@@ -1004,18 +1008,17 @@ overall_weekly_fe <-  overall_weekly %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
   filter(week <= 129, firstweek <= 129)  %>%
-  filter(week <= firstweek - 5 | week > firstweek)
-
-
+  filter(week <= firstweek - 5 | week > firstweek) 
+                         
 
 # TWFE models (filtered to DID ids)
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id  + settlement_week ,
-            data = overall_weekly_fe %>% filter(id %in% unique(aggte_simple_elec$DIDparams$data$id)),
+            data = overall_weekly_fe %>% filter(id %in% ids_cs_elec),
             fixef.rm = "none", 
             cluster = ~account_id)
 
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + settlement_week ,
-            data = overall_weekly_fe %>% filter(id %in% unique(aggte_simple_gas$DIDparams$data$id)),
+            data = overall_weekly_fe %>% filter(id %in% ids_cs_gas),
             fixef.rm = "none", 
             cluster = ~account_id)
 

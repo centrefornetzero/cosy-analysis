@@ -6,12 +6,34 @@
 # Temperature (and Figure A.2 to A.5)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+# Load IDs
+ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 
+# Update hp_installed with the new ev_charging values using case_when
+hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
+  filter(account_id %in% ids_cs_elec)  %>%
+  filter(week <= 129, firstweek <= 129)  %>%
+  filter(week <= firstweek - 5 | week > firstweek) %>% 
+  ungroup() %>% 
+   mutate(temp_degree = factor(
+     case_when(
+       daily_avg_air_temperature_celsius < 0 ~ 0,
+       daily_avg_air_temperature_celsius < 25.5 ~ round(daily_avg_air_temperature_celsius),
+       TRUE ~ 25
+     )))
+
+# Build readable labels
+temp_levels <- 0:25
+temp_labels <- as.character(temp_levels)
+temp_labels[temp_levels == 0]  <- "< 0°C"
+temp_labels[temp_levels == 25] <- "≥ 25°C"
+temp_labels[!(temp_levels %in% c(0, 25))] <-
+  paste0(temp_levels[!(temp_levels %in% c(0, 25))], "°C")
 rm(m1, m1c, ev_charging, ev_users, ev_charging_agg)
 
 # Fit the model
 m1 <- feols(consumption_hh ~ i(is_hp_installed) | hdd + account_id + date, 
-            data = hp_installed %>% filter(treated == 1) %>% ungroup(), 
+            data =hp_installed, 
             cluster = ~account_id, 
             split = ~ rate_period)
 
@@ -21,14 +43,7 @@ periods <- unique(hp_installed$rate_period)
 # Run the regression model
 tempreg <- feols(consumption_hh ~ i(is_hp_installed, temp_degree, ref=0) |
                    account_id + temp_degree  + date,
-                 data = hp_installed %>% 
-                   filter(treated==1) %>% 
-                   mutate(temp_degree = factor(
-                     case_when(
-                       daily_avg_air_temperature_celsius < 0 ~ 0,
-                       daily_avg_air_temperature_celsius < 25.5 ~ round(daily_avg_air_temperature_celsius),
-                       TRUE ~ 25
-                     ))),
+                 data = hp_installed,
                  split = ~ rate_period,
                  cluster = ~account_id)
 
@@ -51,7 +66,18 @@ for (i in 1:5) {
     mutate(`/% ATE` = Estimate / m1[[j]]$coefficients * 100,     
            lower_ci_ATE = `/% ATE` - 1.96 * (`Std..Error` / m1[[j]]$coefficients * 100),
            upper_ci_ATE = `/% ATE` + 1.96 * (`Std..Error` / m1[[j]]$coefficients * 100)
+    ) %>%
+    mutate(
+      daily_avg_air_temperature_celsius = factor(
+      daily_avg_air_temperature_celsius,
+      levels = temp_levels,
+      labels = temp_labels,
+      ordered = TRUE
     )
+  )
+                    
+  temp_breaks <- c(0, 5, 10, 15, 20, 25)
+  temp_break_labels <- temp_labels[temp_levels %in% temp_breaks]
   
   # Create the ggplot
   ggplot(coefs, aes(x = daily_avg_air_temperature_celsius, y = Estimate)) +
@@ -62,9 +88,10 @@ for (i in 1:5) {
     scale_y_continuous(
       sec.axis = sec_axis(~ ./m1[[j]]$coefficients, name = "% of ATE", labels = scales::percent_format())
     ) +
+    scale_x_discrete(breaks = temp_break_labels)+
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
     labs(
-      x = "Average Temperature in Degrees (°C)",
+      x = "Average Daily Temperature in Degrees (°C)",
       y = "Estimate (kWh)"
     ) +
     theme_minimal()
@@ -82,7 +109,7 @@ for (i in 1:5) {
 rm(tempreg)
 
 m1 <- feols(consumption_hh ~ i(is_hp_installed) | hdd + account_id + date, 
-            data = hp_installed %>% filter(treated == 1) %>% ungroup(), 
+            data =hp_installed, 
             cluster = ~account_id, 
             split = ~ rate_period)
 
@@ -268,37 +295,45 @@ rm(m_sources)
 cosy_hp_details <- fread(file.path(datapath,  "input/cosy_-_hp_details_2024_07_03.csv")) %>%
   inner_join(hp_installed %>% filter(treated == 1) %>% select(account_id) %>% distinct()) %>%
   filter(!postcode=="") %>%
-  select(account_id, postcode)
+  distinct(account_id, postcode)
 
-postcode_msoa <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv")) %>%
-  left_join(cosy_hp_details, by = c("pcds" = "postcode")) %>%
-  select(msoa21cd, pcds) %>%
-  distinct(pcds, .keep_all = TRUE)
+postcode_msoa <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv")) 
+                    
+postcode_matched <- cosy_hp_details %>%
+  distinct(postcode) %>%
+  inner_join(postcode_msoa, by = c("postcode"="pcds"))   %>%
+  select(msoa21cd, postcode) %>%
+  distinct(postcode, .keep_all = TRUE)
 
 income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
-  distinct() %>%
-  inner_join(postcode_msoa, by=c("MSOA code"="msoa21cd")) %>%
-  distinct(pcds, .keep_all = TRUE)
+  distinct(`MSOA code`, .keep_all = TRUE) %>%
+  inner_join(postcode_matched, by=c("MSOA code"="msoa21cd")) %>%
+  distinct(postcode, .keep_all = TRUE)
 
+cosy_hp_details <- cosy_hp_details %>%
+                inner_join(income) %>%
+                distinct(account_id, .keep_all=TRUE) %>%
+                filter(account_id %in% hp_installed$account_id)
 
-# Create unique breaks for predicted_heatloss_watts
-income_dist <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
-  select(`MSOA code`, `Total annual income (£)`) 
+breaks <- unique(quantile(cosy_hp_details$`Total annual income (£)`/1000, probs = seq(0, 1, by = 0.1)))
 
+# Round to nearest thousand
+rounded_breaks <- round(breaks)
 
-breaks <- unique(quantile(income_dist$`Total annual income (£)`/1000, probs = seq(0, 1, by = 0.1)))
+# Build readable labels like "< £19k", ..., "≥ £26k"
+income_labels <- c(paste0("< £", rounded_breaks[-1], "k"))
 
-# Create pretty labels for the categories
-labels <- sapply(1:(length(breaks)-1), function(i) paste0("£", round(breaks[i]), "k-", round(breaks[i+1]), "k"))
-
+# For last bin: "≥ £26k"
+income_labels[length(income_labels)] <- paste0("£", rounded_breaks[length(rounded_breaks) - 1] , "k+")
+income_labels
+                    
 hp_installed <- hp_installed %>%
-  left_join(cosy_hp_details) %>%
-  left_join(income, by=c("postcode"="pcds")) %>%
+  left_join(cosy_hp_details %>% select(c(account_id, `Total annual income (£)`))) %>%
   mutate(income_category = cut(`Total annual income (£)`/1000, 
                                breaks = breaks, 
                                include.lowest = TRUE,
-                               labels = labels))
+                               labels = income_labels))
 # income check
 m_income <- feols(consumption_hh ~ i(is_hp_installed, income_category, ref =0) 
                   | date +  account_id + hdd,
@@ -319,7 +354,7 @@ for (i in 1:5) {
     mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
            upper_ci = Estimate + 1.96 * `Std..Error`,
            outcome = "Total Consumption") %>%
-    mutate(`Income Category` = factor(`Income Category`, levels = labels))
+    mutate(`Income Category` = factor(`Income Category`, levels = income_labels))
   
   # Define the shades of reds
   red_palette <- c("#FF9999", "#FF8080", "#FF6666", "#FF4D4D", "#FF3333", "#FF1A1A", "#FF0000", "#E60000", "#CC0000", "#B20000")
@@ -370,7 +405,7 @@ for (i in 1:5) {
       lower_ci_ATE = lower_ci / abs(m1[[j]]$coefficients) * 100,
       upper_ci_ATE = upper_ci / abs(m1[[j]]$coefficients) * 100,
       outcome = "Total Consumption",
-      `Floor_Area` = factor(`Income Category`, levels = labels),
+      `Floor_Area` = factor(`Income Category`, levels = income_labels),
       period = factor(val, levels = c("Morning Cosy",
                                       "Afternoon Cosy",
                                       "Peak Rate",
@@ -412,14 +447,24 @@ ggsave("graphs/hp_income_category_combined.png", device = "png", width = 16, hei
 ## property value
 # create property value decile
 breaks <- hp_installed %>%
-  filter(!is.na(property_value)) 
+  filter(!is.na(property_value)) %>%
+  select(account_id, property_value) %>%
+  distinct(account_id, .keep_all=TRUE)
 breaks <-
   quantile(breaks$property_value/1000, probs = seq(0, 1, by = 0.1)) %>%
   unique()
 
-# Create pretty labels for the categories
-labels <- sapply(1:(length(breaks)-1), function(i) paste0("£", round(breaks[i]), "k-", round(breaks[i+1]), "k"))
-labels[10] <- "£742k+"
+
+# Round to nearest thousand
+rounded_breaks <- round(breaks)
+
+# Build readable labels like "< £19k", ..., "≥ £26k"
+labels <- c(paste0("< £", rounded_breaks[-1], "k"))
+
+# For last bin: "≥ £26k"
+labels[length(income_labels)] <- paste0("£", rounded_breaks[length(rounded_breaks) - 1] , "k+")
+labels
+
 
 hp_installed <- hp_installed %>%
   mutate(property_value_category = cut(property_value/1000, 
@@ -483,13 +528,19 @@ for (i in 1:5) {
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Figure A.8: Impact of Heat Pump Installation by Heat Loss Decile
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-hp_installed <- hp_installed %>%
-  left_join(fread(file.path(datapath, "input/cosy_-_hp_details_2024_07_03.csv")) %>%
-              distinct(account_id, latest_survey_heat_loss) %>% filter(!is.na(latest_survey_heat_loss)))
+
+# survey
+hl <- fread(file.path(datapath, "input/cosy_-_hp_details_2024_07_03.csv")) %>%
+              filter(!is.na(latest_survey_heat_loss))  %>%   
+              select(account_id, latest_survey_heat_loss) %>%
+              distinct(account_id, .keep_all=TRUE)
 
 # Create unique breaks for predicted_heatloss_watts
-breaks <- unique(quantile(hp_installed[!is.na(hp_installed$latest_survey_heat_loss),]$latest_survey_heat_loss/1000, probs = seq(0, 1, by = 0.1)))
-
+breaks <- unique(quantile(hl$latest_survey_heat_loss/1000, probs = seq(0, 1, by = 0.1)))
+            
+hp_installed <- hp_installed %>%
+  left_join(hl)
+           
 # Create pretty labels for the categories
 labels <- sapply(1:(length(breaks)-1), function(i) paste0(round(breaks[i], 1), " mW to ", round(breaks[i+1], 1), " mW"))
 
@@ -605,15 +656,18 @@ ggsave("graphs/hp_region_combined.png", device = "png", width = 16, height = 12,
 
 
 
-
-
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### Figure A.7: Impact of Heat Pump Installation by Floor Area
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-# Create unique breaks for total_floor_area
-breaks <- unique(quantile(hp_installed[!is.na(hp_installed$total_floor_area),]$total_floor_area, 
-                          probs = seq(0, 1, by = 0.1)))
+                    
+##
+breaks <- hp_installed %>%
+  filter(!is.na(total_floor_area)) %>%
+  select(account_id, total_floor_area) %>%
+  distinct(account_id, .keep_all=TRUE)
+breaks <-
+  quantile(breaks$total_floor_area, probs = seq(0, 1, by = 0.1)) %>%
+  unique()
 
 # Create pretty labels for the categories
 labels <- sapply(1:(length(breaks)-1), function(i) paste0(round(breaks[i], 0), " to ", round(breaks[i+1], 0), "m sq."))

@@ -44,9 +44,6 @@ setFixest_dict(c(consumption_hh = "Consumption in kWh per half hour",
                  ev_charging = "EV Charging",
                  has_ev = "EV User"))
 
-# Set estimation to mirror CS
-fixest::setFixest_estimation(fixef.rm = "none")
-
 ## Define most used functions
 
 ### Add pre-treatment average statistics to tables

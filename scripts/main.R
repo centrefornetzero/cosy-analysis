@@ -8,8 +8,10 @@ packages <- c(
   "knitr", "kableExtra", "did", "fixest", "data.table", "lubridate", 
   "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", "readr",
   "forcats", "viridis",  "stringr", "stargazer", "panelView", "readxl","purrr",
-  "progress", "lfe", "tibble", "stringr", "didimputation", "ggtext", "MatchIt"
+  "progress", "lfe", "tibble", "stringr", "didimputation", "ggtext", "MatchIt", "zoo", "ggplot2",
+  "patchwork"
 )
+
 
 # Function to check if a package is installed, and if not, install it
 install_if_needed <- function(package) {
@@ -32,6 +34,8 @@ if (getwd() != "/Users/louise/Documents/GitHub/cosy-analysis") {
 }
 
 
+# Set estimation to mirror CS
+fixest::setFixest_estimation(fixef.rm = "none")
 
 # Load parameters
 flexible_color <- "#4C515C"  

@@ -89,6 +89,14 @@ hp_installed <- hp_installed %>%
 # check that data is unique at the account-date-period level
 stopifnot(hp_installed %>% group_by(account_id, date, rate_period) %>% filter(n() > 1) %>% nrow() == 0)
 
+# Save usefull variables into hp_installed
+start_date <- min(hp_installed$date)
+hp_installed <-  hp_installed %>% 
+  mutate(settlement_week = floor_date(date, "week") + 1,
+    week      = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
+  ) 
+
 write_rds(hp_installed, file.path(datapath, "output/hp_installed.rds"))
 
 # summary statistics
@@ -121,7 +129,6 @@ hp_installed %>% ungroup() %>% filter(treated==1) %>% select(account_id) %>% dis
 
 hp_installed_weekly <- 
   hp_installed %>%
-  mutate(settlement_week = floor_date(date, "week") + 1) %>%
   group_by(account_id, hashed_mpan, settlement_week, installed_at, tariff_gsp_group_id) %>%
   summarise(elec_consumption = sum(total_consumption)) %>%
   ungroup
