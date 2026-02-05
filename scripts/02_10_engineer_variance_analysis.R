@@ -3,7 +3,16 @@
 # =======================
 # 1. Data Preparation & Regression
 # =======================
-hp_installed <- read_rds(file.path(datapath, "/output/hp_installed.rds"))
+# Load IDs
+ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
+
+# Update hp_installed with the new ev_charging values using case_when
+hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
+  filter(account_id %in% ids_cs_elec)  %>%
+  filter(week <= 129, firstweek <= 129)  %>%
+  filter(week <= firstweek - 5 | week > firstweek) %>% 
+  ungroup()
+
 
 # Installer FE
 installers <- fread(file.path(datapath, "/input/cosy_-_hp_engineers_2025_03_17.csv")) %>%
@@ -18,7 +27,7 @@ installers <- fread(file.path(datapath, "/input/cosy_-_hp_engineers_2025_03_17.c
 df <- 
   installers %>%
   inner_join(hp_installed) %>%
-  filter(treated == 1, rate_period == "Overall") %>%
+  filter(rate_period == "Overall") %>%
   mutate(temperature = round(daily_avg_heating_degree))
 
 # Main model: includes interaction and fixed effects

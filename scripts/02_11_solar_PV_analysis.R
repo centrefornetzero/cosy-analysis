@@ -71,12 +71,18 @@ fitstat_register("pre_avg_rest", function(x) {
 # ================================================================
 # Fit the model
 # ================================================================
-hp_installed <- 
-  read_rds(file.path(datapath, "output/hp_installed.rds")) %>%
-  filter(treated == 1) %>%
+# Load IDs
+ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
+
+# Update hp_installed with the new ev_charging values using case_when
+hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
+  filter(account_id %in% ids_cs_elec)  %>%
+  filter(week <= 129, firstweek <= 129)  %>%
+  filter(week <= firstweek - 5 | week > firstweek) %>% 
+  ungroup() %>% 
   mutate(total_consumption=365.25*total_consumption, 
          rate_period = factor(rate_period, 
-                              levels = c("Morning Cosy", "Afternoon Cosy", 
+                              levels = c("Morning Off-peak", "Afternoon Off-peak", 
                                          "Peak Rate", "Other", "Overall"))) 
   
 

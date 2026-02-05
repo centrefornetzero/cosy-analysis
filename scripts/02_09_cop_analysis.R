@@ -2,23 +2,18 @@
 # --------- read in elec + gas consumption data ---------
 # ====================================================================
 
-# ---- CS files (FULL sample) ----
-cs_files_full <- list(
-  Electricity = file.path(datapath, "scratch/est_cs_elec_weekly.RDS"),
-  Gas         = file.path(datapath, "scratch/est_cs_gas_weekly.RDS")
-)
+# Load main yearly results
+eff_df <- fread(file.path(datapath, "output/eff_df.csv")) 
 
-aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple", max_e=80,min_e=-80,
-                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+# Load main sample IDs
+ids_cs_elec <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 
-aggte_simple_gas <- aggte(readRDS(cs_files_full$Gas), type = "simple", max_e=80,min_e=-80,
-                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
-
+# Load data for regression
 overall_weekly <- 
   read_rds(file.path(datapath, "output/overall_weekly.rds")) %>%
   mutate_at(vars(elec_consumption, gas_consumption, total_consumption), 
             ~.x / 52.25) %>% 
-  mutate(treated = max(is_hp_installed))
+  filter(account_id %in% ids_cs_elec)
 
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
@@ -46,21 +41,31 @@ gc()
 # Fit the model
 m1 <- feols(c(elec_consumption, gas_consumption) ~ i(is_hp_installed) | 
               hdd + account_id + settlement_week, 
-            data =  overall_weekly %>% filter(id %in% unique(aggte_simple_elec$DIDparams$data$id)), 
+            data =  overall_weekly, 
             cluster = ~account_id)
 
 # Run the regression model
 tempreg <- feols(c(elec_consumption, gas_consumption) ~ 
                    i(is_hp_installed, temp_degree, ref=0) |
                    account_id + temp_degree  + settlement_week,
-                 data = overall_weekly %>% filter(id %in% unique(aggte_simple_elec$DIDparams$data$id)),
+                 data = overall_weekly,
                  cluster = ~account_id)
+
+etable(m1, tempreg, fitstat = ~ g + N)
 
 # Extract coefficients and standard errors
 coefs_m1 <- coeftable(m1) %>%
   data.frame() %>%
   select(lhs, Estimate) %>%
   rename(avg_ate = Estimate)
+
+# Build readable labels
+temp_levels <- 0:25
+temp_labels <- as.character(temp_levels)
+temp_labels[temp_levels == 0]  <- "< 0°C"
+temp_labels[temp_levels == 25] <- "≥ 25°C"
+temp_labels[!(temp_levels %in% c(0, 25))] <-
+  paste0(temp_levels[!(temp_levels %in% c(0, 25))], "°C")
 
 # Main interaction table
 coefs <- coeftable(tempreg) %>%
@@ -76,7 +81,14 @@ coefs <- coeftable(tempreg) %>%
          lower_ci_ATE = `/% ATE` - 1.96 * (`Std..Error` / avg_ate * 100),
          upper_ci_ATE = `/% ATE` + 1.96 * (`Std..Error` / avg_ate * 100)
   ) %>%
-  filter(lhs != "total_consumption") 
+  filter(lhs != "total_consumption") %>%
+    mutate(
+      daily_avg_air_temperature_celsius = factor(
+      daily_avg_air_temperature_celsius,
+      levels = temp_levels,
+      labels = temp_labels,
+      ordered = TRUE
+    ))
 fwrite(coefs, file.path(datapath, "scratch/gas_electricity_by_temperature.csv"))
 
 
@@ -84,7 +96,12 @@ coefs_wider <- coefs  %>%
   filter(lhs != "total_consumption") %>%
   select(lhs, daily_avg_air_temperature_celsius, Estimate) %>%
   pivot_wider(names_from = lhs, values_from = c(Estimate)) %>%
-  mutate(quasi_cop = abs(gas_consumption / elec_consumption)) 
+  mutate(quasi_cop = abs(0.9*gas_consumption / elec_consumption)) 
+
+# READIBLE axis
+temp_breaks <- c(0, 5, 10, 15, 20, 25)
+temp_break_labels <- temp_labels[temp_levels %in% temp_breaks]
+
 
 # Plot gas and elec
 p_outside_temp <- 
@@ -101,6 +118,7 @@ p_outside_temp <-
     color = NULL,
     fill = NULL
   ) +
+  scale_x_discrete(breaks = temp_break_labels)+
   scale_color_manual(
     values = c("elec_consumption" = hp_color, "gas_consumption" = not_hp_color),
     labels = c("elec_consumption" = "Electricity", "gas_consumption" = "Gas")
@@ -137,15 +155,14 @@ ggsave(paste0("graphs/hp_temperature_gas_elec_blog_version.png"),
 # --------- Figure 5: COP - Energy Demand Ratio --------------
 # ====================================================================  
 # Calculate the average value for the dashed line
-avg_cop <- round(abs(0.9 * m1$`lhs: gas_consumption`$coefficients / m1$`lhs: elec_consumption`$coefficients), digits = 2)
-print(paste0("Average CPO ~ ", avg_cop))
+main_results <- eff_df %>% filter(window == "Last 12 months")
 
-# actually use the average COP inferred from CS estimation (Table A1) is 3.04
-avg_cop <- 2.73
+avg_cop <- round(main_results$emp_eff, digits = 2)
+print(paste0("Average empirical efficiency ~ ", avg_cop))
 
+# Set up bootstrapping
 set.seed(123)  # for reproducibility
 B <- 500  # number of bootstrap samples
-temperature_levels <- levels(coefs$daily_avg_air_temperature_celsius)
 results <- vector("list", B)
 pb <- progress_bar$new(total = B, format = "Bootstrapping [:bar] :percent ETA: :eta")
 
@@ -160,8 +177,7 @@ for (b in 1:B) {
   
   # Rebuild bootstrapped sample
   boot_data <- overall_weekly %>%
-    filter(treated == 1) %>%
-    semi_join(data.frame(account_id = sampled_ids), by = "account_id")
+    inner_join(data.frame(account_id = sampled_ids), by = "account_id")
     
   boot_model <- feols(c(elec_consumption, gas_consumption) ~ 
             i(is_hp_installed, temp_degree, ref = 0) |
@@ -186,8 +202,14 @@ for (b in 1:B) {
 
 # Combine bootstrap results
 cop_boot <- bind_rows(results, .id = "bootstrap") %>%
-  mutate(temp = factor(temp, levels = temperature_levels)) %>%
-  group_by(temp) %>%
+    mutate(
+      degree = factor(
+      temp,
+      levels = temp_levels,
+      labels = temp_labels,
+      ordered = TRUE
+    ))%>%
+  group_by(temp, degree) %>%
   summarise(
     lower = quantile(quasi_cop, 0.025, na.rm = TRUE),
     upper = quantile(quasi_cop, 0.975, na.rm = TRUE),
@@ -195,9 +217,16 @@ cop_boot <- bind_rows(results, .id = "bootstrap") %>%
     .groups = "drop"
   )
 fwrite(cop_boot, file.path(datapath, "scratch/cop_boot.csv"))
-cop_boot <- fread(file.path(datapath, "scratch/cop_boot.csv") )            
+cop_boot <- fread(file.path(datapath, "scratch/cop_boot.csv"))  %>%
+ mutate(
+      daily_avg_air_temperature_celsius = factor(
+      temp,
+      levels = temp_levels,
+      labels = temp_labels,
+      ordered = TRUE
+    ))
   
-                          # ASHP COP data from the EPRI chart
+# ASHP COP data from the EPRI chart
 ashp_cop <- data.frame(
   temp_f = c(-20, -10, 0, 10, 20, 30, 40, 50, 60),
   cop = c(1.8, 1.8, 1.9, 2.1, 2.4, 2.7, 3.1, 3.5, 3.9)
@@ -229,19 +258,18 @@ brattle_cop <- brattle_cop %>%
 cop_reference_lines <- bind_rows(ashp_interp_df, brattle_cop)
 
 # Your existing ggplot + ASHP COP overlay
-ggplot(cop_boot %>% filter(as.numeric(temp) < 16), 
-       aes(x = as.numeric(as.character(temp)), y = median)) +
+temp_breaks <- c(0, 5, 10, 15, 20, 25)
+temp_break_labels <- temp_labels[temp_levels %in% temp_breaks]
+
+ggplot(cop_boot %>% filter(as.numeric(temp) < 15), 
+       aes(x = daily_avg_air_temperature_celsius, y = median)) +
   geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
   geom_hline(yintercept = 3.49, linetype = "dashed", color = hp_color) +
-  annotate("text", 
-           x = 2.5,
-           y = avg_cop + 1.5,
-           label = paste0("italic('Sample average ≈", 
-                          avg_cop, "')"),
-           parse = TRUE,
-           color = hp_color,
-           size = 4) +
+  annotate("text",
+             x = "5°C", y = avg_cop + 1.5,
+             label = paste0("Sample average ~ ", round(avg_cop, 2)),
+             color = hp_color, size = 4) +
   # Overlay both COP reference lines with legend
   geom_line(data = cop_reference_lines, 
             aes(x = temp_c, y = cop, linetype = source), 
@@ -252,7 +280,12 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 16),
     y = "Estimated ratio of heat output \nto energy input",
     linetype = "Engineering Models of COP"
   ) +
+  scale_x_discrete(
+    drop = FALSE,
+    breaks = c("<0°C", "0°C", "5°C", "10°C", "15°C")  # <-- “15” nicely printed
+  ) +
   theme_minimal() +
+  coord_cartesian(xlim = c(0, 16)) +  # more left margin
   theme(legend.position = "bottom") 
 
 
@@ -260,33 +293,3 @@ ggplot(cop_boot %>% filter(as.numeric(temp) < 16),
 ggsave(paste0("graphs/quasi_cop.png"),
        width = 16, height = 8, units = "cm")
                          
-ggplot(cop_boot %>% filter(as.numeric(temp) < 16), 
-       aes(x = as.numeric(as.character(temp)), y = median)) +
-  geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
-  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
-  geom_hline(yintercept = avg_cop, linetype = "dashed", color = hp_color) +
-  annotate("text", 
-           x = 2.5,
-           y = avg_cop + 1.5,
-           label = paste0("italic('Sample average ≈", 
-                          avg_cop, "')"),
-           parse = TRUE,
-           color = hp_color,
-           size = 4) +
-  # Overlay both COP reference lines with legend
-  geom_line(data = cop_reference_lines, 
-            aes(x = temp_c, y = cop, linetype = source), 
-            color = flexible_color) +
-  scale_linetype_manual(values = c("EPRI" = "solid", "Brattle" = "dashed")) +
-  labs(
-    title = "How the heat pump fuel substitution ratio varies by temperature",
-    x = "Average Weekly Temperature in Degrees (°C)",
-    y = "Estimated ratio of heat output \nto energy input",
-    linetype = "Engineering Models of COP"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "bottom") 
-
-# Print the plot
-ggsave(paste0("graphs/quasi_cop_blog_version.png"),
-       width = 17, height = 8, units = "cm")

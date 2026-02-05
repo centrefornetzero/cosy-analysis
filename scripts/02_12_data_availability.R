@@ -1,10 +1,19 @@
-hp_installed <- read_rds(file.path(datapath, "output/hp_installed.rds"))
+# Load main sample IDs
+ids_cs_elec <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
+
+# Load data for regression
+overall_weekly <- 
+  read_rds(file.path(datapath, "output/overall_weekly.rds")) %>%
+  mutate_at(vars(elec_consumption, gas_consumption, total_consumption), 
+            ~.x / 52.25) %>% 
+  filter(account_id %in% ids_cs_elec)
+
 
 ## Figure A.1: Smart Meter Data Availability for Heat Pump Customers
-plot_panel <- panelview(consumption_hh ~ is_hp_installed + hdd, 
-                        data = hp_installed %>% filter(rate_period=="Overall") %>% select(consumption_hh, account_id, date, is_hp_installed, hdd) %>% distinct(), index = c("account_id","date"), 
+plot_panel <- panelview(elec_consumption ~ is_hp_installed + hdd, 
+                        data = overall_weekly, index = c("account_id","settlement_week"), 
                         xlab = "Time", 
-                        ylab = "MPAN", 
+                        ylab = "Household", 
                         by.timing = TRUE, 
                         pre.post = TRUE, 
                         gridOff = TRUE, 
@@ -21,18 +30,10 @@ ggsave("graphs/hp_data_availability.png",
 
 
 
-# Delete?
-cosy_hp_install_gas_consumption <- fread(file.path(datapath, "input/cosy_-_hp_users_gas_2024_06_13.csv")) %>%
-  group_by(account_id) %>%
-  mutate(is_hp_installed = as.numeric(installed_at <= settlement_week),
-         treated = max(is_hp_installed),
-         min_settlement_week = min(settlement_week)) %>%
-  distinct(account_id, settlement_week, .keep_all = TRUE)
 
-
-plot_panel <- panelview(weekly_consumption ~ is_hp_installed, 
-                        data = cosy_hp_install_gas_consumption, index = c("account_id","settlement_week"), 
-                        xlab = "Time", ylab = "MPAN", by.timing = TRUE, pre.post = TRUE, gridOff = TRUE,
+plot_panel <- panelview(gas_consumption ~ is_hp_installed, 
+                        data = overall_weekly, index = c("account_id","settlement_week"), 
+                        xlab = "Time", ylab = "Household", by.timing = TRUE, pre.post = TRUE, gridOff = TRUE,
                         axis.lab.gap = c(40),
                         main = "Gas Data Availability",
                         background = "white",

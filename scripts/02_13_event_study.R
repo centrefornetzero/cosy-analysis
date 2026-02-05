@@ -1,207 +1,232 @@
-## Figure A.13: Event Study - Heat Pump Installation on Daily Average of Customers’
+# ==============================================================================
+# Figure A.13: Event Study — Heat Pump Installation Effects (annualised kWh)
+# ------------------------------------------------------------------------------
+# What this script does:
+#  1) Builds an event-study panel at account-day level
+#  2) Constructs event time in weeks since installation (binned to [-52, 52])
+#  3) Annualises half-hourly consumption to "kWh/year" for interpretability
+#  4) Estimates TWFE event-study regressions with a common anticipation window
+#  5) Produces consistent plots (anticipation shading + thousand separators)
+# ==============================================================================
 
-# create df
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(fixest)
+library(ggplot2)
+library(scales)
+library(readr)
+
+# ------------------------------------------------------------------------------
+# Paths / inputs
+# ------------------------------------------------------------------------------
 hp_installed <- read_rds(file.path(datapath, "output/hp_installed.rds"))
 
+# ------------------------------------------------------------------------------
+# Global settings for event study + plotting
+# ------------------------------------------------------------------------------
+WEEK_BIN      <- 52     # bin event time to [-52, 52]
+REF_WEEK      <- -4     # reference week for i(weeks_since_hp, ref=...)
+ANTIC_XMIN    <- -4     # anticipation shading start (weeks)
+ANTIC_XMAX    <-  0     # anticipation shading end (weeks)
+
+anticipation_df <- data.frame(
+  xmin = ANTIC_XMIN, xmax = ANTIC_XMAX,
+  ymin = -Inf, ymax = Inf
+)
+
+# ------------------------------------------------------------------------------
+# Build event-study dataset
+# ------------------------------------------------------------------------------
 event_study_df <- hp_installed %>%
-  mutate(weeks_since_hp = as.numeric(difftime(date, installed_at, units = "weeks")) %/% 1 + 1,
-         weeks_since_hp = case_when(
-           weeks_since_hp < -52 ~ -52,
-           weeks_since_hp > 52 ~ 52,
-           TRUE ~ weeks_since_hp),
-        week = week(date),
-        month = month(date)) %>%
-  select(account_id, weeks_since_hp, consumption_hh, hdd, date, rate_period, month, week, tariff_gsp_group_id)
+  mutate(
+    # Event time: integer weeks since installation
+    weeks_since_hp = as.numeric(difftime(date, installed_at, units = "weeks")) %/% 1 + 1,
+
+    # Bin event time to avoid sparse tails in the plot
+    weeks_since_hp = case_when(
+      weeks_since_hp < -WEEK_BIN ~ -WEEK_BIN,
+      weeks_since_hp >  WEEK_BIN ~  WEEK_BIN,
+      TRUE ~ weeks_since_hp
+    ),
+
+    # Time controls / FE keys
+    week  = week(date),
+    month = month(date),
+
+    # Annualise half-hourly kWh to kWh/year:
+    # 48 half-hours/day * 365.25 days/year
+    elec_consumption_annual_kwh = 365.25 * 48 * consumption_hh
+  ) %>%
+  select(
+    account_id, weeks_since_hp,
+    consumption_hh, elec_consumption_annual_kwh,
+    hdd, date, rate_period, month, week, tariff_gsp_group_id
+  )
 
 gc()
 
-m_event_study <- feols(consumption_hh ~ i(weeks_since_hp, ref=-1) | account_id + hdd + date, 
-                       data = event_study_df %>% filter(rate_period=="Overall") %>% 
-                         mutate(),
-                       cluster = ~ account_id)
-
-etable(m_event_study)
-
-# plot the coefficients
-# Extract coefficients and standard errors
-coefs <- coeftable(m_event_study)%>%
-  data.frame() %>%
-  tibble::rownames_to_column("term")%>%
-  as_tibble() %>%
-  separate(term, into = c("var",  "weeks_since_hp"), sep = "::") %>%
-  mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
-         upper_ci = Estimate + 1.96 * `Std..Error`,
-         outcome = "Half Hourly Consumption") %>%
-  mutate(weeks_since_hp = as.numeric(weeks_since_hp),
-         post = (weeks_since_hp >-1))
-
-# Create the plot
-ggplot(coefs, aes(x = weeks_since_hp, y = Estimate, color = post)) +
-  geom_point(stat = "identity", show.legend = TRUE) +
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
-  labs(
-    x = "Weeks Since HP Installation",
-    y = "Half Hourly Consumption in kWh",
-    color = "Is HP Installed"  # Update legend title
-  ) +
-  scale_color_manual(
-    values = c("TRUE" = hp_color, "FALSE" = not_hp_color),  # Set custom colors
-    labels = c("No", "Yes")  # Update legend labels
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),  # Tilt x-axis labels for better readability
-    legend.position = "right"  # Show legend
+# ------------------------------------------------------------------------------
+# Helper: run model
+# ------------------------------------------------------------------------------
+run_event_study <- function(data, outcome, fe_rhs) {
+  feols(
+    as.formula(paste0(outcome, " ~ i(weeks_since_hp, ref = ", REF_WEEK, ") | ", fe_rhs)),
+    data    = data,
+    cluster = ~account_id
   )
+}
 
+# ------------------------------------------------------------------------------
+# Helper: extract coefficients + plot with consistent styling
+# ------------------------------------------------------------------------------
+plot_event_study <- function(model, filename, ylab,
+                            legend_pos = "bottom",
+                            add_anticipation = TRUE,
+                            comma_y = TRUE) {
 
-# Print the plot
-ggsave(paste0("graphs/hp_event_study_overall.png"),
-       width = 16, height = 8, units = "cm")
+  # Extract i() coefficients
+  coefs <- coeftable(model) %>%
+    data.frame() %>%
+    tibble::rownames_to_column("term") %>%
+    as_tibble() %>%
+    separate(term, into = c("var", "weeks_since_hp"), sep = "::") %>%
+    mutate(
+      weeks_since_hp = as.numeric(weeks_since_hp),
+      lower_ci = Estimate - 1.96 * `Std..Error`,
+      upper_ci = Estimate + 1.96 * `Std..Error`,
+      # Used only for colouring points
+      post = (weeks_since_hp > -1)
+    )
 
-rm(m_event_study)
+  p <- ggplot(coefs, aes(x = weeks_since_hp, y = Estimate, color = post)) +
+    {if (add_anticipation)
+      geom_rect(
+        data = anticipation_df,
+        aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+        inherit.aes = FALSE,
+        fill = "grey80",
+        alpha = 0.25
+      )
+    } +
+    geom_point(show.legend = TRUE) +
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    labs(
+      x = "Weeks Since HP Installation",
+      y = ylab,
+      color = "Is HP Installed"
+    ) +
+    scale_color_manual(
+      values = c("TRUE" = hp_color, "FALSE" = not_hp_color),
+      labels = c("No", "Yes")
+    ) +
+    {if (comma_y) scale_y_continuous(labels = scales::label_comma()) } +
+    {if (add_anticipation)
+      annotate(
+        "text",
+        x = (ANTIC_XMIN + ANTIC_XMAX) / 2,
+        y = Inf,
+        label = "Anticipation\nwindow",
+        vjust = 1.2,
+        size = 3.5,
+        colour = "grey30"
+      )
+    } +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = legend_pos
+    )
 
+  ggsave(filename, plot = p, width = 16, height = 8, units = "cm")
+  invisible(p)
+}
 
-m_event_study <- feols(consumption_hh ~ i(weeks_since_hp, ref=-1) | account_id + hdd + date, 
-                       data = event_study_df %>% filter(rate_period=="Peak Rate") %>% 
-                         mutate(),
-                       cluster = ~ account_id)
+# ==============================================================================
+# (1) Overall rate — baseline TWFE event study (annualised kWh)
+# ==============================================================================
+m_overall <- run_event_study(
+  data    = event_study_df %>% filter(rate_period == "Overall"),
+  outcome = "elec_consumption_annual_kwh",
+  fe_rhs  = "account_id + hdd + date"
+)
 
-etable(m_event_study)
+etable(m_overall)
 
-# plot the coefficients
-# Extract coefficients and standard errors
-coefs <- coeftable(m_event_study)%>%
-  data.frame() %>%
-  tibble::rownames_to_column("term")%>%
-  as_tibble() %>%
-  separate(term, into = c("var",  "weeks_since_hp"), sep = "::") %>%
-  mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
-         upper_ci = Estimate + 1.96 * `Std..Error`,
-         outcome = "Half Hourly Consumption") %>%
-  mutate(weeks_since_hp = as.numeric(weeks_since_hp),
-         post = (weeks_since_hp >-1))
+plot_event_study(
+  model    = m_overall,
+  filename = "graphs/hp_event_study_overall.png",
+  ylab     = "Heat Pump Installation on Yearly\nElectricity Consumption (kWh)",
+  legend_pos = "bottom",
+  add_anticipation = TRUE,
+  comma_y = TRUE
+)
 
-# Create the plot
-ggplot(coefs, aes(x = weeks_since_hp, y = Estimate, color = post)) +
-  geom_point(stat = "identity", show.legend = TRUE) +
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
-  labs(
-    x = "Weeks Since HP Installation",
-    y = "Half Hourly Consumption in kWh",
-    color = "Is HP Installed"  # Update legend title
-  ) +
-  scale_color_manual(
-    values = c("TRUE" = hp_color, "FALSE" = not_hp_color),  # Set custom colors
-    labels = c("No", "Yes")  # Update legend labels
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),  # Tilt x-axis labels for better readability
-    legend.position = "right"  # Show legend
-  )
+rm(m_overall); gc()
 
+# ==============================================================================
+# (2) Peak Rate — same spec, annualised kWh (for consistency across figures)
+# ==============================================================================
+m_peak <- run_event_study(
+  data    = event_study_df %>% filter(rate_period == "Peak Rate"),
+  outcome = "elec_consumption_annual_kwh",
+  fe_rhs  = "account_id + hdd + date"
+)
 
-# Print the plot
-ggsave(paste0("graphs/hp_event_study_peak_rate.png"),
-       width = 16, height = 8, units = "cm")
-rm(m_event_study)
-gc()
-         
-         
-# Adding account-month fixed effects
-m_event_study <- feols(consumption_hh ~ i(weeks_since_hp, ref=-1) | account_id + hdd + date + account_id:month, 
-                       data = event_study_df %>% filter(rate_period=="Overall") %>% 
-                         mutate(),
-                       cluster = ~ account_id)
-etable(m_event_study)
+etable(m_peak)
 
-# plot the coefficients
-# Extract coefficients and standard errors
-coefs <- coeftable(m_event_study)%>%
-  data.frame() %>%
-  tibble::rownames_to_column("term")%>%
-  as_tibble() %>%
-  separate(term, into = c("var",  "weeks_since_hp"), sep = "::") %>%
-  mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
-         upper_ci = Estimate + 1.96 * `Std..Error`,
-         outcome = "Half Hourly Consumption") %>%
-  mutate(weeks_since_hp = as.numeric(weeks_since_hp),
-         post = (weeks_since_hp >-1))
+plot_event_study(
+  model    = m_peak,
+  filename = "graphs/hp_event_study_peak_rate.png",
+  ylab     = "Heat Pump Installation on Yearly\nElectricity Consumption (kWh)",
+  legend_pos = "bottom",
+  add_anticipation = TRUE,
+  comma_y = TRUE
+)
 
-# Create the plot
-ggplot(coefs, aes(x = weeks_since_hp, y = Estimate, color = post)) +
-  geom_point(stat = "identity", show.legend = TRUE) +
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
-  labs(
-    x = "Weeks Since HP Installation",
-    y = "Half Hourly Consumption in kWh",
-    color = "Is HP Installed"  # Update legend title
-  ) +
-  scale_color_manual(
-    values = c("TRUE" = hp_color, "FALSE" = not_hp_color),  # Set custom colors
-    labels = c("No", "Yes")  # Update legend labels
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),  # Tilt x-axis labels for better readability
-    legend.position = "right"  # Show legend
-  )
+rm(m_peak); gc()
 
+# ==============================================================================
+# (3) Overall + account-month fixed effects (absorbs account-specific seasonality)
+# ==============================================================================
+m_overall_month_fe <- run_event_study(
+  data    = event_study_df %>% filter(rate_period == "Overall"),
+  outcome = "elec_consumption_annual_kwh",
+  fe_rhs  = "account_id + hdd + date + account_id:month"
+)
 
-# Print the plot
-ggsave(paste0("graphs/hp_event_study_overall_with_monthly_trends.png"),
-       width = 16, height = 8, units = "cm")
-rm(m_event_study)
-gc()
-    
+etable(m_overall_month_fe)
 
+plot_event_study(
+  model    = m_overall_month_fe,
+  filename = "graphs/hp_event_study_overall_with_monthly_trends.png",
+  ylab     = "Heat Pump Installation on Yearly\nElectricity Consumption (kWh)",
+  legend_pos = "bottom",
+  add_anticipation = TRUE,
+  comma_y = TRUE
+)
 
+rm(m_overall_month_fe); gc()
 
-# Adding gsp-week fixed effects
-m_event_study <- feols(consumption_hh ~ i(weeks_since_hp, ref=-1) | account_id + hdd + date + week:tariff_gsp_group_id, 
-                       data = event_study_df %>% filter(rate_period=="Overall") %>% 
-                         mutate(),
-                       cluster = ~ account_id)
-etable(m_event_study)
+# ==============================================================================
+# (4) Overall + (GSP × week) fixed effects (flexible grid-time shocks)
+# ==============================================================================
+m_overall_gsp_week_fe <- run_event_study(
+  data    = event_study_df %>% filter(rate_period == "Overall"),
+  outcome = "elec_consumption_annual_kwh",
+  fe_rhs  = "account_id + hdd + date + week:tariff_gsp_group_id"
+)
 
-# plot the coefficients
-# Extract coefficients and standard errors
-coefs <- coeftable(m_event_study)%>%
-  data.frame() %>%
-  tibble::rownames_to_column("term")%>%
-  as_tibble() %>%
-  separate(term, into = c("var",  "weeks_since_hp"), sep = "::") %>%
-  mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
-         upper_ci = Estimate + 1.96 * `Std..Error`,
-         outcome = "Half Hourly Consumption") %>%
-  mutate(weeks_since_hp = as.numeric(weeks_since_hp),
-         post = (weeks_since_hp >-1))
+etable(m_overall_gsp_week_fe)
 
-# Create the plot
-ggplot(coefs, aes(x = weeks_since_hp, y = Estimate, color = post)) +
-  geom_point(stat = "identity", show.legend = TRUE) +
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
-  labs(
-    x = "Weeks Since HP Installation",
-    y = "Half Hourly Consumption in kWh",
-    color = "Is HP Installed"  # Update legend title
-  ) +
-  scale_color_manual(
-    values = c("TRUE" = hp_color, "FALSE" = not_hp_color),  # Set custom colors
-    labels = c("No", "Yes")  # Update legend labels
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),  # Tilt x-axis labels for better readability
-    legend.position = "right"  # Show legend
-  )
+plot_event_study(
+  model    = m_overall_gsp_week_fe,
+  filename = "graphs/hp_event_study_overall_with_weekly_trends.png",
+  ylab     = "Heat Pump Installation on Yearly\nElectricity Consumption (kWh)",
+  legend_pos = "bottom",
+  add_anticipation = TRUE,
+  comma_y = TRUE
+)
 
-
-# Print the plot
-ggsave(paste0("graphs/hp_event_study_overall_with_weekly_trends.png"),
-       width = 16, height = 8, units = "cm")
+rm(m_overall_gsp_week_fe); gc()
