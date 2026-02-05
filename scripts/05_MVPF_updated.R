@@ -3,21 +3,10 @@
 # Output: LaTeX table + Rennert SCC sensitivity plot
 # ============================================================
 
-suppressPackageStartupMessages({
-  library(readxl)
-  library(dplyr)
-  library(tibble)
-  library(zoo)
-  library(ggplot2)
-  library(knitr)
-  library(kableExtra)
-  library(stringr)
-})
-
 # ----------------------------
 # 0) PATHS
 # ----------------------------
-PATH_XLSX <- "data/input/HP and Cosy paper welfare analysis.xlsx"
+PATH_XLSX <- file.path(datapath, "/input/HP and Cosy paper welfare analysis.xlsx")
 stopifnot(file.exists(PATH_XLSX))
 
 dir.create("tables", showWarnings = FALSE)
@@ -36,8 +25,12 @@ m_default <- 0.50
 
 SUBSIDY_HP  <- 7500
 BOILER_COST <- 2250
-ELEC_KWH_CHANGE <- 3080
-GAS_KWH_CHANGE  <- -9350.7
+
+# Calculate the average value for the dashed line
+main_results <- fread(file.path(datapath, "output/eff_df.csv"))  %>% filter(window == "Last 12 months")
+
+ELEC_KWH_CHANGE <- main_results$Electricity
+GAS_KWH_CHANGE  <- main_results$Gas
 
 # Fiscal share for climate FE (your same parameters)
 uk_gdp_as_proportion_of_global <- 0.032
@@ -268,7 +261,9 @@ calc_hp <- function(label, r_disc, m, scc_vec) {
 out_tbl <- bind_rows(
   calc_hp("MAC-based", r_disc = 0.035, m = 0.50, scc_vec = scc_hmg),
   calc_hp("MAC-based", r_disc = 0.035, m = 0.25, scc_vec = scc_hmg),
-  calc_hp("SCC (IAM)", r_disc = 0.020, m = 0.50, scc_vec = scc_rennert)
+  calc_hp("SCC (IAM)", r_disc = 0.020, m = 0.50, scc_vec = scc_rennert),
+  calc_hp("SCC (IAM)", r_disc = 0.035, m = 0.50, scc_vec = scc_rennert)
+
 )
 
 print(out_tbl)
@@ -469,162 +464,3 @@ ggsave("graphs/waterfall_hp_preferred.png", plot = p_wf,
 cat("Saved waterfall to graphs/waterfall_hp_preferred.png\n")
 
 
-# ----------------------------
-# Rennert-style MVPF distribution section (drop-in)
-# ----------------------------
-suppressPackageStartupMessages({
-  library(dplyr)
-  library(tidyr)
-  library(ggplot2)
-  library(patchwork)
-  library(scales)
-})
-
-# ----- improved plotting (replace previous p_top / p_bottom section) -----
-suppressPackageStartupMessages({
-  library(ggrepel)   # for non-overlapping labels
-  library(viridis)   # optional nicer palette
-})
-
-set.seed(12345678)
-N_DRAWS <- 25000
-
-# discount grid to mirror Rennert Fig.2
-r_grid <- c(0.03, 0.025, 0.02, 0.015)
-Tlen <- length(YEARS)
-
-# SCC draw generator (GBP2023). Use rennert center as median; sigma controls tail thickness.
-mu_log <- log(rennert_scc_gbp2023)
-sigma_log <- 0.6    # moderate tail; tweak if you want fatter tails
-mvpf_draws <- expand_grid(
-  r_disc = r_grid,
-  draw = seq_len(N_DRAWS)
-) %>%
-  mutate(
-    scc_gbp2023 = rlnorm(n(), meanlog = mu_log, sdlog = sigma_log)
-  )
-
-# Coerce r_disc numeric
-mvpf_draws <- mvpf_draws %>% mutate(r_disc = as.numeric(r_disc))
-
-# --- Compute recalculated MVPF (Average definition) per draw
-# We call calc_hp with scc_vec = rep(scc_here, Tlen) to match your function signature.
-# This is vectorised rowwise and may take a short while for 25k draws; reduce N_DRAWS for quick testing.
-mvpf_draws_fixed <- mvpf_draws %>%
-  rowwise() %>%
-  mutate(
-    scc_here = scc_gbp2023,
-    mvpf_recalc = {
-      # protect calc_hp call: if it fails for a draw, return NA
-      tryCatch({
-        calc_val <- calc_hp("tmp", r_disc = r_disc, m = m_default, scc_vec = rep(scc_here, Tlen))
-        as.numeric(calc_val$Average)
-      }, error = function(e) NA_real_)
-    }
-  ) %>%
-  ungroup() %>%
-  mutate(
-    # labelled factor for plotting (ordered highest -> lowest as Rennert figure)
-    r_disc_f = factor(r_disc,
-                      levels = sort(unique(r_disc), decreasing = TRUE),
-                      labels = paste0(round(sort(unique(r_disc), decreasing = TRUE) * 100, 1), "%"))
-  )
-
-# Quick sanity output
-cat("Draws computed:", nrow(mvpf_draws_fixed), "\n")
-cat("NA mvpf count:", sum(is.na(mvpf_draws_fixed$mvpf_recalc)), "\n")
-cat("MVPF recalc summary (non-NA):\n"); print(summary(mvpf_draws_fixed$mvpf_recalc, na.rm = TRUE))
-
-# ---- Summaries grouped by discount rate (for labels + dotted mean lines) ----
-sum_df <- mvpf_draws_fixed %>%
-  group_by(r_disc_f) %>%
-  summarise(
-    scc_mean = mean(scc_gbp2023, na.rm = TRUE),
-    scc_p05  = quantile(scc_gbp2023, 0.05, na.rm = TRUE),
-    scc_p95  = quantile(scc_gbp2023, 0.95, na.rm = TRUE),
-    mvpf_mean = mean(mvpf_recalc, na.rm = TRUE),
-    mvpf_p05  = quantile(mvpf_recalc, 0.05, na.rm = TRUE),
-    mvpf_p95  = quantile(mvpf_recalc, 0.95, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-# ---- plotting window (use 1st–99th percentiles to keep bulk readable) ----
-x_lo <- quantile(mvpf_draws_fixed$mvpf_recalc, 0.01, na.rm = TRUE)
-x_hi <- quantile(mvpf_draws_fixed$mvpf_recalc, 0.99, na.rm = TRUE)
-# ensure sensible bounds
-if (!is.finite(x_lo) || x_lo <= 0) x_lo <- 0
-if (!is.finite(x_hi) || x_hi <= x_lo) x_hi <- max(3, median(mvpf_draws_fixed$mvpf_recalc, na.rm = TRUE) * 2)
-
-# ---- label anchor X positions (spread along the left portion so they don't overlap the peaks) ----
-n_labels <- nrow(sum_df)
-label_x <- seq(x_lo + 0.02*(x_hi - x_lo), x_lo + 0.22*(x_hi - x_lo), length.out = n_labels)
-sum_df <- sum_df %>% mutate(label_x = label_x)
-
-# ---- compute a reasonable y anchor for the text labels using group densities (safe try) ----
-dens_vals <- mvpf_draws_fixed %>%
-  filter(!is.na(mvpf_recalc)) %>%
-  group_by(r_disc_f) %>%
-  summarise(dmax = tryCatch(max(density(mvpf_recalc, na.rm = TRUE)$y), error = function(e) NA_real_), .groups = "drop")
-dens_max <- max(dens_vals$dmax, na.rm = TRUE)
-if (!is.finite(dens_max) || dens_max <= 0) dens_max <- 0.9
-sum_df <- sum_df %>% mutate(label_y = dens_max * 0.98)
-
-levs <- levels(mvpf_draws_fixed$r_disc_f)
-cols <- setNames(rainbow(length(levs)), levs)
-
-# ---- TOP: density with dotted mean lines + textual labels reporting SCC & MVPF means/quantiles ----
-p_top <- ggplot(mvpf_draws_fixed, aes(x = mvpf_recalc, colour = r_disc_f, fill = r_disc_f)) +
-  geom_density(alpha = 0.22, linewidth = 0.8, adjust = 1.1, na.rm = TRUE) +
-  geom_vline(xintercept = 1, linetype = "dashed", colour = "black", linewidth = 0.6) +
-  geom_vline(data = sum_df, aes(xintercept = mvpf_mean, colour = r_disc_f),
-             linetype = "dotted", linewidth = 0.8, alpha = 0.9, show.legend = FALSE) +
-  # label the means with SCC + MVPF summary using ggrepel
-  geom_text_repel(
-    data = sum_df,
-    aes(x = label_x, y = Inf,
-        label = paste0("Mean SCC: ", scales::label_number(prefix = "£", accuracy = 1)(scc_mean),
-                       "\nMVPF mean: ", round(mvpf_mean, 2),
-                       "\n5–95: [", round(mvpf_p05, 2), ", ", round(mvpf_p95, 2), "]"),
-        colour = r_disc_f),
-    nudge_y = 0.04 * max(ggplot_build(ggplot(mvpf_draws_fixed, aes(mvpf_recalc)) + geom_density())$data[[1]]$y, na.rm = TRUE),
-    box.padding = 0.3,
-    point.padding = 0.2,
-    segment.size = 0.3,
-    size = 3.2,
-    show.legend = FALSE
-  ) +
-  coord_cartesian(xlim = c(x_lo, x_hi)) +
-  scale_colour_manual(values = cols, name = "Near-term discount rate") +
-  scale_fill_manual(values = scales::alpha(cols, 0.22), guide = "none") +
-  labs(
-    title = "MVPF distributions by near-term discount rate",
-    subtitle = "Dotted verticals = mean MVPF. Labels report mean SCC (GBP2023) used in draws."
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(
-    legend.position = "right",
-    panel.grid.minor = element_blank(),
-    plot.title = element_text(face = "bold"),
-    plot.subtitle = element_text(size = 10)
-  )
-
-# BOTTOM: horizontal boxplots (compact, Rennert style)
-p_bottom <- ggplot(mvpf_draws_fixed, aes(y = r_disc_f, x = mvpf_recalc, colour = r_disc_f)) +
-  geom_boxplot(width = 0.45, outlier.shape = NA, linewidth = 0.9, alpha = 0.6) +
-  geom_vline(xintercept = 1, linetype = "dashed", colour = "black", linewidth = 0.6) +
-  coord_cartesian(xlim = c(x_lo, x_hi)) +
-  scale_colour_manual(values = cols, guide = "none") +
-  labs(x = "MVPF (Average definition)") +
-  theme_minimal(base_size = 11) +
-  theme(panel.grid.minor = element_blank())
-
-
-# combine and save
-p_mvpf <- p_top / p_bottom + plot_layout(heights = c(3, 1))
-p_mvpf
-
-ggsave("graphs/rennert_style_mvpf_labeled.png", p_mvpf, width = 11, height = 6.5, dpi = 300)
-cat("Saved graphs/rennert_style_mvpf_labeled.png\n")
-
-# return the computed draws invisibly for further inspection
-invisible(mvpf_draws_fixed)

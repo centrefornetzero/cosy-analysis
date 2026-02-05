@@ -53,10 +53,10 @@ CleanPreAverage <- function(file_path) {
   file_content <- readLines(file_path)
   
   # Find the lines with the pre-treatment average and remove them
-  if (length(grep("Yearly Consumption", file_content))==1) {
-    pre_avg_line_index <- grep("Yearly Consumption", file_content)
+  if (length(grep("Pre-Treatment Consumption", file_content))==1) {
+    pre_avg_line_index <- grep("Pre-Treatment Consumption", file_content)
   } else {
-    pre_avg_line_index <- grep("Yearly Consumption", file_content)[2]
+    pre_avg_line_index <- grep("Pre-Treatment Consumption", file_content)[2]
   }
   
   # Find the lines with the pre-treatment average and remove them
@@ -142,7 +142,7 @@ source("scripts/02_01_load_data.R")
 # List objects in the environment
 list_env <- c(ls(), "list_env")
 
-source("scripts/02_02_DiD_analysis.R")
+#source("scripts/02_02_DiD_analysis.R")
 rm(list = setdiff(ls(), list_env))
 
 source("scripts/02_03_DiD_analysis_outputs.R")

@@ -161,7 +161,7 @@ avg_cop <- round(main_results$emp_eff, digits = 2)
 print(paste0("Average empirical efficiency ~ ", avg_cop))
 
 # Set up bootstrapping
-set.seed(123)  # for reproducibility
+set.seed(123456789)  # for reproducibility
 B <- 500  # number of bootstrap samples
 results <- vector("list", B)
 pb <- progress_bar$new(total = B, format = "Bootstrapping [:bar] :percent ETA: :eta")

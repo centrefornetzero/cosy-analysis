@@ -1,21 +1,13 @@
 # ==============================================================================
-# Figure A.13: Event Study — Heat Pump Installation Effects (annualised kWh)
+# Figure A.13: Event Study — Heat Pump Installation Effects (weeklyised kWh)
 # ------------------------------------------------------------------------------
 # What this script does:
 #  1) Builds an event-study panel at account-day level
 #  2) Constructs event time in weeks since installation (binned to [-52, 52])
-#  3) Annualises half-hourly consumption to "kWh/year" for interpretability
+#  3) Weeklyised half-hourly consumption to "kWh/year" for interpretability
 #  4) Estimates TWFE event-study regressions with a common anticipation window
 #  5) Produces consistent plots (anticipation shading + thousand separators)
 # ==============================================================================
-
-library(dplyr)
-library(tidyr)
-library(lubridate)
-library(fixest)
-library(ggplot2)
-library(scales)
-library(readr)
 
 # ------------------------------------------------------------------------------
 # Paths / inputs
@@ -55,12 +47,12 @@ event_study_df <- hp_installed %>%
     month = month(date),
 
     # Annualise half-hourly kWh to kWh/year:
-    # 48 half-hours/day * 365.25 days/year
-    elec_consumption_annual_kwh = 365.25 * 48 * consumption_hh
+    # 48 half-hours/day * 7 days
+    elec_consumption_weekly_kwh = 7 * 48 * consumption_hh
   ) %>%
   select(
     account_id, weeks_since_hp,
-    consumption_hh, elec_consumption_annual_kwh,
+    consumption_hh, elec_consumption_weekly_kwh,
     hdd, date, rate_period, month, week, tariff_gsp_group_id
   )
 
@@ -144,11 +136,11 @@ plot_event_study <- function(model, filename, ylab,
 }
 
 # ==============================================================================
-# (1) Overall rate — baseline TWFE event study (annualised kWh)
+# (1) Overall rate — baseline TWFE event study (weeklyised kWh)
 # ==============================================================================
 m_overall <- run_event_study(
   data    = event_study_df %>% filter(rate_period == "Overall"),
-  outcome = "elec_consumption_annual_kwh",
+  outcome = "elec_consumption_weekly_kwh",
   fe_rhs  = "account_id + hdd + date"
 )
 
@@ -157,7 +149,7 @@ etable(m_overall)
 plot_event_study(
   model    = m_overall,
   filename = "graphs/hp_event_study_overall.png",
-  ylab     = "Heat Pump Installation on Yearly\nElectricity Consumption (kWh)",
+  ylab     = "Heat Pump Instal on Weekly\nElec Consumption (kWh)",
   legend_pos = "bottom",
   add_anticipation = TRUE,
   comma_y = TRUE
@@ -166,11 +158,11 @@ plot_event_study(
 rm(m_overall); gc()
 
 # ==============================================================================
-# (2) Peak Rate — same spec, annualised kWh (for consistency across figures)
+# (2) Peak Rate — same spec, weeklyised kWh (for consistency across figures)
 # ==============================================================================
 m_peak <- run_event_study(
   data    = event_study_df %>% filter(rate_period == "Peak Rate"),
-  outcome = "elec_consumption_annual_kwh",
+  outcome = "elec_consumption_weekly_kwh",
   fe_rhs  = "account_id + hdd + date"
 )
 
@@ -179,7 +171,7 @@ etable(m_peak)
 plot_event_study(
   model    = m_peak,
   filename = "graphs/hp_event_study_peak_rate.png",
-  ylab     = "Heat Pump Installation on Yearly\nElectricity Consumption (kWh)",
+  ylab     = "Heat Pump Install on Weekly\n Peak Elec Consumption (kWh)",
   legend_pos = "bottom",
   add_anticipation = TRUE,
   comma_y = TRUE
@@ -192,7 +184,7 @@ rm(m_peak); gc()
 # ==============================================================================
 m_overall_month_fe <- run_event_study(
   data    = event_study_df %>% filter(rate_period == "Overall"),
-  outcome = "elec_consumption_annual_kwh",
+  outcome = "elec_consumption_weekly_kwh",
   fe_rhs  = "account_id + hdd + date + account_id:month"
 )
 
@@ -201,7 +193,7 @@ etable(m_overall_month_fe)
 plot_event_study(
   model    = m_overall_month_fe,
   filename = "graphs/hp_event_study_overall_with_monthly_trends.png",
-  ylab     = "Heat Pump Installation on Yearly\nElectricity Consumption (kWh)",
+  ylab     = "Heat Pump Install on Weekly\nElec Consumption (kWh)",
   legend_pos = "bottom",
   add_anticipation = TRUE,
   comma_y = TRUE
@@ -214,7 +206,7 @@ rm(m_overall_month_fe); gc()
 # ==============================================================================
 m_overall_gsp_week_fe <- run_event_study(
   data    = event_study_df %>% filter(rate_period == "Overall"),
-  outcome = "elec_consumption_annual_kwh",
+  outcome = "elec_consumption_weekly_kwh",
   fe_rhs  = "account_id + hdd + date + week:tariff_gsp_group_id"
 )
 
@@ -223,7 +215,7 @@ etable(m_overall_gsp_week_fe)
 plot_event_study(
   model    = m_overall_gsp_week_fe,
   filename = "graphs/hp_event_study_overall_with_weekly_trends.png",
-  ylab     = "Heat Pump Installation on Yearly\nElectricity Consumption (kWh)",
+  ylab     = "Heat Pump Install on Weekly\nElec Consumption (kWh)",
   legend_pos = "bottom",
   add_anticipation = TRUE,
   comma_y = TRUE

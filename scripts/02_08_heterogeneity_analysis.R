@@ -15,7 +15,10 @@ hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
   filter(week <= 129, firstweek <= 129)  %>%
   filter(week <= firstweek - 5 | week > firstweek) %>% 
   ungroup() %>% 
-   mutate(temp_degree = factor(
+   mutate(
+     consumption_weekly = consumption_hh *48 *7, 
+     consumption_yearly = consumption_hh *48*365.25,
+     temp_degree = factor(
      case_when(
        daily_avg_air_temperature_celsius < 0 ~ 0,
        daily_avg_air_temperature_celsius < 25.5 ~ round(daily_avg_air_temperature_celsius),
@@ -32,7 +35,7 @@ temp_labels[!(temp_levels %in% c(0, 25))] <-
 rm(m1, m1c, ev_charging, ev_users, ev_charging_agg)
 
 # Fit the model
-m1 <- feols(consumption_hh ~ i(is_hp_installed) | hdd + account_id + date, 
+m1 <- feols(consumption_weekly ~ i(is_hp_installed) | hdd + account_id + date, 
             data =hp_installed, 
             cluster = ~account_id, 
             split = ~ rate_period)
@@ -41,7 +44,7 @@ m1 <- feols(consumption_hh ~ i(is_hp_installed) | hdd + account_id + date,
 periods <- unique(hp_installed$rate_period)
 
 # Run the regression model
-tempreg <- feols(consumption_hh ~ i(is_hp_installed, temp_degree, ref=0) |
+tempreg <- feols(consumption_weekly ~ i(is_hp_installed, temp_degree, ref=0) |
                    account_id + temp_degree  + date,
                  data = hp_installed,
                  split = ~ rate_period,
@@ -92,7 +95,7 @@ for (i in 1:5) {
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
     labs(
       x = "Average Daily Temperature in Degrees (°C)",
-      y = "Estimate (kWh)"
+      y = "Weekly estimate (kWh)"
     ) +
     theme_minimal()
   
@@ -108,12 +111,12 @@ for (i in 1:5) {
 
 rm(tempreg)
 
-m1 <- feols(consumption_hh ~ i(is_hp_installed) | hdd + account_id + date, 
+m1 <- feols(consumption_weekly ~ i(is_hp_installed) | hdd + account_id + date, 
             data =hp_installed, 
             cluster = ~account_id, 
             split = ~ rate_period)
 
-m2a <- feols(consumption_hh ~ i(is_hp_installed, epc_letter, ref=0)  | 
+m2a <- feols(consumption_weekly ~ i(is_hp_installed, epc_letter, ref=0)  | 
                hdd + account_id + date,
              data = hp_installed %>%  
                filter(treated==1) %>%
@@ -208,7 +211,7 @@ rm(m2a)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-m_sources <- feols(consumption_hh ~ i(is_hp_installed, hp_survey_outcome_existing_heat_source, ref=0)  | 
+m_sources <- feols(consumption_weekly ~ i(is_hp_installed, hp_survey_outcome_existing_heat_source, ref=0)  | 
                      hdd + account_id + date,
                    data = hp_installed %>% filter(treated == 1, !hp_survey_outcome_existing_heat_source==""), 
                    split = ~ rate_period,
@@ -335,7 +338,7 @@ hp_installed <- hp_installed %>%
                                include.lowest = TRUE,
                                labels = income_labels))
 # income check
-m_income <- feols(consumption_hh ~ i(is_hp_installed, income_category, ref =0) 
+m_income <- feols(consumption_yearly ~ i(is_hp_installed, income_category, ref =0) 
                   | date +  account_id + hdd,
                   data = hp_installed,
                   split = ~ rate_period,
@@ -368,7 +371,7 @@ for (i in 1:5) {
     scale_fill_manual(values = red_palette) +
     labs(
       x = "Income Decile",
-      y = "Estimate (kWh)"
+      y = "Yearly Estimate (kWh)"
     ) +
     scale_y_continuous(
       sec.axis = sec_axis(~ ./(m1[[j]]$coefficients), name = "% of ATE", labels = scales::percent_format())
@@ -430,7 +433,7 @@ ggplot(all_coefs %>% filter(outcome == "Total Consumption", period != "Overall")
   scale_fill_manual(values = red_palette) +
   labs(
     x = "Income Category Decile",
-    y = "Estimate (kWh)"
+    y = "Yearly Estimate (kWh)"
   ) +
   theme_minimal() +
   theme(
@@ -472,7 +475,7 @@ hp_installed <- hp_installed %>%
                                        include.lowest = TRUE,
                                        labels = labels))
 # property_value check
-m_property_value <- feols(consumption_hh ~ i(is_hp_installed, property_value_category, ref =0) 
+m_property_value <- feols(consumption_yearly ~ i(is_hp_installed, property_value_category, ref =0) 
                           | date +  account_id + hdd,
                           data = hp_installed,
                           split = ~ rate_period,
@@ -506,7 +509,7 @@ for (i in 1:5) {
     scale_fill_manual(values = red_palette) +
     labs(
       x = "Property Value Decile",
-      y = "Estimate (kWh)"
+      y = "Yearly Estimate (kWh)"
     ) +
     scale_y_continuous(
       sec.axis = sec_axis(~ ./(m1[[j]]$coefficients), name = "% of ATE", labels = scales::percent_format())
@@ -551,7 +554,7 @@ hp_installed <- hp_installed %>%
                                                 include.lowest = TRUE,
                                                 labels = labels))
 
-m_heatloss <- feols(consumption_hh ~ i(is_hp_installed, latest_survey_heat_loss_category, ref =0) 
+m_heatloss <- feols(consumption_weekly ~ i(is_hp_installed, latest_survey_heat_loss_category, ref =0) 
                     | account_id + hdd + date,
                     data = hp_installed %>% filter(!is.na(latest_survey_heat_loss_category)),
                     split = ~ rate_period,
@@ -606,7 +609,7 @@ for (i in 1:5) {
 ### Figure A.9: Impact of Heat Pump Installation on Half-Hourly 
 # Electricity Consumption by region
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-m_region <- feols(consumption_hh ~ i(is_hp_installed, region, ref =0) | 
+m_region <- feols(consumption_weekly ~ i(is_hp_installed, region, ref =0) | 
                     account_id + hdd + date,
                   data = hp_installed %>% filter(!is.na(region), !region=="", rate_period == "Overall"),
                   cluster = ~account_id)
@@ -680,7 +683,7 @@ hp_installed <- hp_installed %>%
                                          labels = labels))
 
 
-m_floor <- feols(consumption_hh ~ i(is_hp_installed, total_floor_area_category, ref =0) 
+m_floor <- feols(consumption_yearly ~ i(is_hp_installed, total_floor_area_category, ref =0) 
                  | date +  account_id + hdd,
                  data = hp_installed %>% filter(!is.na(total_floor_area_category), treated==1),
                  split = ~ rate_period,
@@ -719,7 +722,7 @@ for (i in 1:5) {
     ) +
     labs(
       x = "Floor Area Decile",
-      y = "Estimate (kWh)"
+      y = "Yearly Estimate (kWh)"
     ) +
     theme_minimal() +
     theme(

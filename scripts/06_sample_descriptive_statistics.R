@@ -28,7 +28,6 @@ summarise_outcome <- function(df, y, id = "id", scale = 1) {
 }
 
 # 2) Wrapper for CS objects, now split pre/post -------------------------------
-
 cs_summary_prepost <- function(obj, y,
                                id = "id",
                                label = NA_character_,
@@ -36,10 +35,12 @@ cs_summary_prepost <- function(obj, y,
                                week_var = "week",
                                firstweek_var = "firstweek") {
   
-  df <- obj$DIDparams$data
+  df <- obj$DIDparams$data 
+  names(df) <- make.unique(names(df))
+  anticipation <- obj$DIDparams$anticipation
   
   # define pre/post using your exact rule
-  df_pre  <- df %>% filter(.data[[week_var]] +1 < .data[[firstweek_var]])
+  df_pre  <- df %>% filter(.data[[week_var]]  +anticipation < .data[[firstweek_var]])
   df_post <- df %>% filter(.data[[week_var]]  >= .data[[firstweek_var]]) 
   
   bind_rows(
@@ -58,9 +59,7 @@ summaries <- bind_rows(
                      label = "Heat Pump: Elec (kWh)", scale = 1),
   cs_summary_prepost(est_cs_gas_weekly,   gas_consumption,  id = "id",
                      label = "Heat Pump: Gas (kWh)",  scale = 1),
-  cs_summary_prepost(est_cs_total_weekly, total_consumption, id = "id",
-                     label = "Heat Pump: Total (kWh)", scale = 1),
-  
+    
   cs_summary_prepost(est_cs_overall,   consumption_hh, id = "id",
                      label = "Tariff: Elec Overall (kWh)", scale = 48*7*52.25),
   cs_summary_prepost(est_cs_morning,   consumption_hh, id = "id",
@@ -124,8 +123,7 @@ latex_table <- tab %>%
     label = "summary_prepost",
     escape = TRUE
   ) %>%
-  kable_styling(latex_options = c("hold_position", "double_rule")) %>%
-  add_header_above(c(" " = 2, "Outcome" = 5))
+  kable_styling(latex_options = c("hold_position", "double_rule")) 
 
 # Add PANEL headers (explicit namespace to avoid masking)
 for (i in seq_len(nrow(panel_ranges))) {

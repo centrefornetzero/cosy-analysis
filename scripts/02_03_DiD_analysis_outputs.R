@@ -65,7 +65,7 @@ create_latex_table_cs <- function(models, headers, title, file, label,
                                   note = "",
                                   digits = 1,
                                   variable_label = "Is HP Installed $=$ 1",
-                                  pretreat_row_label = "Yearly Consumption",
+                                  pretreat_row_label = "Pre-Treatment Consumption",
                                   estimation_method = "Doubly Robust",
                                   control_group = "Not Yet Treated") {
 
@@ -88,7 +88,7 @@ create_latex_table_cs <- function(models, headers, title, file, label,
   # Anticipation
   anticipation <-  sapply(models, function(m) {
       m$DIDparams$anticipation
-  })
+  }) %>% unique() 
     
   # --- Fit stats (use the fields that actually exist in your objects) ---
     get_did_stat <- function(m, stat) {
@@ -109,10 +109,6 @@ create_latex_table_cs <- function(models, headers, title, file, label,
         if (!is.null(dp$nT))                 return(dp$nT)    # old
       }
 
-      if (stat == "anticipation") {
-        if (!is.null(dp$anticipation)) return(dp$anticipation)
-      }
-
       NA
     }
 
@@ -129,9 +125,6 @@ create_latex_table_cs <- function(models, headers, title, file, label,
       format_number(get_did_stat(m, "nT"))
     )
 
-    anticipation <- sapply(models, function(m)
-      format_number(get_did_stat(m, "anticipation"))
-    )
 
   # if anything came back empty, fail loudly instead of writing character(0)
   if (any(nchar(n_households) == 0) || any(nchar(nG) == 0) || any(nchar(nT) == 0)) {
@@ -176,15 +169,11 @@ latex <- paste0(latex, "      \\emph{Fit statistics}\\\\\n")
 latex <- paste0(latex, "      Number of Households & ", paste(n_households, collapse = " & "), " \\\\\n")
 latex <- paste0(latex, "      Number of Cohorts & ", paste(nG, collapse = " & "), " \\\\\n")
 latex <- paste0(latex, "      Number of Time Periods & ", paste(nT, collapse = " & "), " \\\\\n")
-latex <- paste0(latex, "      Anticipation Periods & ", paste(anticipation, collapse = " & "), " \\\\\n")
 latex <- paste0(latex, "      \\midrule \\midrule\n")
 latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Clustered (Household) standard-errors in parentheses}\\\\\n")
 latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Estimation Method: ", estimation_method, "}\\\\\n")
-
-# removed anticipation from this line, since it now varies by column
-latex <- paste0(latex, "      \\multicolumn{", k + 1,
-                "}{l}{Control Group: ", control_group, "}\\\\\n")
-
+latex <- paste0(latex, "      \\multicolumn{", k + 1,"}{l}{Control Group: ", control_group, "}\\\\\n")
+latex <- paste0(latex, "      \\multicolumn{", k + 1,"}{l}{Anticipation Period: ", anticipation, "}\\\\\n")
 latex <- paste0(latex, "      \\multicolumn{", k + 1, "}{l}{Signif. Codes: *** ",
                 conf_level, "\\% confidence band does not cover 0}\\\\\n")
 latex <- paste0(latex, "   \\end{tabular}\n")
@@ -486,13 +475,13 @@ pre_gas  <- pre_avg_from_aggte(aggte_simple_gas,  "gas_consumption")
 
 models_cs_full  <- list(Electricity = aggte_simple_elec, Gas = aggte_simple_gas)
 headers_cs      <- c("Electricity", "Gas")
-title_cs_full   <- "Heat Pump Installation Effects on Yearly Energy Consumption (kWh)"
+title_cs_full   <- "Heat Pump Installation Effects on Overall Energy Consumption (kWh)"
 file_cs_full    <- "tables/hp_did_overall_cs.tex"
 label_cs_full   <- "tab:hp-did-cs"
 
 note_cs_full <- paste(
-  "This table reports CS estimates",
-  "of the impact of heat pump installation on households\u2019 yearly electricity consumption (column 1)",
+  "This table reports the simple CS estimates",
+  "of the impact of heat pump installation on households\u2019 electricity consumption (column 1)",
   "and gas consumption (column 2). Cohorts refer to households with the same week of installation. ",
   sep = " "
 )
@@ -507,7 +496,7 @@ create_latex_table_cs(
   note = note_cs_full,
   digits = 1,
   variable_label = "Is HP Installed $=$ 1",
-  pretreat_row_label = "Yearly Consumption"
+  pretreat_row_label = "Pre-Treatment Consumption"
 )
 
 checkpoint("Saved tables/hp_did_overall_cs.tex")
@@ -540,7 +529,7 @@ for (a in anticipation_periods) {
   }
 
   # ---- Simple CS effects ----
-  aggte_simple_elec <- aggte(
+  aggte_simple_elec_ant <- aggte(
     readRDS(cs_files_a$Electricity),
     type = "simple",
     na.rm = TRUE,
@@ -549,7 +538,7 @@ for (a in anticipation_periods) {
     alp = 0.05
   )
 
-  aggte_simple_gas <- aggte(
+  aggte_simple_gas_ant <- aggte(
     readRDS(cs_files_a$Gas),
     type = "simple",
     na.rm = TRUE,
@@ -559,19 +548,19 @@ for (a in anticipation_periods) {
   )
 
   # ---- Pre-treatment means (using your helper) ----
-  pre_elec <- pre_avg_from_aggte(aggte_simple_elec, "elec_consumption")
-  pre_gas  <- pre_avg_from_aggte(aggte_simple_gas,  "gas_consumption")
+  pre_elec <- pre_avg_from_aggte(aggte_simple_elec_ant, "elec_consumption")
+  pre_gas  <- pre_avg_from_aggte(aggte_simple_gas_ant,  "gas_consumption")
 
   models_cs_full <- list(
-    Electricity = aggte_simple_elec,
-    Gas         = aggte_simple_gas
+    Electricity = aggte_simple_elec_ant,
+    Gas         = aggte_simple_gas_ant
   )
 
   headers_cs <- c("Electricity", "Gas")
 
   # You can choose whether to reflect anticipation in the title or just the note/label
   title_cs_full <- paste0(
-    "Heat Pump Installation Effects on Yearly Energy Consumption (kWh), Anticipation = ",
+    "Heat Pump Installation Effects on Energy Consumption (kWh), Anticipation = ",
     a
   )
 
@@ -579,8 +568,8 @@ for (a in anticipation_periods) {
   label_cs_full <- paste0("tab:hp-did-cs-anticipation-", a)
 
   note_cs_full <- paste(
-    "This table reports Callaway–Sant'Anna estimates of the impact of heat pump installation",
-    "on households’ yearly electricity consumption (column 1) and gas consumption (column 2).",
+    "This table reports simple Callaway–Sant'Anna estimates of the impact of heat pump installation",
+    "on households’ electricity consumption (column 1) and gas consumption (column 2).",
     "Cohorts refer to households with the same week of installation.",
     "Estimates are computed using an anticipation window of", a, "period(s).",
     sep = " "
@@ -596,7 +585,7 @@ for (a in anticipation_periods) {
     note = note_cs_full,
     digits = 1,
     variable_label = "Is HP Installed $= 1$",
-    pretreat_row_label = "Yearly Consumption"
+    pretreat_row_label = "Pre-Treatment Consumption"
   )
 
   checkpoint(paste0("Saved ", file_cs_full))
@@ -621,12 +610,12 @@ pre_elec_gasonly <- pre_avg_from_aggte(aggte_simple_elec_gasonly, "elec_consumpt
 pre_gas_gasonly  <- pre_avg_from_aggte(aggte_simple_gas_gasonly,  "gas_consumption")
 
 models_cs_gasonly <- list(Electricity = aggte_simple_elec_gasonly, Gas = aggte_simple_gas_gasonly)
-title_cs_gasonly  <- "Heat Pump Installation Effects on Yearly Energy Consumption (Gas-Metered Households)"
+title_cs_gasonly  <- "Heat Pump Installation Effects on Energy Consumption (Gas-Metered Households)"
 file_cs_gasonly   <- "tables/hp_did_overall_cs_gas_only.tex"
 label_cs_gasonly  <- "tab:hp-did-cs-gas-only"
 
 note_cs_gasonly <- paste(
-  "This table reports CS estimates of the impact of heat pump installation on yearly electricity (column 1)",
+  "This table reports the simple CS estimates of the impact of heat pump installation on electricity (column 1)",
   "and gas consumption (column 2). Both models are estimated on the subsample of households with observed",
   "gas consumption prior to installation, and therefore use a smaller sample than the full electricity-only analysis.",
   sep = " "
@@ -642,7 +631,7 @@ create_latex_table_cs(
   note = note_cs_gasonly,
   digits = 1,
   variable_label = "Is HP Installed $=$ 1",
-  pretreat_row_label = "Yearly Consumption"
+  pretreat_row_label = "Pre-Treatment Consumption"
 )
 
 checkpoint("Saved tables/hp_did_overall_cs_gas_only.tex")
@@ -840,7 +829,7 @@ checkpoint("Saved graphs/hp_calendarplot_combined_with_annual_labels.png and out
 checkpoint("Build 12m rolling plot + quarterly points + COP panel")
 
 # ---- 1) Weekly calendar ATT series -> 12m rolling yearly series ----
-plot_data_12m_all <- add_rolling_12m_sum(plot_cal_data, window_weeks = 52) %>%
+plot_data_12m <- add_rolling_12m_sum(plot_cal_data, window_weeks = 52) %>%
   filter(!is.na(estimate_12m)) %>%
   mutate(week_date = as.Date(week_date)) %>%
   arrange(type, week_date)
@@ -1017,7 +1006,7 @@ fitstat_register("pre_avg", function(x) {
 
   pre_avg <- mean(data_used[[outcome_variable]][data_used$is_hp_installed == 0], na.rm = TRUE)
   format_decimal(pre_avg, digits = 1)
-}, "Yearly Consumption")
+}, "Pre-Treatment Consumption")
 
 fitstat_register("t_obs", function(x) {
   t_var <- x$fixef_vars[3]
@@ -1025,27 +1014,23 @@ fitstat_register("t_obs", function(x) {
 }, "Number of Time Periods")
 
 # Build week / firstweek and the anticipation=5 treatment indicator
-overall_weekly_fe <-  overall_weekly %>%
-  ungroup() %>%
-  mutate(
-    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
-    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
-  ) %>%
-  group_by(account_id) %>%
-  mutate(id = cur_group_id()) %>%
-  ungroup() %>%
-  filter(week <= 129, firstweek <= 129)  %>%
-  filter(week <= firstweek - 5 | week > firstweek) 
+
                          
 
 # TWFE models (filtered to DID ids)
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id  + settlement_week ,
-            data = overall_weekly_fe %>% filter(id %in% ids_cs_elec),
+            data = overall_weekly %>%
+  filter(account_id %in% ids_cs_elec) %>%
+  ungroup() %>%
+  filter(week < firstweek - 4 | week > firstweek) ,
             fixef.rm = "none", 
             cluster = ~account_id)
 
-m2 <- feols(gas_consumption ~ i(is_hp_installed) | account_id + settlement_week ,
-            data = overall_weekly_fe %>% filter(id %in% ids_cs_gas),
+m2 <- feols(gas_consumption ~ i(is_hp_installed) |  account_id  + settlement_week ,
+            data = overall_weekly_fe <- overall_weekly %>%
+  filter(account_id %in% ids_cs_gas) %>%
+  ungroup() %>%
+  filter(week < firstweek - 4 | week > firstweek) ,
             fixef.rm = "none", 
             cluster = ~account_id)
 
@@ -1080,9 +1065,10 @@ etable(
     list("TWFE" = 2, "CS" = 2),
     list(rep(c("Electricity", "Gas"), times = 2))
   ),
+  dict = c("id" = "Household", "week" = "Week"),
   depvar = FALSE,
   tex = TRUE,
-  title = "HP Installation on Yearly Energy Consumption in kWh",
+  title = "HP Installation on Energy Consumption in kWh",
   fitstat = ~ N + g + pre_avg + t_obs + r2,
   file = "tables/hp_did_overall_detailed.tex",
   replace = TRUE,
@@ -1137,7 +1123,7 @@ did_data_never <- overall_weekly %>%
   ungroup() %>%
   filter(week <= 129) %>%
   mutate(firstweek = ifelse(firstweek > 129, 0, firstweek)) %>%
-  filter(week <= firstweek - 5 | week > firstweek)
+  filter(week <= firstweek - 4 | week > firstweek)
 
 
 # TWFE models (your original date cut)
@@ -1189,7 +1175,7 @@ etable(
   ),
   depvar = FALSE,
   tex = TRUE,
-  title = "HP Installation on Yearly Energy Consumption in kWh (Never-treated)",
+  title = "HP Installation on Energy Consumption in kWh (Never-treated)",
   fitstat = ~ N + g + pre_avg + t_obs + r2,
   file = "tables/hp_did_never_treated_detailed.tex",
   replace = TRUE,
