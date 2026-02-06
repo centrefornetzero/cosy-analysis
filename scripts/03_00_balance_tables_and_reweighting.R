@@ -448,18 +448,18 @@ ids_elec <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 ids_gas <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | hdd + account_id + settlement_week, 
-            data = overall_weekly %>% filter(account_id %in% ids_elec$account_id) %>% 
+            data = overall_weekly %>% filter(account_id %in% ids_elec) %>% 
             inner_join(matched_data2 %>% distinct(account_id, weights)), 
             cluster = ~account_id)
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | hdd + account_id + settlement_week, 
-            data = overall_weekly %>% ungroup() %>% filter(account_id %in% ids_gas$account_ids) %>% 
+            data = overall_weekly %>% ungroup() %>% filter(account_id %in% ids_gas) %>% 
             inner_join(matched_data2 %>% distinct(account_id, weights)), 
             cluster = ~account_id)
 
 # Table A.21: TWFE using Matching Weights (Heat Pump)
 
 etable(m1,m2, tex=TRUE, title = "TWFE using Matching Weights (Heatpump)",
-       headers = list("Electricity", "Gas"), 
+       headers = c("Electricity", "Gas"), 
        fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/matching_hp.tex", replace = TRUE, label="tab:hp-matching", 
       depvar = FALSE)
 
