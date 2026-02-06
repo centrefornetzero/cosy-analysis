@@ -185,13 +185,19 @@ latex <- paste0(latex, "\\end{table}\n")
 # LaTeX patcher for TWFE+CS combined table produced by fixest::etable
 #    Works for EXACT structure: m1,m2,m1,m2  => 4 models => 5 columns total
 # ============================================================
-
 patch_etable_twfe_cs <- function(file_path,
-                                cs_estimates, cs_se, cs_n, cs_nG, cs_nT,
+                                cs_estimates, cs_pre, cs_se, cs_n, cs_nG, cs_nT,
                                 coef_pattern = "Is HP Installed \\$=\\$ 1") {
+
+  library(stringr)
 
   checkpoint(paste0("Patching LaTeX table: ", file_path))
   file_content <- readLines(file_path)
+
+  # helper: numeric formatting for table (1 decimal, thousands sep)
+  format_num <- function(x, digits = 1) {
+    formatC(x, format = "f", big.mark = ",", digits = digits)
+  }
 
   # overwrite CS columns ONLY: parts[4]=CS Elec, parts[5]=CS Gas
   replace_cs_cols <- function(line, new_values) {
@@ -202,6 +208,7 @@ patch_etable_twfe_cs <- function(file_path,
     parts[5] <- str_trim(new_values[[2]])
     paste(parts, collapse = " & ")
   }
+
   clear_cs_cols <- function(line) {
     parts <- strsplit(line, "&")[[1]]
     if (length(parts) < 5) return(line)
@@ -212,58 +219,94 @@ patch_etable_twfe_cs <- function(file_path,
 
   # Construct coefficient/se strings (assumes stars always *** here; adapt if needed)
   new_estimates <- c(paste0(cs_estimates[["Electricity"]], "$^{***}$"),
-                     paste0(cs_estimates[["Gas"]], "$^{***}$"))
+                     paste0(cs_estimates[["Gas"]],        "$^{***}$"))
   new_se <- c(paste0("(", cs_se[["Electricity"]], ")"),
-              paste0("(", cs_se[["Gas"]], ")"))
+              paste0("(", cs_se[["Gas"]],        ")"))
 
-  # Safer row targeting
+  # --- locate lines -----------------------------------------------------------
   coeff_line   <- grep(coef_pattern, file_content)
   se_line      <- coeff_line + 1
 
-  obs_line     <- grep("^\\s*Observations\\s*&", file_content)
-  sample_line  <- grep("^\\s*Number of Households\\s*&|Size of the 'effective' sample", file_content)
-  periods_line <- grep("^\\s*Number of Time Periods\\s*&", file_content)
+  obs_line     <- grep("^\\s*Observations\\s*&",              file_content)
+  sample_line  <- grep("^\\s*Size of the 'effective' sample\\s*&|^\\s*Number of Households\\s*&",
+                       file_content)
+  pre_line     <- grep("^\\s*Pre-Treatment Consumption\\s*&", file_content)
+  periods_line <- grep("^\\s*Number of Time Periods\\s*&",    file_content)
 
-  hdd_line     <- grep("^\\s*HDD\\s*&", file_content)
-  hh_line      <- grep("^\\s*Household\\s*&", file_content)
-  week_line    <- grep("^\\s*Week\\s*&", file_content)
-  r2_line      <- grep("^\\s*R\\$\\^2\\$\\s*&", file_content)
+  hdd_line     <- grep("^\\s*HDD\\s*&",        file_content)
+  hh_line      <- grep("^\\s*Household\\s*&",  file_content)
+  week_line    <- grep("^\\s*Week\\s*&",       file_content)
+  r2_line      <- grep("^\\s*R\\$\\^2\\$\\s*&",file_content)
 
-  # Replace CS columns in key rows
+  # --- replace CS columns in key rows ----------------------------------------
+
+  # 1) Number of Households row (formerly "Size of the 'effective' sample")
   if (length(sample_line) > 0) {
-    file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
+    file_content[sample_line] <- gsub(
+      "Size of the 'effective' sample",
+      "Number of Households",
+      file_content[sample_line]
+    )
     file_content[sample_line] <- paste0(
-      replace_cs_cols(file_content[sample_line], c(cs_n[["Electricity"]], cs_n[["Gas"]])),
+      replace_cs_cols(
+        file_content[sample_line],
+        c(cs_n[["Electricity"]], cs_n[["Gas"]])
+      ),
       " \\\\"
     )
   }
 
+  # 2) Main coefficient + SE row
   if (length(coeff_line) > 0) {
-    file_content[coeff_line] <- paste0(replace_cs_cols(file_content[coeff_line], new_estimates), " \\\\")
-    file_content[se_line]    <- paste0(replace_cs_cols(file_content[se_line],    new_se),       " \\\\")
+    file_content[coeff_line] <- paste0(
+      replace_cs_cols(file_content[coeff_line], new_estimates),
+      " \\\\"
+    )
+    file_content[se_line] <- paste0(
+      replace_cs_cols(file_content[se_line], new_se),
+      " \\\\"
+    )
   }
 
+  # 3) Pre-treatment consumption row (NEW)
+  if (length(pre_line) > 0) {
+    new_pre_vals <- c(
+      format_num(cs_pre[["Electricity"]]),
+      format_num(cs_pre[["Gas"]])
+    )
+
+    file_content[pre_line] <- paste0(
+      replace_cs_cols(file_content[pre_line], new_pre_vals),
+      " \\\\"
+    )
+  }
+
+  # 4) Number of time periods row
   if (length(periods_line) > 0) {
     file_content[periods_line] <- paste0(
-      replace_cs_cols(file_content[periods_line], c(cs_nT[["Electricity"]], cs_nT[["Gas"]])),
+      replace_cs_cols(
+        file_content[periods_line],
+        c(cs_nT[["Electricity"]], cs_nT[["Gas"]])
+      ),
       " \\\\"
     )
   }
 
-  # Clear CS columns where TWFE-only info is shown
+  # --- clear CS columns where only TWFE info makes sense ---------------------
   if (length(obs_line)  > 0) file_content[obs_line]  <- paste0(clear_cs_cols(file_content[obs_line]),  " \\\\")
   if (length(hdd_line)  > 0) file_content[hdd_line]  <- paste0(clear_cs_cols(file_content[hdd_line]),  " \\\\")
   if (length(hh_line)   > 0) file_content[hh_line]   <- paste0(clear_cs_cols(file_content[hh_line]),   " \\\\")
   if (length(week_line) > 0) file_content[week_line] <- paste0(clear_cs_cols(file_content[week_line]), " \\\\")
   if (length(r2_line)   > 0) file_content[r2_line]   <- paste0(clear_cs_cols(file_content[r2_line]),   " \\\\")
 
-  # Clustering line must match 5 columns
+  # --- clustering line: ensure 5 columns -------------------------------------
   clustering_line_index <- grep("Clustered \\(Household\\)", file_content)
   if (length(clustering_line_index) > 0) {
-    file_content[clustering_line_index] <- "\\multicolumn{5}{l}{\\emph{Clustered (Household) standard-errors in parentheses}}\\\\"
+    file_content[clustering_line_index] <-
+      "\\multicolumn{5}{l}{\\emph{Clustered (Household) standard-errors in parentheses}}\\\\"
   }
 
-  # Add "Number of cohorts (CS)" row (5-column compliant)
+  # --- Number of cohorts (CS) row (5-column compliant) -----------------------
   if (length(sample_line) > 0) {
     new_row <- paste0("Number of cohorts (CS) &  &  & ",
                       cs_nG[["Electricity"]], " & ", cs_nG[["Gas"]], " \\\\")
@@ -453,10 +496,10 @@ cs_files_full <- list(
   Gas         = file.path(datapath, "scratch/est_cs_gas_weekly.RDS")
 )
 
-aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple", max_e=80,min_e=-80,
-                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
-aggte_simple_gas  <- aggte(readRDS(cs_files_full$Gas), type = "simple",  max_e=80,min_e=-80,
-                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+aggte_simple_elec <- aggte(readRDS(cs_files_full$Electricity), type = "simple",
+                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05, min_e=-80, max_e=80)
+aggte_simple_gas  <- aggte(readRDS(cs_files_full$Gas), type = "simple", 
+                           na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05, min_e=-80, max_e=80)
                                                   
 
 # Save IDs to keep consistent sample through the analysis
@@ -535,7 +578,8 @@ for (a in anticipation_periods) {
     na.rm = TRUE,
     clustervars = "id",
     bstrap = TRUE,
-    alp = 0.05
+    alp = 0.05,
+    min_e=-80, max_e=80
   )
 
   aggte_simple_gas_ant <- aggte(
@@ -544,7 +588,8 @@ for (a in anticipation_periods) {
     na.rm = TRUE,
     clustervars = "id",
     bstrap = TRUE,
-    alp = 0.05
+    alp = 0.05,
+    min_e=-80, max_e=80
   )
 
   # ---- Pre-treatment means (using your helper) ----
@@ -602,9 +647,9 @@ cs_files_gas_only <- list(
 )
 
 aggte_simple_elec_gasonly <- aggte(readRDS(cs_files_gas_only$Electricity), type = "simple",
-                                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+                                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05,min_e=-80, max_e=80)
 aggte_simple_gas_gasonly  <- aggte(readRDS(cs_files_gas_only$Gas), type = "simple",
-                                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+                                   na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05, min_e=-80, max_e=80)
 
 pre_elec_gasonly <- pre_avg_from_aggte(aggte_simple_elec_gasonly, "elec_consumption")
 pre_gas_gasonly  <- pre_avg_from_aggte(aggte_simple_gas_gasonly,  "gas_consumption")
@@ -643,9 +688,9 @@ checkpoint("Saved tables/hp_did_overall_cs_gas_only.tex")
 checkpoint("Dynamic CS plot (electricity + gas)")
 
 elec_dyn <- aggte(readRDS(cs_files_full$Electricity), type = "dynamic",
-                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -80, max_e = 80)
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE,alp = 0.05, min_e=-80, max_e=80)
 gas_dyn  <- aggte(readRDS(cs_files_full$Gas), type = "dynamic",
-                  na.rm = TRUE, clustervars = "id", bstrap = TRUE, min_e = -80, max_e = 80)
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE,alp = 0.05, min_e=-80, max_e=80)
 
 p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color)
 ggsave("graphs/dynamic_hp_plot_combined.png", plot = p_dyn, width = 10, height = 8, dpi = 300)
@@ -660,9 +705,9 @@ checkpoint("Calendar CS plot (electricity + gas) + annual labels + 'Empirical ef
 
 # ---- 1) Get calendar-time ATTs (weekly) ----
 elec_cal <- aggte(readRDS(cs_files_full$Electricity), type = "calendar",
-                  na.rm = TRUE, clustervars = "id", bstrap = TRUE)
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE,alp = 0.05, min_e=-80, max_e=80)
 gas_cal  <- aggte(readRDS(cs_files_full$Gas), type = "calendar",
-                  na.rm = TRUE, clustervars = "id", bstrap = TRUE)
+                  na.rm = TRUE, clustervars = "id", bstrap = TRUE,alp = 0.05, min_e=-80, max_e=80)
                          
                          
 # ---- 2) Rolling pre baselines (annualised) ----
@@ -1009,28 +1054,31 @@ fitstat_register("pre_avg", function(x) {
 }, "Pre-Treatment Consumption")
 
 fitstat_register("t_obs", function(x) {
-  t_var <- x$fixef_vars[3]
+  t_var <- x$fixef_vars[2]
   format_number(x$fixef_sizes[t_var])
 }, "Number of Time Periods")
 
 # Build week / firstweek and the anticipation=5 treatment indicator
-
+overall_weekly_fe <-  overall_weekly %>%
+  ungroup() %>%
+  mutate(
+    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
+  ) %>%
+  group_by(account_id) %>%
+  mutate(id = cur_group_id()) %>%
+  ungroup() %>%
+  filter(week < firstweek - 4 | week >= firstweek)
                          
 
 # TWFE models (filtered to DID ids)
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | account_id  + settlement_week ,
-            data = overall_weekly %>%
-  filter(account_id %in% ids_cs_elec) %>%
-  ungroup() %>%
-  filter(week < firstweek - 4 | week > firstweek) ,
+            data = overall_weekly_fe %>% filter(account_id %in% ids_cs_elec),
             fixef.rm = "none", 
             cluster = ~account_id)
 
 m2 <- feols(gas_consumption ~ i(is_hp_installed) |  account_id  + settlement_week ,
-            data = overall_weekly_fe <- overall_weekly %>%
-  filter(account_id %in% ids_cs_gas) %>%
-  ungroup() %>%
-  filter(week < firstweek - 4 | week > firstweek) ,
+            data = overall_weekly_fe %>% filter(account_id %in% ids_cs_gas),
             fixef.rm = "none", 
             cluster = ~account_id)
 
@@ -1061,6 +1109,7 @@ cs_nT <- list(
 etable(
   m1, m2,
   m1, m2,
+  fitstat = ~ N + g + pre_avg + t_obs + r2,
   headers = list(
     list("TWFE" = 2, "CS" = 2),
     list(rep(c("Electricity", "Gas"), times = 2))
@@ -1069,7 +1118,6 @@ etable(
   depvar = FALSE,
   tex = TRUE,
   title = "HP Installation on Energy Consumption in kWh",
-  fitstat = ~ N + g + pre_avg + t_obs + r2,
   file = "tables/hp_did_overall_detailed.tex",
   replace = TRUE,
   label = "tab:hp-did-overall-conso-detailed",
@@ -1083,6 +1131,7 @@ CleanPreAverage("tables/hp_did_overall_detailed.tex")
 patch_etable_twfe_cs(
   file_path = "tables/hp_did_overall_detailed.tex",
   cs_estimates = cs_estimates,
+  cs_pre =  c(Electricity = pre_elec, Gas = pre_gas),
   cs_se = cs_se,
   cs_n = cs_n,
   cs_nG = cs_nG,
@@ -1106,9 +1155,15 @@ cs_files_never <- list(
 )
 
 aggte_simple_elec_never <- aggte(readRDS(cs_files_never$Electricity), type = "simple",
-                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05, min_e=-80, max_e=80)
 aggte_simple_gas_never  <- aggte(readRDS(cs_files_never$Gas), type = "simple",
-                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+                                 na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05, min_e=-80, max_e=80)
+
+# Pre-treatment means (use DIDparams$data safely)
+pre_elec_never <- pre_avg_from_aggte(aggte_simple_elec_never, "elec_consumption")
+pre_gas_never  <- pre_avg_from_aggte(aggte_simple_gas_never,  "gas_consumption")
+
+                         
 # Rebuild DID index with 'never treated' coding (firstweek=0 if after window)
 start_date <- min(overall_weekly$settlement_week)
 
@@ -1123,18 +1178,18 @@ did_data_never <- overall_weekly %>%
   ungroup() %>%
   filter(week <= 129) %>%
   mutate(firstweek = ifelse(firstweek > 129, 0, firstweek)) %>%
-  filter(week <= firstweek - 4 | week > firstweek)
+  filter(week <= firstweek - 4 | week >= firstweek)
 
 
 # TWFE models (your original date cut)
 m1_never <- feols(
-  elec_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week,
+  elec_consumption ~ i(is_hp_installed) | account_id  + settlement_week,
   data = did_data_never %>% filter(id %in% unique(aggte_simple_elec_never$DIDparams$data$id)),
   cluster = ~account_id
 )
 
 m2_never <- feols(
-  gas_consumption ~ i(is_hp_installed) | account_id + hdd + settlement_week,
+  gas_consumption ~ i(is_hp_installed) | account_id + settlement_week,
   data = did_data_never %>% filter(id %in% unique(aggte_simple_gas_never$DIDparams$data$id)),
   cluster = ~account_id
 )
@@ -1190,6 +1245,7 @@ CleanPreAverage("tables/hp_did_never_treated_detailed.tex")
 patch_etable_twfe_cs(
   file_path = "tables/hp_did_never_treated_detailed.tex",
   cs_estimates = cs_estimates_never,
+  cs_pre =  c(Electricity = pre_elec_never, Gas = pre_gas_never),
   cs_se = cs_se_never,
   cs_n = cs_n_never,
   cs_nG = cs_nG_never,
@@ -1219,8 +1275,8 @@ process_week <- function(anticipation_week) {
   gas_file  <- paste0(output_base_path, output_filenames[2], "_anticipation_", anticipation_week, ".RDS")
   
   # Read and calculate aggregate estimates
-  elec_agg <- aggte(readRDS(elec_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
-  gas_agg  <- aggte(readRDS(gas_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05)
+  elec_agg <- aggte(readRDS(elec_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05, min_e=-80, max_e=80)
+  gas_agg  <- aggte(readRDS(gas_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05,  min_e=-80, max_e=80)
   
   # Create data frames for each type
   df_elec <- data.frame(
@@ -1320,8 +1376,8 @@ for (a in anticipation_periods) {
     na.rm = TRUE,
     clustervars = "id",
     bstrap = TRUE,
-    min_e = -90,
-    max_e = 90
+    min_e = -80,
+    max_e = 80
   )
 
   gas_dyn <- aggte(
@@ -1330,8 +1386,8 @@ for (a in anticipation_periods) {
     na.rm = TRUE,
     clustervars = "id",
     bstrap = TRUE,
-    min_e = -90,
-    max_e = 90
+    min_e = -80,
+    max_e = 80
   )
 
   # Create combined plot (assumes your function exists)
@@ -1373,9 +1429,9 @@ for (a in anticipation_periods) {
 
   # Calendar aggregation
   elec_cal <- aggte(readRDS(elec_path), type = "calendar",
-                    na.rm = TRUE, clustervars = "id", bstrap = TRUE)
+                    na.rm = TRUE, clustervars = "id", bstrap = TRUE,  min_e=-80, max_e=80)
   gas_cal  <- aggte(readRDS(gas_path),  type = "calendar",
-                    na.rm = TRUE, clustervars = "id", bstrap = TRUE)
+                    na.rm = TRUE, clustervars = "id", bstrap = TRUE,  min_e=-80, max_e=80)
 
   # Build plotting DF (weekly)
   plot_cal_data <- create_calendar_plot_data(start_date, elec_cal, gas_cal) %>%

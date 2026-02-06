@@ -29,7 +29,7 @@ overall_weekly <-  overall_weekly %>%
   mutate(id = cur_group_id()) %>%
   ungroup() %>%
   filter(week <= 129, firstweek <= 129)  %>%
-  filter(week <= firstweek - 5 | week > firstweek)
+  filter(week < firstweek - 4 | week >= firstweek)
 
 rm(all_combinations, merged_data, weather_weekly, electricity_daily, cosy_hp_install_gas_consumption)
 gc()

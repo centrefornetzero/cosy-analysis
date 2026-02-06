@@ -31,7 +31,7 @@ fitstat_register("pre_avg_solar", function(x) {
   formatted_pre_avg <- format_decimal(pre_avg)
   
   return(formatted_pre_avg)
-}, "Yearly Consumption Has Solar PV")
+}, "Pre-Treatment Consumption - Has Solar PV")
 
 
 
@@ -65,7 +65,7 @@ fitstat_register("pre_avg_rest", function(x) {
   formatted_pre_avg <- format_decimal(pre_avg)
   
   return(formatted_pre_avg)
-}, "Yearly Consumption No Solar PV")
+}, "Pre-Treatment Consumption - No Solar PV")
 
 
 # ================================================================
@@ -78,7 +78,7 @@ ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
   filter(account_id %in% ids_cs_elec)  %>%
   filter(week <= 129, firstweek <= 129)  %>%
-  filter(week <= firstweek - 5 | week > firstweek) %>% 
+  filter(week < firstweek - 4 | week >= firstweek) %>%
   ungroup() %>% 
   mutate(total_consumption=365.25*total_consumption, 
          rate_period = factor(rate_period, 
@@ -95,15 +95,15 @@ m_solar <- feols(total_consumption ~ i(is_hp_installed) + i(is_hp_installed, hp_
 # Generate the initial LaTeX table
 etable(m_solar,  tex = TRUE, title = "HP Installation and Solar PV on Electricity Consumption ",
        fitstat = ~ N + g + pre_avg_rest + pre_avg_solar +t_obs + r2,
-       dict = c("total_consumption" = "Yearly Consumption in kWh"),
+       dict = c("total_consumption" = "Consumption in kWh"),
        file = "tables/hp_did_solar.tex", replace = TRUE, label = "tab:hp-did-solar")
 
 # Read the generated LaTeX file
 file_content <- readLines("tables/hp_did_solar.tex")
 
 # Find the lines with the pre-treatment average and remove them
-pre_avg_line_index <- grep("Yearly Consumption No Solar PV", file_content)
-pre_avg_line_index2 <- grep("Yearly Consumption Has Solar PV", file_content)
+pre_avg_line_index <- grep("Pre-Treatment Consumption - No Solar PV", file_content)
+pre_avg_line_index2 <- grep("Pre-Treatment Consumption - Has Solar PV", file_content)
 pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index2)]
 file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index2)]
 

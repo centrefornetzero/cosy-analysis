@@ -46,7 +46,7 @@ hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
          has_ev = ifelse(is.na(has_ev), 0, has_ev)) %>%
   filter(account_id %in% ids_cs_elec)  %>%
   filter(week <= 129, firstweek <= 129)  %>%
-  filter(week <= firstweek - 5 | week > firstweek) %>%
+  filter(week < firstweek - 4 | week >= firstweek) %>%
   filter(rate_period %in% c("Overall")) %>% 
   mutate(total_consumption=365.25*total_consumption)  %>%
                ungroup()
@@ -64,7 +64,7 @@ m1c <- feols(total_consumption  ~ i(is_hp_installed, ref=0) + has_ev + i(is_hp_i
 
 # Generate the initial LaTeX table
 etable(m1, m1c, tex = TRUE, title = "HP Installation on Electricity Consumption Controlling for EV Ownership", 
-       dict = c("total_consumption" = "Yearly Consumption in kWh"),
+       dict = c("total_consumption" = "Electricity Consumption in kWh"),
        fitstat = ~ N + g + pre_avg + t_obs + r2, 
        file = "tables/hp_did_ev.tex", replace = TRUE, label = "tab:hp-did-ev")
 

@@ -10,7 +10,7 @@ ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
   filter(account_id %in% ids_cs_elec)  %>%
   filter(week <= 129, firstweek <= 129)  %>%
-  filter(week <= firstweek - 5 | week > firstweek) %>% 
+  filter(week < firstweek - 4 | week >= firstweek)%>%
   ungroup()
 
 

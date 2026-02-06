@@ -13,7 +13,7 @@ ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
   filter(account_id %in% ids_cs_elec)  %>%
   filter(week <= 129, firstweek <= 129)  %>%
-  filter(week <= firstweek - 5 | week > firstweek) %>% 
+  filter(week < firstweek - 4 | week >= firstweek) %>%
   ungroup() %>% 
    mutate(
      consumption_weekly = consumption_hh *48 *7, 
@@ -111,12 +111,14 @@ for (i in 1:5) {
 
 rm(tempreg)
 
-m1 <- feols(consumption_weekly ~ i(is_hp_installed) | hdd + account_id + date, 
+hp_installed <- hp_installed %>% mutate(consumption_yearly = consumption_hh*48*365.25)
+                    
+m1 <- feols(consumption_yearly ~ i(is_hp_installed) | hdd + account_id + date, 
             data =hp_installed, 
             cluster = ~account_id, 
             split = ~ rate_period)
 
-m2a <- feols(consumption_weekly ~ i(is_hp_installed, epc_letter, ref=0)  | 
+m2a <- feols(consumption_yearly ~ i(is_hp_installed, epc_letter, ref=0)  | 
                hdd + account_id + date,
              data = hp_installed %>%  
                filter(treated==1) %>%
@@ -149,7 +151,8 @@ for (i in 1:5) {
     ) %>%
     mutate(`% ATE` = Estimate / m1[[j]]$coefficients * 100,
            lower_ci_ATE = lower_ci / m1[[j]]$coefficients * 100,
-           upper_ci_ATE = upper_ci / m1[[j]]$coefficients * 100)
+           upper_ci_ATE = upper_ci / m1[[j]]$coefficients * 100) 
+
   
   # Assuming coefs is your data frame and rating_colors is your color vector
   coefs <- coefs %>%
@@ -157,19 +160,33 @@ for (i in 1:5) {
   
   # Create the ggplot
   if (mean(coefs$Estimate) > 0) {
-    nudge_x <-  0.01
+    nudge_x <-  100
     
   } else {
-    nudge_x <- -0.01
+    nudge_x <- -100
   }
   
   ggplot(coefs, aes(y = factor(EPC_letter, levels = rev(unique(EPC_letter))), x = Estimate, fill = factor(EPC_letter))) +
     geom_bar(stat = "identity", show.legend = FALSE) +
     geom_errorbar(aes(xmin = lower_ci, xmax = upper_ci), width = 0.2, color="grey") +
-    geom_vline(xintercept = 0, linetype = "dashed", color = "black") +  # Add vertical line at x = 0
+    geom_vline(xintercept = 0, linetype = "dashed", color = "black") + # Add vertical line at x = 0
     geom_vline(xintercept = m1[[j]]$coefficients, linetype = "dashed", color = hp_color, alpha = 0.6) +  # Add vertical line at 100% ATE
-    scale_fill_manual(values = rating_colors, name = "EPC Letter") +  # Use the defined colors
-    geom_hline(yintercept = m1[[j]]$coefficients, linetype = "dashed", alpha = 0.6, color = hp_color) +  # Add horizontal line at 100% ATE
+    theme_minimal() +
+    theme(
+      axis.text.y = element_blank(),  # Hide original y-axis text
+      axis.ticks.y = element_blank(),  # Hide original y-axis ticks
+      axis.text.y.right = element_text(hjust = 0.5),  # Center the text on the right-hand side
+      axis.title.y.right = element_text(margin = margin(l = 10)),  # Add margin to right y-axis title
+      legend.position = "none"  # Remove legend
+    ) +
+    scale_fill_manual(values = rating_colors, name = "EPC Letter")  + # Use the defined colors+
+    scale_x_continuous(
+      sec.axis = sec_axis(~ ./m1[[j]]$coefficients, name = "% of ATE", labels = scales::percent_format())
+    ) +
+    labs(
+      x = "Estimate (kWh)",
+      y = "EPC Letter"
+    ) +
     # Add black "shadow" text for border effect
     geom_text(aes(label = EPC_letter, x = Estimate-nudge_x),  
               size = 4,
@@ -180,23 +197,8 @@ for (i in 1:5) {
     geom_text(aes(label = EPC_letter, x = Estimate-nudge_x),  
               size = 4,
               color = "white",  # White text on top
-              fontface = "bold") +
-    scale_x_continuous(
-      sec.axis = sec_axis(~ ./m1[[j]]$coefficients, name = "% of ATE", labels = scales::percent_format())
-    ) +
-    labs(
-      x = "Estimate (kWh)",
-      y = "EPC Letter"
-    ) +
-    theme_minimal() +
-    theme(
-      axis.text.y = element_blank(),  # Hide original y-axis text
-      axis.ticks.y = element_blank(),  # Hide original y-axis ticks
-      axis.text.y.right = element_text(hjust = 0.5),  # Center the text on the right-hand side
-      axis.title.y.right = element_text(margin = margin(l = 10)),  # Add margin to right y-axis title
-      legend.position = "none"  # Remove legend
-    )
-  
+              fontface = "bold") 
+                    
   # Print the plot
   ggsave(paste0("graphs/hp_epc_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
@@ -205,15 +207,16 @@ for (i in 1:5) {
 rm(m2a)
 
 
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Figure A.10: Impact of Heat Pump Installation by Previous 
 # Heat Source
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-m_sources <- feols(consumption_weekly ~ i(is_hp_installed, hp_survey_outcome_existing_heat_source, ref=0)  | 
+m_sources <- feols(consumption_yearly ~ i(is_hp_installed, hp_survey_outcome_existing_heat_source, ref=0)  | 
                      hdd + account_id + date,
-                   data = hp_installed %>% filter(treated == 1, !hp_survey_outcome_existing_heat_source==""), 
+                   data = hp_installed %>% filter(!hp_survey_outcome_existing_heat_source==""), 
                    split = ~ rate_period,
                    cluster = ~ account_id)
 
@@ -371,7 +374,7 @@ for (i in 1:5) {
     scale_fill_manual(values = red_palette) +
     labs(
       x = "Income Decile",
-      y = "Yearly Estimate (kWh)"
+      y = "Estimate (kWh)"
     ) +
     scale_y_continuous(
       sec.axis = sec_axis(~ ./(m1[[j]]$coefficients), name = "% of ATE", labels = scales::percent_format())
@@ -433,7 +436,7 @@ ggplot(all_coefs %>% filter(outcome == "Total Consumption", period != "Overall")
   scale_fill_manual(values = red_palette) +
   labs(
     x = "Income Category Decile",
-    y = "Yearly Estimate (kWh)"
+    y = "Estimate (kWh)"
   ) +
   theme_minimal() +
   theme(
@@ -509,7 +512,7 @@ for (i in 1:5) {
     scale_fill_manual(values = red_palette) +
     labs(
       x = "Property Value Decile",
-      y = "Yearly Estimate (kWh)"
+      y = "Estimate (kWh)"
     ) +
     scale_y_continuous(
       sec.axis = sec_axis(~ ./(m1[[j]]$coefficients), name = "% of ATE", labels = scales::percent_format())
@@ -554,7 +557,7 @@ hp_installed <- hp_installed %>%
                                                 include.lowest = TRUE,
                                                 labels = labels))
 
-m_heatloss <- feols(consumption_weekly ~ i(is_hp_installed, latest_survey_heat_loss_category, ref =0) 
+m_heatloss <- feols(consumption_yearly ~ i(is_hp_installed, latest_survey_heat_loss_category, ref =0) 
                     | account_id + hdd + date,
                     data = hp_installed %>% filter(!is.na(latest_survey_heat_loss_category)),
                     split = ~ rate_period,
@@ -609,7 +612,7 @@ for (i in 1:5) {
 ### Figure A.9: Impact of Heat Pump Installation on Half-Hourly 
 # Electricity Consumption by region
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-m_region <- feols(consumption_weekly ~ i(is_hp_installed, region, ref =0) | 
+m_region <- feols(consumption_yearly ~ i(is_hp_installed, region, ref =0) | 
                     account_id + hdd + date,
                   data = hp_installed %>% filter(!is.na(region), !region=="", rate_period == "Overall"),
                   cluster = ~account_id)
@@ -722,7 +725,7 @@ for (i in 1:5) {
     ) +
     labs(
       x = "Floor Area Decile",
-      y = "Yearly Estimate (kWh)"
+      y = "Estimate (kWh)"
     ) +
     theme_minimal() +
     theme(

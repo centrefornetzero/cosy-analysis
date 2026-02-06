@@ -122,7 +122,7 @@ fitstat_register("pre_avg", function(x) {
   formatted_pre_avg <- format_decimal(pre_avg)
   
   return(formatted_pre_avg)
-}, "Yearly Consumption")
+}, "Pre-Treatment Consumption")
 
 # Add number of time periods
 fitstat_register("t_obs", function(x) {
@@ -154,7 +154,6 @@ source("scripts/02_04_summary_graphs.R")
 
 # Remove all objects in the environment except for those in list_env
 rm(list = setdiff(ls(), list_env))
-
 
 source("scripts/02_05_balance_table.R")
 rm(list = setdiff(ls(), list_env))

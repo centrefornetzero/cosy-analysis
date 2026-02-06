@@ -61,7 +61,18 @@ hp_details <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_1
   mutate(sample = "HP")
 
 hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds"))
-overall_weekly <-  readRDS(file.path(datapath, "output/overall_weekly.rds"))
+overall_weekly <-  readRDS(file.path(datapath, "output/overall_weekly.rds"))  %>%
+  ungroup() %>%
+  mutate(
+    week = as.numeric(difftime(settlement_week, start_date, units = "weeks")) %/% 1 + 1,
+    firstweek = as.numeric(difftime(installed_at, start_date, units = "weeks")) %/% 1 + 1
+  ) %>%
+  group_by(account_id) %>%
+  mutate(id = cur_group_id()) %>%
+  ungroup() %>%
+  filter(week <= 129, firstweek <= 129)  %>%
+  filter(week < firstweek - 4 | week >= firstweek)
+
 
 
 # random sample
@@ -432,26 +443,23 @@ fitstat_register("t_obs", function(x) {
 }, "Number of Time Periods")
 
 # Restricting
-ids <- fread(file.path(datapath, "input/heatpump_ids.csv"))
-
-# Fit the model
-max_week <- overall_weekly %>% filter(!is.na(gas_consumption))
-max_week <- max(max_week$settlement_week)
+# Load main sample IDs
+ids_elec <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
+ids_gas <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 
 m1 <- feols(elec_consumption ~ i(is_hp_installed) | hdd + account_id + settlement_week, 
-            data = overall_weekly %>% filter(account_id %in% ids$account_ids, settlement_week <= max_week) %>% inner_join(matched_data2 %>% distinct(account_id, weights)), 
+            data = overall_weekly %>% filter(account_id %in% ids_elec$account_id) %>% 
+            inner_join(matched_data2 %>% distinct(account_id, weights)), 
             cluster = ~account_id)
 m2 <- feols(gas_consumption ~ i(is_hp_installed) | hdd + account_id + settlement_week, 
-            data = overall_weekly %>% ungroup() %>% filter(account_id %in% ids$account_ids) %>% inner_join(matched_data2 %>% distinct(account_id, weights)), 
-            cluster = ~account_id)
-m3 <- feols(total_consumption ~ i(is_hp_installed) | hdd + account_id + settlement_week, 
-            data = overall_weekly %>% ungroup() %>% filter(account_id %in% ids$account_ids) %>% inner_join(matched_data2 %>% distinct(account_id, weights)), 
+            data = overall_weekly %>% ungroup() %>% filter(account_id %in% ids_gas$account_ids) %>% 
+            inner_join(matched_data2 %>% distinct(account_id, weights)), 
             cluster = ~account_id)
 
 # Table A.21: TWFE using Matching Weights (Heat Pump)
 
-etable(m1,m2,m3, tex=TRUE, title = "TWFE using Matching Weights (Heatpump)",
-       headers = list("Electricity", "Gas", "Total"), 
+etable(m1,m2, tex=TRUE, title = "TWFE using Matching Weights (Heatpump)",
+       headers = list("Electricity", "Gas"), 
        fitstat = ~ N + g + pre_avg +t_obs + r2, file = "tables/matching_hp.tex", replace = TRUE, label="tab:hp-matching", 
       depvar = FALSE)
 

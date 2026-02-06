@@ -122,7 +122,8 @@ hp <- hp %>%
       distinct(account_id, interval_start, .keep_all = TRUE),
     by = c("account_id", "interval_start")
   ) %>%
-  mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging))
+  mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging)) %>%
+  filter(settlement_date + weeks(4) < installed_at | settlement_date >= installed_at)
 
 ################################################################################
 ## Regression
