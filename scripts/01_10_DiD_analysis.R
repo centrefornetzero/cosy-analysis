@@ -286,7 +286,7 @@ cat(">>> Data loaded: ", nrow(aggregated_data), " rows <<<\n")
 periods      <- unique(aggregated_data$rate_period)
 main_periods <- unique(aggregated_data$rate_period)
 
-base_periods <- c("varying", "universal")
+base_periods <- c( "universal")  #"varying",
 start_date   <- min(floor_date(aggregated_data$date, "week"))
 
 # ============================================================
@@ -302,7 +302,7 @@ for (period in periods) {
     file_suffix <- ifelse(base_period == "universal", "_universal", "")
     filename <- file.path(datapath, paste0("scratch/did_cosy_", period, file_suffix, ".RDS"))
 
-    if (!file.exists(filename)) {
+    #if (!file.exists(filename)) {
 
       cat(">>> Estimating & saving:", basename(filename), "<<<\n")
 
@@ -335,20 +335,22 @@ for (period in periods) {
         control_group = "notyettreated",
         allow_unbalanced_panel = TRUE,
         base_period = base_period,
-        cores = 10
+        cores = 4
       )
 
       saveRDS(est_cs, filename)
       cat(">>> Saved:", basename(filename), "<<<\n")
 
-    } else {
-      cat(">>> Skipping (exists):", basename(filename), "<<<\n")
-    }
+    #} else {
+    #  cat(">>> Skipping (exists):", basename(filename), "<<<\n")
+    #}
   }
 }
 
 cat("\n>>> Finished CS estimation <<<\n")
 
+                   
+               
 # ============================================================
 # 3) Calendar-time ATT-by-cohort plot (per period)
 # ============================================================
@@ -417,7 +419,7 @@ for (period in periods) {
   cat(">>> Dynamic plot for:", period, "<<<\n")
 
   est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
-  period_data <- aggte(est_cs, type = "dynamic", alp = 0.01, min_e = -52, max_e = 52)
+  period_data <- aggte(est_cs, type = "dynamic", alp = 0.05, min_e = -52, max_e = 52)
 
   plot_data <- create_dynamic_data(period_data, period) %>%
     mutate(cosy_status = factor(cosy_status, levels = c("Yes", "No")))
@@ -486,34 +488,152 @@ cat(">>> Saved combined dynamic ATT plot <<<\n")
 # ============================================================
 cat("\n>>> Calendar ATT plots <<<\n")
 
+
 create_calendar_data <- function(period_data, period_name, start_date) {
-  week_dates <- start_date + weeks(period_data$egt)
+  week_dates <- as.Date(start_date) + lubridate::weeks(as.numeric(period_data$egt))
   data.frame(
     week_date = week_dates,
-    estimate = period_data$att.egt,
-    lower_ci = period_data$att.egt - 1.96 * period_data$se.egt,
-    upper_ci = period_data$att.egt + 1.96 * period_data$se.egt,
-    period = period_name
-  )
+    estimate  = as.numeric(period_data$att.egt),
+    se        = as.numeric(period_data$se.egt),
+    lower_ci  = as.numeric(period_data$att.egt) - 1.96 * as.numeric(period_data$se.egt),
+    upper_ci  = as.numeric(period_data$att.egt) + 1.96 * as.numeric(period_data$se.egt),
+    period    = period_name
+  ) %>% arrange(week_date)
 }
 
+last12m_summary <- list()
 all_calendar <- data.frame()
-
 for (period in periods) {
 
-  cat(">>> Calendar plot for:", period, "<<<\n")
+ cat(">>> Period:", period, "<<<\n")
 
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
-  period_data <- aggte(est_cs, type = "calendar", alp = 0.01)
+  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, "_universal.RDS")))
 
-  plot_data <- create_calendar_data(period_data, period, start_date)
+  # calendar aggregation (REMOVE alp/min_e/max_e)
+  period_data <- aggte(
+    est_cs,
+    type        = "calendar",
+    na.rm       = TRUE,
+    bstrap      = TRUE,
+    clustervars = "id",
+    alp  = 0.05
+  )
 
+  # ------------------------------------------------------------------
+  # 1) Weekly calendar ATT (add se column, keep your structure)
+  # ------------------------------------------------------------------
+  plot_data <- create_calendar_data(period_data, period, start_date) %>%
+    mutate(
+      week_date = as.Date(week_date),
+      estimate  = as.numeric(estimate),
+      se        = as.numeric(period_data$se.egt)
+    ) %>%
+    arrange(week_date)
+
+  # ------------------------------------------------------------------
+  # 2) Last 12 months window (up to last observed week)
+  # ------------------------------------------------------------------
+  n_weeks <- nrow(plot_data)
+  win_n   <- min(52, n_weeks)   # if fewer than 52 weeks, use what you have
+
+  last_win <- plot_data %>%
+    slice_tail(n = win_n)
+
+  w_start <- min(last_win$week_date, na.rm = TRUE)
+  w_end   <- max(last_win$week_date, na.rm = TRUE)
+
+  # Mean ATT over that window (simple average of weekly ATTs)
+  mean_att <- mean(last_win$estimate, na.rm = TRUE)
+
+  # SE of mean (using weekly SEs; independence assumption)
+  se_mean_att <- sqrt(sum(last_win$se^2, na.rm = TRUE)) / win_n
+
+  # ------------------------------------------------------------------
+  # 3) Non-treated equivalent over same weeks
+  # ------------------------------------------------------------------
+  dat <- as.data.frame(est_cs$DIDparams$data)
+  dat <- dat[, !duplicated(names(dat)), drop = FALSE]
+  a   <- as.numeric(est_cs$DIDparams$anticipation)
+
+  baseline_df <- dat %>%
+    mutate(
+      week      = as.numeric(week),
+      week_date = as.Date(start_date) + weeks(week),
+      is_nyt    = week < (firstweek - a)
+    ) %>%
+    filter(is_nyt,
+           week_date >= w_start,
+           week_date <= w_end) %>%
+    group_by(week_date) %>%
+    summarise(
+      nyt_mean = mean(consumption_hh, na.rm = TRUE),
+      .groups  = "drop"
+    )
+
+  baseline_mean <- mean(baseline_df$nyt_mean, na.rm = TRUE)
+
+  share_baseline <- mean_att / baseline_mean   # in levels
+  share_label    <- scales::percent(share_baseline, accuracy = 0.1)
+
+  # ------------------------------------------------------------------
+  # 4) Shading + label for last 12 months
+  # ------------------------------------------------------------------
+  shade_df <- tibble(
+    xmin = w_start,
+    xmax = w_end,
+    ymin = -Inf,
+    ymax = Inf
+  )
+
+    y_max <- max(plot_data$upper_ci, na.rm = TRUE)
+    y_min <- min(plot_data$lower_ci, na.rm = TRUE)
+    yrng  <- y_max - y_min
+    if (!is.finite(yrng) || yrng == 0) yrng <- 1
+
+    label_x <- w_start + (w_end - w_start) / 2
+
+    # ---- smart vertical placement ----
+    label_y <- if (period == "Peak Rate") {
+      0 + 0.60 * yrng
+    } else if (period == "Other") {
+      0 + 0.80 * yrng
+    } else if (period == "Overall") {
+      0 - 0.3 * yrng
+    } else {
+      0 - 0.10 * yrng
+    }
+
+  label_txt <- paste0(
+    "Last 12 months (", win_n, " weeks):\n",
+    "Mean ATT = ", sprintf("%.3f", mean_att), " kWh\n",
+    "≈ ", share_label, " of non-treated level"
+  )
+
+  # ------------------------------------------------------------------
+  # 5) Plot with shading + label
+  # ------------------------------------------------------------------
   p <- ggplot(plot_data, aes(x = week_date, y = estimate)) +
+    geom_rect(
+      data = shade_df,
+      aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+      inherit.aes = FALSE,
+      fill = "grey70",
+      alpha = 0.2
+    ) +
     geom_point(color = cosy_color) +
     geom_line(color = cosy_color) +
     geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci),
                   width = 0.2, color = cosy_color, alpha = 0.6) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    annotate(
+      "text",
+      x = label_x,
+      y = label_y,
+      label = label_txt,
+      hjust = 0.5,
+      vjust = 1,
+      size = 3
+    ) +
     scale_x_date(labels = scales::date_format("%b %y"), date_breaks = "1 month") +
     scale_y_continuous(limits = c(-0.6, 1)) +
     labs(x = "Week", y = "Calendar ATT for Half Hourly Consumption in kWh") +
@@ -523,11 +643,81 @@ for (period in periods) {
   ggsave(paste0("graphs/calendarplot_", period, ".png"),
          plot = p, device = "png", width = 5, height = 4, dpi = 300)
 
-  cat(">>> Saved calendar plot for:", period, "<<<\n")
+  cat(">>> Saved calendar plot (with last 12m shading) for:", period, "<<<\n")
 
+    last12m_summary[[period]] <- tibble::tibble(
+      period        = period,
+      window_start  = as.Date(w_start),
+      window_end    = as.Date(w_end),
+      weeks_used    = win_n,
+      mean_att      = mean_att,
+      se_mean_att   = se_mean_att,
+      att_lo        = mean_att - 1.96 * se_mean_att,
+      att_hi        = mean_att + 1.96 * se_mean_att,
+      baseline_mean = baseline_mean,
+      share         = share_baseline
+    )
+    
   all_calendar <- bind_rows(all_calendar, plot_data)
 }
 
+               
+last12m_tab <- dplyr::bind_rows(last12m_summary) %>%
+  dplyr::mutate(
+    period = factor(period, levels = c("Morning Off-peak",
+                                       "Afternoon Off-peak",
+                                       "Peak Rate",
+                                       "Other",
+                                       "Overall"))
+  ) %>%
+  dplyr::arrange(period)
+
+# ---- LaTeX output (simple) ----
+latex_file <- file.path("tables/calendar_last12m_summary.tex")
+
+table_note <- paste0(
+  "\\textbf{Note:} This table summarizes calendar-time average treatment effects on the treated (ATT) ",
+  "for the heat pump tariff adoption analysis over June 2023 to June 2024. Weekly calendar ATTs are ",
+  "obtained from the Callaway--Sant’Anna estimator aggregated to calendar time. For each rate period, ",
+  "we report the \\emph{mean} calendar ATT over this period (``Mean ATT''). The standard error in parentheses ",
+  "is computed as $\\sqrt{\\sum_{t} \\mathrm{se}_t^2}/T$, where $\\mathrm{se}_t$ denotes the weekly standard error ",
+  "and $T$ is the number of weeks in the window. ``NYT baseline'' is the mean outcome among not-yet-treated ",
+  "households over the same weeks. ``Share (ATT/NYT)'' reports the ratio of the mean ATT to the NYT baseline, ",
+  "expressed as a percentage. Outcomes are measured in kWh per half-hour."
+)
+
+latex <- "\\begin{table}[htbp]\n"
+latex <- paste0(latex, "  \\caption{\\label{tab:calendar_last12m_summary} Heat Pump Tariff Adoption on Half Hourly Electricity Consumption in kWh}\n")
+latex <- paste0(latex, "  \\floatfoot{\\justifying \\footnotesize \\upshape ", table_note, "}\n")
+latex <- paste0(latex, "  \\centering\n")
+latex <- paste0(latex, "  \\begin{tabular}{lccc}\n")
+latex <- paste0(latex, "    \\tabularnewline \\midrule \\midrule\n")
+latex <- paste0(latex, "    Rate period & Mean ATT (se) & NYT baseline & Share (ATT/NYT) \\\\\n")
+latex <- paste0(latex, "    \\midrule\n")
+
+for (i in seq_len(nrow(last12m_tab))) {
+  mean_cell <- paste0(format_decimal(last12m_tab$mean_att[i], 3),
+                      " (", format_decimal(last12m_tab$se_mean_att[i], 3), ")")
+  base_cell <- format_decimal(last12m_tab$baseline_mean[i], 3)
+  share_cell <- paste0(format_decimal(100 * last12m_tab$share[i], 1), "\\%")
+
+  latex <- paste0(
+    latex,
+    "    ", as.character(last12m_tab$period[i]), " & ",
+    mean_cell, " & ",
+    base_cell, " & ",
+    share_cell, " \\\\\n"
+  )
+}
+
+latex <- paste0(latex, "    \\midrule \\midrule\n")
+latex <- paste0(latex, "    \\multicolumn{4}{l}{\\footnotesize Calendar window: June 2023 to June 2024.}\\\\\n")
+latex <- paste0(latex, "  \\end{tabular}\n")
+latex <- paste0(latex, "\\end{table}\n")
+
+writeLines(latex, latex_file)
+               
+               
 cat("\n>>> Combined calendar ATT plot <<<\n")
 
 all_calendar <- all_calendar %>%
@@ -625,7 +815,7 @@ for (period in main_periods) {
 
   cat(">>> CS simple for:", period, "<<<\n")
 
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
+  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, "_universal.RDS")))
 
   aggte_simple <- aggte(
     est_cs,
@@ -633,16 +823,16 @@ for (period in main_periods) {
     na.rm = TRUE,
     clustervars = "id",
     bstrap = TRUE,
-    alp = 0.01
+    alp = 0.05
   )
 
   pre_avg <- extract_pre_treatment_avg(aggte_simple, anticipation = 1)
 
   cs_estimates[[period]] <- aggte_simple$overall.att
   cs_se[[period]]        <- aggte_simple$overall.se
-  cs_n[[period]]         <- format_number(aggte_simple$DIDparams$id_count)
-  cs_nG[[period]]        <- format_number(aggte_simple$DIDparams$treated_groups_count)
-  cs_nT[[period]]        <- format_number(aggte_simple$DIDparams$time_periods_count)
+  cs_n[[period]]         <- format_number(aggte_simple$DIDparams$n)
+  cs_nG[[period]]        <- format_number(aggte_simple$DIDparams$nG)
+  cs_nT[[period]]        <- format_number(aggte_simple$DIDparams$nT)
   cs_pre_avg[[period]]   <- format_decimal(pre_avg, 4)
 }
 
@@ -663,7 +853,7 @@ cat("\n>>> Writing cosy_did_cs table <<<\n")
 
 
 models <- lapply(main_periods, function(period) {
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
+  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, "_universal.RDS")))
   aggte(est_cs, type="simple", na.rm=TRUE, clustervars="id", bstrap=TRUE, alp=0.01)
 })
 
