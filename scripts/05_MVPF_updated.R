@@ -267,6 +267,7 @@ out_tbl <- bind_rows(
 )
 
 print(out_tbl)
+
 # 1) Format a display table (NO % characters left unescaped)
 latex_tbl <- out_tbl %>%
   mutate(
@@ -331,6 +332,20 @@ NPV_clim_consumer <- npv(clim_consumer_stream, r_pref)
 NPV_clim_gov      <- npv(clim_gov_stream, r_pref)
 NPV_aq            <- npv(aq_benefits, r_aq)
 NPV_vat_energy    <- npv(vat_energy, r_pref)
+
+# ============================================================
+# 11) Implied optimal subsidy levels (per induced adopter)
+# ============================================================
+
+# Baseline external benefit per heat pump (climate + AQ, consumer side),
+# using your preferred MAC-based SCC and discount rates:
+B_external <- NPV_clim_consumer + NPV_aq
+
+# With learning-by-doing: add the LBD spillover term (already in £, same units)
+B_external_LBD <- B_external + LBD_TOTAL
+
+cat("Baseline external benefit per HP (no LBD): ", money_gbp(B_external), "\n")
+cat("External benefit per HP with LBD:         ", money_gbp(B_external_LBD), "\n")
 
 # ============================================================
 # Waterfall components per £ of subsidy
