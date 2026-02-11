@@ -590,7 +590,7 @@ for (i in 1:5) {
     scale_fill_manual(values = red_palette) +
     labs(
       x = "Heatloss MW Decile",
-      y = "Half Hourly Consumption in kWh"
+      y = "Estimate (kWh)"
     ) +
     scale_y_continuous(
       sec.axis = sec_axis(~ ./m1[[j]]$coefficients, name = "% of ATE", labels = scales::percent_format())

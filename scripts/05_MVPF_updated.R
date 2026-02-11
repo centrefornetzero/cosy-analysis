@@ -334,18 +334,34 @@ NPV_aq            <- npv(aq_benefits, r_aq)
 NPV_vat_energy    <- npv(vat_energy, r_pref)
 
 # ============================================================
-# 11) Implied optimal subsidy levels (per induced adopter)
+# Subsidy level S such that MVPF = 1 (First-£ algebra), using current script objects
 # ============================================================
 
-# Baseline external benefit per heat pump (climate + AQ, consumer side),
-# using your preferred MAC-based SCC and discount rates:
-B_external <- NPV_clim_consumer + NPV_aq
+# These are already computed above in your script:
+# NPV_clim_consumer, NPV_aq, NPV_clim_gov, NPV_vat_energy, vat_boiler_oneoff, LBD_TOTAL
 
-# With learning-by-doing: add the LBD spillover term (already in £, same units)
-B_external_LBD <- B_external + LBD_TOTAL
+Discounted_environmental_wtp_heatpump <- NPV_clim_consumer + NPV_aq
 
-cat("Baseline external benefit per HP (no LBD): ", money_gbp(B_external), "\n")
-cat("External benefit per HP with LBD:         ", money_gbp(B_external_LBD), "\n")
+# Gov-side “offsets” term consistent with your denominator structure:
+# (environmental gov rev) - (VAT change on energy) - (VAT boiler change)
+Discounted_environmental_gov_rev_heatpump <- NPV_clim_gov
+Discounted_vat_elec_gas_change_heatpump   <- NPV_vat_energy
+Vat_boiler_change_heatpump                <- vat_boiler_oneoff
+
+# Solve S where Numerator = Denominator (elasticity/total_cost cancels out)
+S_at_MVPF_1 <- Discounted_environmental_wtp_heatpump -
+  (Discounted_environmental_gov_rev_heatpump -
+     Discounted_vat_elec_gas_change_heatpump -
+     Vat_boiler_change_heatpump)
+
+S_at_MVPF_1_LBD <- (Discounted_environmental_wtp_heatpump + LBD_TOTAL) -
+  (Discounted_environmental_gov_rev_heatpump -
+     Discounted_vat_elec_gas_change_heatpump -
+     Vat_boiler_change_heatpump)
+
+cat("S at MVPF = 1 (base): ", money_gbp(S_at_MVPF_1), "\n")
+cat("S at MVPF = 1 (+LBD): ", money_gbp(S_at_MVPF_1_LBD), "\n")
+
 
 # ============================================================
 # Waterfall components per £ of subsidy

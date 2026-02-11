@@ -831,13 +831,6 @@ label_pos <- annual_sums %>%
 
 # Build calendar plot
 p_cal <- ggplot(plot_cal_data, aes(x = week_date, y = estimate, colour = type, group = type)) +
-  geom_rect(
-    data = shade_df,
-    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
-    inherit.aes = FALSE,
-    fill = "grey60",
-    alpha = 0.12
-  ) +
   geom_vline(xintercept = w1_end, linetype = "dotted", colour = "grey40") +
   geom_linerange(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.6, linewidth = 0.6) +
   geom_line(linewidth = 0.8) +
