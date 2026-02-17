@@ -858,8 +858,29 @@ ggsave("graphs/hp_calendarplot_combined_with_annual_labels.png",
        plot = p_cal, width = 10, height = 6, dpi = 300)
                          
                          
-checkpoint("Saved graphs/hp_calendarplot_combined_with_annual_labels.png and output/hp_calendarplot_combined.csv")
+                  
+                         
+                         
+# Build calendar plot
+p_cal <- ggplot(plot_cal_data, aes(x = week_date, y = estimate, colour = type, group = type)) +
+  geom_vline(xintercept = w1_end, linetype = "dotted", colour = "grey40") +
+  geom_linerange(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.6, linewidth = 0.6) +
+  geom_line(linewidth = 0.8) +
+  geom_point(aes(shape = type), size = 3) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "black") +
+  scale_x_date(labels = date_format("%b %y"), date_breaks = "3 month") +
+  scale_colour_manual(values = c(Electricity = elec_color, Gas = gas_color)) +
+  scale_shape_manual(values  = c(Electricity = 16, Gas = 17)) +
+  labs(x = "Week", y = "Calendar ATT for Weekly Consumption (kWh)", colour = "Type", shape = "Type") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45, hjust = 1))
 
+ggsave("graphs/hp_calendarplot_combined.png",
+       plot = p_cal, width = 10, height = 6, dpi = 300)
+                         
+checkpoint("Saved graphs/hp_calendarplot_combined_with_annual_labels.png and output/hp_calendarplot_combined.csv")
+       
 # ============================================================
 # 12m rolling ATT plot + quarterly callouts + COP panel + median label
 # ============================================================

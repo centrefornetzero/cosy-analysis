@@ -161,63 +161,68 @@ avg_cop <- round(main_results$emp_eff, digits = 2)
 print(paste0("Average empirical efficiency ~ ", avg_cop))
 
 # Set up bootstrapping
-set.seed(123456789)  # for reproducibility
-B <- 500  # number of bootstrap samples
-results <- vector("list", B)
-pb <- progress_bar$new(total = B, format = "Bootstrapping [:bar] :percent ETA: :eta")
+if (!file.exists(file.path(datapath, "scratch/cop_boot.csv"))) {
+    set.seed(123456789)  # for reproducibility
+    B <- 500  # number of bootstrap samples
+    results <- vector("list", B)
+    pb <- progress_bar$new(total = B, format = "Bootstrapping [:bar] :percent ETA: :eta")
 
-                
-for (b in 1:B) {
-    
-  start <- Sys.time()
-  pb$tick()
-  
-  # Resample account_ids with replacement
-  sampled_ids <- sample(unique(overall_weekly$account_id), replace = TRUE)
-  
-  # Rebuild bootstrapped sample
-  boot_data <- overall_weekly %>%
-    inner_join(data.frame(account_id = sampled_ids), by = "account_id")
-    
-  boot_model <- feols(c(elec_consumption, gas_consumption) ~ 
-            i(is_hp_installed, temp_degree, ref = 0) |
-            account_id + temp_degree + settlement_week,
-          data = boot_data, cluster = ~account_id, lean=TRUE)
-  
-  # Extract estimates
-  boot_coefs <- coeftable(boot_model) %>%
-    data.frame() %>%
-    separate(coefficient, 
-             into = c("is_hp_installed", "remove1", "temp", "remove2"), sep = "::") %>%
-    select(lhs, Estimate, temp) %>%
-    pivot_wider(names_from = lhs, values_from = Estimate) %>%
-    mutate(quasi_cop = abs(0.9 * gas_consumption / elec_consumption)) %>%
-    select(temp, quasi_cop)
-  
-  results[[b]] <- boot_coefs
-    
-  print(paste0(b, ": ", Sys.time() - start))
+
+    for (b in 1:B) {
+
+      start <- Sys.time()
+      pb$tick()
+
+      # Resample account_ids with replacement
+      sampled_ids <- sample(unique(overall_weekly$account_id), replace = TRUE)
+
+      # Rebuild bootstrapped sample
+      boot_data <- overall_weekly %>%
+        inner_join(data.frame(account_id = sampled_ids), by = "account_id")
+
+      boot_model <- feols(c(elec_consumption, gas_consumption) ~ 
+                i(is_hp_installed, temp_degree, ref = 0) |
+                account_id + temp_degree + settlement_week,
+              data = boot_data, cluster = ~account_id, lean=TRUE)
+
+      # Extract estimates
+      boot_coefs <- coeftable(boot_model) %>%
+        data.frame() %>%
+        separate(coefficient, 
+                 into = c("is_hp_installed", "remove1", "temp", "remove2"), sep = "::") %>%
+        select(lhs, Estimate, temp) %>%
+        pivot_wider(names_from = lhs, values_from = Estimate) %>%
+        mutate(quasi_cop = abs(0.9 * gas_consumption / elec_consumption)) %>%
+        select(temp, quasi_cop)
+
+      results[[b]] <- boot_coefs
+
+      print(paste0(b, ": ", Sys.time() - start))
+    }
+
+
+    # Combine bootstrap results
+    cop_boot <- bind_rows(results, .id = "bootstrap") %>%
+        mutate(
+          degree = factor(
+          temp,
+          levels = temp_levels,
+          labels = temp_labels,
+          ordered = TRUE
+        ))%>%
+      group_by(temp, degree) %>%
+      summarise(
+        lower = quantile(quasi_cop, 0.025, na.rm = TRUE),
+        upper = quantile(quasi_cop, 0.975, na.rm = TRUE),
+        median = median(quasi_cop, na.rm = TRUE),
+        .groups = "drop"
+      )
+    fwrite(cop_boot, file.path(datapath, "scratch/cop_boot.csv"))
+} else {
+    cop_boot <- fread(file.path(datapath, "scratch/cop_boot.csv"))
 }
-
-
-# Combine bootstrap results
-cop_boot <- bind_rows(results, .id = "bootstrap") %>%
-    mutate(
-      degree = factor(
-      temp,
-      levels = temp_levels,
-      labels = temp_labels,
-      ordered = TRUE
-    ))%>%
-  group_by(temp, degree) %>%
-  summarise(
-    lower = quantile(quasi_cop, 0.025, na.rm = TRUE),
-    upper = quantile(quasi_cop, 0.975, na.rm = TRUE),
-    median = median(quasi_cop, na.rm = TRUE),
-    .groups = "drop"
-  )
-fwrite(cop_boot, file.path(datapath, "scratch/cop_boot.csv"))
-cop_boot <- fread(file.path(datapath, "scratch/cop_boot.csv"))  %>%
+# Reload if needed 
+cop_boot <- cop_boot %>%
  mutate(
       daily_avg_air_temperature_celsius = factor(
       temp,
@@ -261,32 +266,38 @@ cop_reference_lines <- bind_rows(ashp_interp_df, brattle_cop)
 temp_breaks <- c(0, 5, 10, 15, 20, 25)
 temp_break_labels <- temp_labels[temp_levels %in% temp_breaks]
 
-ggplot(cop_boot %>% filter(as.numeric(temp) < 15), 
-       aes(x = daily_avg_air_temperature_celsius, y = median)) +
-  geom_bar(stat = "identity", alpha = 0.6, fill = hp_color) +
+ggplot(cop_boot %>% filter(temp < 15),
+            aes(x = degree, y = median)) +
+  geom_col(alpha = 0.6, fill = hp_color) +
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
   geom_hline(yintercept = 3.49, linetype = "dashed", color = hp_color) +
   annotate("text",
-             x = "5°C", y = avg_cop + 1.5,
-             label = paste0("Sample average ~ ", round(avg_cop, 2)),
-             color = hp_color, size = 4) +
-  # Overlay both COP reference lines with legend
-  geom_line(data = cop_reference_lines, 
-            aes(x = temp_c, y = cop, linetype = source), 
+           x = "5°C", y = avg_cop + 1.5,
+           label = paste0("Sample average ~ ", round(avg_cop, 2)),
+           color = hp_color, size = 4) +
+  # make the overlay use the SAME discrete axis positions
+  geom_line(data = cop_reference_lines %>%
+              mutate(degree = factor(
+                round(temp_c),                    # 0..15
+                levels = temp_levels,
+                labels = temp_labels,
+                ordered = TRUE
+              )),
+            aes(x = degree, y = cop, linetype = source, group = source),
             color = flexible_color) +
   scale_linetype_manual(values = c("EPRI" = "solid", "Brattle" = "dashed")) +
+    scale_x_discrete(
+      limits = temp_labels[temp_levels <= 15],   # include 15
+      breaks = c("< 0°C", "0°C", "5°C", "10°C", "15°C"),
+      drop = FALSE
+    ) +
   labs(
     x = "Average Weekly Temperature in Degrees (°C)",
     y = "Estimated ratio of heat output \nto energy input",
     linetype = "Engineering Models of COP"
   ) +
-  scale_x_discrete(
-    drop = FALSE,
-    breaks = c("<0°C", "0°C", "5°C", "10°C", "15°C")  # <-- “15” nicely printed
-  ) +
   theme_minimal() +
-  coord_cartesian(xlim = c(0, 16)) +  # more left margin
-  theme(legend.position = "bottom") 
+  theme(legend.position = "bottom")
 
 
 # Print the plot

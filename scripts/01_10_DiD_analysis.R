@@ -750,59 +750,34 @@ ggsave("graphs/calendarplot_combined.png", plot = p_calendar_combined,
 
 cat(">>> Saved combined calendar ATT plot <<<\n")
 
-# ============================================================
-# 6) TWFE table (fixest) -> write did.tex -> CleanPreAverage
-# ============================================================
-cat("\n>>> TWFE table (fixest::etable) <<<\n")
-
-m1 <- feols(
-  consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
-  data = aggregated_data,
-  cluster = ~account_id,
-  split = ~ rate_period
-)
-
-shortstack_period <- function(x) {
-  dplyr::case_when(
-    x == "Morning Off-peak"   ~ "\\shortstack{Morning\\\\Off-peak}",
-    x == "Afternoon Off-peak" ~ "\\shortstack{Afternoon\\\\Off-peak}",
-    TRUE ~ x
-  )
-}
-period_headers <- shortstack_period(sort(main_periods))
-
-etable(
-  m1, m1,
-  tex = TRUE,
-  title = "Adoption",
-  headers = list(
-    list("TWFE" = 5, "CS" = 5),
-    list(rep(period_headers, times = 2))
-  ),
-  fitstat = ~ N + g + pre_avg + t_obs + r2,
-  file = "tables/did.tex",
-  replace = TRUE,
-  label = "tab:did-main",
-  style.tex = style.tex(tpt = TRUE)
-)
-               
-CleanPreAverage("tables/did.tex")
-
-# Optional: tweak tabular preamble (kept from your later block)
-file_content <- readLines("tables/did.tex")
-file_content[5] <- gsub(
-  "\\\\begin\\{tabular\\}\\{lcccccccccc\\}",
-  "\\\\begin{tabular}{@{}l@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}}",
-  file_content[5]
-)
-writeLines(file_content, "tables/did.tex")
-
-cat(">>> Saved tables/did.tex (TWFE base) <<<\n")
-
-# ============================================================
-# 7) CS “simple” estimates per period -> inject into did.tex
+               # ============================================================
+# 6) CS “simple” estimates per period -> inject into did.tex
 # ============================================================
 cat("\n>>> CS simple aggregation + LaTeX injection <<<\n")
+
+cs_estimates <- list()
+cs_se        <- list()
+cs_n         <- list()
+cs_nG        <- list()
+cs_nT        <- list()
+cs_pre_avg   <- list()
+
+for (period in main_periods) {
+
+  cat(">>> CS simple for:", period, "<<<\n")
+
+  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, "_universal.RDS")))
+
+  aggte_simple <- aggte(
+    est_cs,
+    type = "simple",
+    na.rm = TRUE,
+    clustervars = "id",
+    bstrap = TRUE,
+    alp = 0.05
+  )
+
+  pre_avg <- extract_pre_treatment_avg(cat("\n>>> CS simple aggregation + LaTeX injection <<<\n")
 
 cs_estimates <- list()
 cs_se        <- list()
@@ -835,20 +810,7 @@ for (period in main_periods) {
   cs_nT[[period]]        <- format_number(aggte_simple$DIDparams$nT)
   cs_pre_avg[[period]]   <- format_decimal(pre_avg, 4)
 }
-
-inject_cs_into_did_tex(
-  file_path    = "tables/did.tex",
-  cs_estimates = cs_estimates,
-  cs_se        = cs_se,
-  cs_n         = cs_n,
-  cs_nG        = cs_nG,
-  cs_nT        = cs_nT,
-  cs_pre_avg   = cs_pre_avg
-)
-
-cat(">>> Injected CS results into tables/did.tex <<<\n")
-                             
-                             
+          
 cat("\n>>> Writing cosy_did_cs table <<<\n")
 
 
@@ -872,6 +834,96 @@ create_latex_table(
   label = "tab:cosy-did-cs",
   note  = note_text
 )
+                                       
+               
+# ============================================================
+# 7) TWFE table (fixest) -> write did.tex -> CleanPreAverage
+# ============================================================
+cat("\n>>> TWFE table (fixest::etable) <<<\n")
+
+# list CS ids
+ids <- aggte_simple$DIDparams$data$id %>% unique()
+mpans <- aggregated_data %>%
+        ungroup() %>%
+        filter(rate_period == period, !hashed_mpan == "1185945433") %>%
+        mutate(
+          settlement_week = floor_date(date, "week"),
+          week      = difftime(settlement_week, start_date, units = "weeks"),
+          firstweek  = difftime(floor_date(first_adoption, "week"), start_date, units = "weeks")
+        ) %>%
+        group_by(hashed_mpan, firstweek, week) %>%
+        summarise(consumption_hh = mean(consumption_hh), .groups = "drop") %>%
+        mutate(
+          firstweek = as.numeric(firstweek),
+          week      = as.numeric(week)
+        ) %>%
+        group_by(hashed_mpan) %>%
+        mutate(id = cur_group_id()) %>%
+        ungroup() %>%
+        filter(id %in% ids) %>%
+        pull(hashed_mpan)
+               
+               
+m1 <- feols(
+  consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
+  data = aggregated_data %>% filter(hashed_mpan %in% mpans),
+  cluster = ~account_id,
+  split = ~ rate_period
+)
+
+shortstack_period <- function(x) {
+  dplyr::case_when(
+    x == "Morning Off-peak"   ~ "\\shortstack{Morning\\\\Off-peak}",
+    x == "Afternoon Off-peak" ~ "\\shortstack{Afternoon\\\\Off-peak}",
+    TRUE ~ x
+  )
+}
+period_headers <- shortstack_period(sort(main_periods))
+
+etable(
+  m1, m1,
+  tex = TRUE,
+  title = "Heat Pump Tariff Adoption on Half Hourly Electricity Consumption",
+  headers = list(
+    list("TWFE" = 5, "CS" = 5),
+    list(rep(period_headers, times = 2))
+  ),
+  fitstat = ~ N + g + pre_avg + t_obs + r2,
+  file = "tables/did.tex",
+  replace = TRUE,
+  label = "tab:did-main",
+  style.tex = style.tex(tpt = TRUE)
+)
+               
+CleanPreAverage("tables/did.tex")
+
+# Optional: tweak tabular preamble (kept from your later block)
+file_content <- readLines("tables/did.tex")
+file_content[5] <- gsub(
+  "\\\\begin\\{tabular\\}\\{lcccccccccc\\}",
+  "\\\\begin{tabular}{@{}l@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}c@{}}",
+  file_content[5]
+)
+writeLines(file_content, "tables/did.tex")
+
+cat(">>> Saved tables/did.tex (TWFE base) <<<\n")
+
+
+
+inject_cs_into_did_tex(
+  file_path    = "tables/did.tex",
+  cs_estimates = cs_estimates,
+  cs_se        = cs_se,
+  cs_n         = cs_n,
+  cs_nG        = cs_nG,
+  cs_nT        = cs_nT,
+  cs_pre_avg   = cs_pre_avg
+)
+
+cat(">>> Injected CS results into tables/did.tex <<<\n")
+                             
+                             
+
 
 # ============================================================
 # 8) DiD imputation estimator + plots

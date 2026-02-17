@@ -111,45 +111,55 @@ etable(m_charging1, m_charging2, m_charging3, m_charging4,
                 Other = "Charging EV"))
 
 file_path <- "tables/ev_charging.tex"
+x <- readLines(file_path)
 
-# Read the generated LaTeX file
-file_content <- readLines(file_path)
+# --- what you want it to say ---
+baseline_name <- "Baseline charging"   # rename "Half Hourly Consumption" row to this
+dv_name       <- "Charging EV"         # set to NULL if you DON'T want to touch the Dependent Variable header
 
-# Find the lines with the pre-treatment average and remove them
-if (length(grep("Charging EV", file_content))==1) {
-  pre_avg_line_index <- grep("Charging EV", file_content)
-} else {
-  pre_avg_line_index <- grep("Charging EV", file_content)[2]
+# 1) (optional) rename dependent variable header
+if (!is.null(dv_name)) {
+  dv_line <- grep("^\\s*Dependent Variable:", x)
+  if (length(dv_line) > 0) {
+    x[dv_line] <- sub("\\{Charging EV\\}", paste0("{", dv_name, "}"), x[dv_line])
+  }
 }
 
-pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
-file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
+# 2) find and REMOVE the baseline row (currently named "Half Hourly Consumption")
+base_idx <- grep("^\\s*Half Hourly Consumption\\s*&", x)
+if (length(base_idx) == 0) stop("Couldn't find the 'Half Hourly Consumption' row.")
 
-# Find the position just after the coefficients
-coeff_end_index <- grep("Fixed-effects", file_content) -2
+baseline_row <- x[base_idx[1]]
+x <- x[-base_idx[1]]
 
-# Insert the pre-treatment average row after the coefficients
-file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
-file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
+# 3) rename that row label
+baseline_row <- sub("Half Hourly Consumption", baseline_name, baseline_row)
 
-# Add a \midrule after the pre-treatment average
-file_content <- append(file_content, "\\midrule", after = coeff_end_index)
+# 4) insert it where you want:
+# Here: immediately BEFORE the Fixed-effects block (i.e., right after the coefficient section)
+fe_idx <- grep("^\\s*\\\\emph\\{Fixed-effects\\}", x)
+if (length(fe_idx) == 0) stop("Couldn't find the Fixed-effects block.")
 
-# Modify the label for "Size of the 'effective' sample" to "Number of Households"
-sample_line <- grep("Size of the 'effective' sample", file_content)
-file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
+insert_after <- fe_idx[1] - 1
 
-# Modify the name of the dependent in pre-treatment averages
-var_line <- grep("Half Hourly Consumption", file_content)
-file_content[sample_line] <- gsub("Half Hourly Consumption", "Charging EV", file_content[var_line])
+# add a little label line + row + midrule (optional; remove label line if you don't want it)
+x <- append(x, "\\emph{Baseline}\\\\", after = insert_after)
+x <- append(x, baseline_row,          after = insert_after + 1)
+x <- append(x, "\\midrule",           after = insert_after + 2)
+
+# 5) rename effective sample label
+eff_idx <- grep("Size of the 'effective' sample", x)
+if (length(eff_idx) > 0) {
+  x[eff_idx] <- gsub("Size of the 'effective' sample", "Number of Households", x[eff_idx])
+}
 
 # Add note
 note <- "\\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} We show the results of four OLS models where the dependent variable is whether a charging event occurred in the period of interest – morning off-peak 4am-7am (column 1), afternoon off-peak 1pm-4pm (column 2), peak 4pm-7pm (column 3), and all other hours of the day (column 4). The sample is 127,789 charging events among 1,743 adopters for whom we detect evidence of EV charging. Where a charging events stretches across multiple periods, we attribute it to the period that comprises the \\textit{majority} of the event (in minutes). We see that among these EV owning adopters, adoption is associated with more charging the off-peak period and less in the peak and other periods.}"
 
-file_content <- append(file_content, note, after = grep("\\centering", file_content)-1)
+file_content <- append(x, note, after = grep("\\centering", x)-1)
 
 # Write the modified content back to the LaTeX file
-writeLines(file_content, file_path)
+writeLines(x, file_path)
 
 
 # =================================================================

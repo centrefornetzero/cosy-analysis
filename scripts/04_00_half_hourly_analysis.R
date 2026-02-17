@@ -339,6 +339,72 @@ ggplot(coefs, aes(x = settlement_period, y = Estimate, group = treatment, color 
 # Save the plot if necessary
 ggsave("graphs/combined_impact_hourly_consumption.png", width = 10, height = 6, dpi = 300)
 
+# Save the limit for hp and tariff coefs
+y_min <- min(coefs$lower_ci, na.rm = TRUE)
+y_max <- max(coefs$upper_ci, na.rm = TRUE)
+
+# plotting function
+make_plot <- function(data_subset, filename){
+
+  p <- ggplot(data_subset, 
+              aes(x = settlement_period, 
+                  y = Estimate, 
+                  group = treatment, 
+                  color = treatment)) +
+    
+    geom_rect(data = shaded_periods, 
+              aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = period_type),
+              inherit.aes = FALSE, alpha = 0.2) +
+    
+    geom_line() +
+    
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), 
+                  width = 0.2, alpha = 0.6) +
+    
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+    
+    scale_color_manual(
+      values = c("hp" = hp_color, 
+                 "cosy" = cosy_color,
+                 "both" = "purple")  # adjust if needed
+    ) +
+    
+    scale_fill_manual(
+      values = c("Morning and Afternoon Off-peak" = "red",
+                 "Peak Rate" = "lightblue")
+    ) +
+    
+    scale_x_continuous(
+      breaks = selected_periods,
+      labels = display_labels,
+      expand = expansion(mult = c(0.05, 0.15))
+    ) +
+    
+    scale_y_continuous(
+      limits = c(y_min, y_max) 
+    ) +
+    
+    labs(
+      x = "Time of Day (Settlement Period)",
+      y = "Impact on Electricity Consumption (kWh)"
+    ) +
+    
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none"
+    )
+
+  ggsave(filename, plot = p, width = 10, height = 6, dpi = 300)
+}
+
+make_plot(filter(coefs, treatment == "hp"),
+          "graphs/hp_only.png")
+
+make_plot(filter(coefs, treatment == "cosy"),
+          "graphs/tariff_only.png")
+
+
 
 # #################
 # stop here

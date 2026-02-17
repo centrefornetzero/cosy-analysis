@@ -118,36 +118,53 @@ etable(m_charging1, m_charging2, m_charging3, m_charging4,
                 Peak_Rate = "Charging EV", 
                 Other = "Charging EV"))
 
-# Read the generated LaTeX file
+# Read tex
 file_path <- "tables/hp_ev_charging.tex"
-
-# Read the generated LaTeX file
 file_content <- readLines(file_path)
 
-# Find the lines with the pre-treatment average and remove them
-if (length(grep("Charging EV", file_content))==1) {F
-  pre_avg_line_index <- grep("Charging EV", file_content)
-} else {
-  pre_avg_line_index <- grep("Charging EV", file_content)[2]
+# ---- settings you control ----
+new_row_name   <- "Baseline charging"          # what the row should be called in the table
+new_label_line <- "\\emph{Baseline charging}\\\\"
+
+# where to insert the baseline row (choose an anchor that exists in your table)
+# examples: "Is HP Installed", "Treatment", "Constant", etc.
+anchor_pattern <- "Is HP Installed"
+insert_offset  <- 2   # how many lines after the anchor match to insert
+# ------------------------------
+
+# 1) locate the pre-treatment row(s)
+pre_idx <- grep("Pre-Treatment Consumption", file_content)
+
+if (length(pre_idx) == 0) stop("Couldn't find 'Pre-Treatment Consumption' in the .tex file.")
+
+# If it appears multiple times, pick the 2nd like you were doing, otherwise the 1st
+pre_line_index <- if (length(pre_idx) == 1) pre_idx[1] else pre_idx[2]
+
+# grab the row line (single line) and remove it from file
+pre_line <- file_content[pre_line_index]
+file_content <- file_content[-pre_line_index]
+
+# 2) rename the row itself (left-hand label inside the row line)
+pre_line <- gsub("Pre-Treatment Consumption", new_row_name, pre_line)
+
+# 3) find insertion point using an anchor (more robust than hardcoding one variable)
+anchor_hits <- grep(anchor_pattern, file_content)
+if (length(anchor_hits) == 0) stop(paste0("Anchor pattern not found: ", anchor_pattern))
+
+insert_after <- anchor_hits[length(anchor_hits)] + insert_offset
+
+# 4) insert: label line + actual baseline row + midrule
+file_content <- append(file_content, new_label_line, after = insert_after)
+file_content <- append(file_content, pre_line,       after = insert_after + 1)
+file_content <- append(file_content, "\\midrule",    after = insert_after + 2)
+
+# 5) rename sample size row label
+sample_line <- grep("Size of the 'effective' sample", file_content)
+if (length(sample_line) > 0) {
+  file_content[sample_line] <- gsub("Size of the 'effective' sample",
+                                    "Number of Households",
+                                    file_content[sample_line])
 }
 
-# Find the lines with the pre-treatment average and remove them
-pre_avg_lines <- file_content[pre_avg_line_index:(pre_avg_line_index)]
-file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
-
-# Find the position just after the coefficients
-coeff_end_index <- grep("Is HP Installed", file_content)[length(grep("Is HP Installed", file_content))] + 2
-
-# Insert the pre-treatment average row after the coefficients
-file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
-file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
-
-# Add a \midrule after the pre-treatment average
-file_content <- append(file_content, "\\midrule", after = coeff_end_index + length(pre_avg_lines)+1)
-
-# Modify the label for "Size of the 'effective' sample" to "Number of Households"
-sample_line <- grep("Size of the 'effective' sample", file_content)
-file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
-
-# Write the modified content back to the LaTeX file
+# write back
 writeLines(file_content, file_path)
