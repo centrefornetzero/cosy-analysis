@@ -6,7 +6,7 @@
 # ----------------------------
 # 0) PATHS
 # ----------------------------
-PATH_XLSX <- file.path(datapath, "/input/HP and Cosy paper welfare analysis.xlsx")
+PATH_XLSX <- file.path(datapath, "input/HP and Cosy paper welfare analysis.xlsx")
 stopifnot(file.exists(PATH_XLSX))
 
 dir.create("tables", showWarnings = FALSE)
