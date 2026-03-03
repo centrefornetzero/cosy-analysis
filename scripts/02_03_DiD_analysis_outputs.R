@@ -416,8 +416,15 @@ calendar_vcov <- function(cal_obj, scale = 1) {
     if (is.null(x)) return(NULL)
 
     if (is.list(x)) {
-      for (nm in c("calendar.inf.func.e", "egt.inf.func", "att.inf.func.e")) {
+      for (nm in c("calendar.inf.func.t", "calendar.inf.func.e", "egt.inf.func", "att.inf.func.e")) {
         if (!is.null(x[[nm]])) return(extract_inf_fun(x[[nm]], k))
+      }
+      # Fallback: choose the matrix/data.frame element closest to k columns/rows.
+      candidates <- x[vapply(x, function(obj) is.matrix(obj) || is.data.frame(obj), logical(1))]
+      if (length(candidates) > 0) {
+        dims <- lapply(candidates, dim)
+        score <- vapply(dims, function(d) min(abs(d[1] - k), abs(d[2] - k)), numeric(1))
+        return(extract_inf_fun(candidates[[which.min(score)]], k))
       }
       if (length(x) == 1) return(extract_inf_fun(x[[1]], k))
       return(NULL)
