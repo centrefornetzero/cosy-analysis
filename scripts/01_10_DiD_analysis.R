@@ -34,6 +34,42 @@ confidence_star <- function(coefficient, se, alpha) {
   if (ci_lower > 0 | ci_upper < 0) "***" else ""
 }
 
+# Build vcov for calendar-time ATT path from did::aggte output.
+# Priority: influence-function covariance; fallback: diagonal from se.egt.
+calendar_vcov <- function(cal_obj) {
+  inf_fun <- NULL
+
+  if (!is.null(cal_obj$inf.function)) {
+    if (is.list(cal_obj$inf.function) &&
+        !is.null(cal_obj$inf.function$calendar.inf.func.e)) {
+      inf_fun <- cal_obj$inf.function$calendar.inf.func.e
+    } else if (is.matrix(cal_obj$inf.function)) {
+      inf_fun <- cal_obj$inf.function
+    }
+  }
+
+  if (!is.null(inf_fun)) {
+    n <- nrow(inf_fun)
+    return(crossprod(inf_fun) / (n^2))
+  }
+
+  if (!is.null(cal_obj$V_egt)) {
+    return(cal_obj$V_egt)
+  }
+
+  diag(as.numeric(cal_obj$se.egt)^2)
+}
+
+calendar_linear_se <- function(cal_obj, idx, weights = NULL) {
+  if (length(idx) == 0) return(NA_real_)
+  if (is.null(weights)) weights <- rep(1, length(idx))
+  stopifnot(length(weights) == length(idx))
+
+  V <- calendar_vcov(cal_obj)
+  V_sub <- V[idx, idx, drop = FALSE]
+  as.numeric(sqrt(t(weights) %*% V_sub %*% weights))
+}
+
 # ----------------------------
 # Helper: drop duplicate-named columns (keeps first occurrence)
 # ----------------------------
@@ -545,8 +581,23 @@ for (period in periods) {
   # Mean ATT over that window (simple average of weekly ATTs)
   mean_att <- mean(last_win$estimate, na.rm = TRUE)
 
-  # SE of mean (using weekly SEs; independence assumption)
-  se_mean_att <- sqrt(sum(last_win$se^2, na.rm = TRUE)) / win_n
+  # SE of mean ATT using full calendar covariance:
+  # se(mean) = sqrt(w' * Var(att_path) * w), with w_t = 1/T in the window.
+  cal_week_df <- tibble(
+    week_date = as.Date(start_date) + weeks(as.numeric(period_data$egt)),
+    idx = seq_along(period_data$egt)
+  )
+
+  last_idx <- last_win %>%
+    select(week_date) %>%
+    left_join(cal_week_df, by = "week_date") %>%
+    pull(idx)
+
+  se_mean_att <- calendar_linear_se(
+    period_data,
+    idx = last_idx,
+    weights = rep(1 / win_n, win_n)
+  )
 
   # ------------------------------------------------------------------
   # 3) Non-treated equivalent over same weeks
@@ -680,8 +731,9 @@ table_note <- paste0(
   "for the heat pump tariff adoption analysis over June 2023 to June 2024. Weekly calendar ATTs are ",
   "obtained from the Callaway--Sant’Anna estimator aggregated to calendar time. For each rate period, ",
   "we report the \\emph{mean} calendar ATT over this period (``Mean ATT''). The standard error in parentheses ",
-  "is computed as $\\sqrt{\\sum_{t} \\mathrm{se}_t^2}/T$, where $\\mathrm{se}_t$ denotes the weekly standard error ",
-  "and $T$ is the number of weeks in the window. ``NYT baseline'' is the mean outcome among not-yet-treated ",
+  "is computed as $\\sqrt{w'\\Sigma w}$, where $\\Sigma$ is the covariance matrix of weekly calendar ATT estimates ",
+  "(from the did influence-function/cluster bootstrap covariance) and $w_t=1/T$ over the selected window. ",
+  "``NYT baseline'' is the mean outcome among not-yet-treated ",
   "households over the same weeks. ``Share (ATT/NYT)'' reports the ratio of the mean ATT to the NYT baseline, ",
   "expressed as a percentage. Outcomes are measured in kWh per half-hour."
 )
@@ -754,30 +806,6 @@ cat(">>> Saved combined calendar ATT plot <<<\n")
 # 6) CS “simple” estimates per period -> inject into did.tex
 # ============================================================
 cat("\n>>> CS simple aggregation + LaTeX injection <<<\n")
-
-cs_estimates <- list()
-cs_se        <- list()
-cs_n         <- list()
-cs_nG        <- list()
-cs_nT        <- list()
-cs_pre_avg   <- list()
-
-for (period in main_periods) {
-
-  cat(">>> CS simple for:", period, "<<<\n")
-
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, "_universal.RDS")))
-
-  aggte_simple <- aggte(
-    est_cs,
-    type = "simple",
-    na.rm = TRUE,
-    clustervars = "id",
-    bstrap = TRUE,
-    alp = 0.05
-  )
-
-  pre_avg <- extract_pre_treatment_avg(cat("\n>>> CS simple aggregation + LaTeX injection <<<\n")
 
 cs_estimates <- list()
 cs_se        <- list()

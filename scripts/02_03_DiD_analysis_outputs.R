@@ -408,6 +408,64 @@ create_calendar_plot_data <- function(start_date, elec_data, gas_data) {
       upper_ci = estimate + 1.96 * se
     )
 }
+
+# Build vcov for calendar-time ATT path from did::aggte output.
+# Priority: influence-function covariance; fallback: diagonal from se.egt.
+calendar_vcov <- function(cal_obj, scale = 1) {
+  inf_fun <- NULL
+
+  if (!is.null(cal_obj$inf.function)) {
+    if (is.list(cal_obj$inf.function) &&
+        !is.null(cal_obj$inf.function$calendar.inf.func.e)) {
+      inf_fun <- cal_obj$inf.function$calendar.inf.func.e
+    } else if (is.matrix(cal_obj$inf.function)) {
+      inf_fun <- cal_obj$inf.function
+    }
+  }
+
+  if (!is.null(inf_fun)) {
+    n <- nrow(inf_fun)
+    return((scale^2) * crossprod(inf_fun) / (n^2))
+  }
+
+  if (!is.null(cal_obj$V_egt)) {
+    return((scale^2) * cal_obj$V_egt)
+  }
+
+  diag((scale * as.numeric(cal_obj$se.egt))^2)
+}
+
+calendar_linear_se <- function(cal_obj, idx, weights = NULL, scale = 1) {
+  if (length(idx) == 0) return(NA_real_)
+  if (is.null(weights)) weights <- rep(1, length(idx))
+  stopifnot(length(weights) == length(idx))
+
+  V <- calendar_vcov(cal_obj, scale = scale)
+  V_sub <- V[idx, idx, drop = FALSE]
+  as.numeric(sqrt(t(weights) %*% V_sub %*% weights))
+}
+
+window_annual_summary <- function(cal_obj, start_date, w_start, w_end, type_label, scale = 1/52.25) {
+  week_dates <- as.Date(start_date) + weeks(as.numeric(cal_obj$egt))
+  idx <- which(week_dates >= w_start & week_dates <= w_end)
+
+  annual_kwh <- sum(as.numeric(cal_obj$att.egt[idx]) * scale, na.rm = TRUE)
+  annual_se  <- calendar_linear_se(
+    cal_obj = cal_obj,
+    idx = idx,
+    weights = rep(1, length(idx)),
+    scale = scale
+  )
+
+  tibble(
+    type = type_label,
+    annual_kwh = annual_kwh,
+    annual_se = annual_se,
+    annual_lo = annual_kwh - 1.96 * annual_se,
+    annual_hi = annual_kwh + 1.96 * annual_se,
+    count_obs = length(idx)
+  )
+}
                          
 # ---- Rolling 12-month sum (yearly effect in kWh/year) + CI ----
 add_rolling_12m_sum <- function(df, window_weeks = 52) {
@@ -752,17 +810,18 @@ cal_win <- plot_cal_data %>%
   ) %>%
   filter(!is.na(window))
 
-# Annual sums of weekly ATTs within each window
-annual_sums <- cal_win %>%
-  group_by(type, window) %>%
-  summarise(
-    annual_kwh = sum(estimate, na.rm = TRUE),
-    annual_se  = sqrt(sum(se^2, na.rm = TRUE)),
-    annual_lo  = annual_kwh - 1.96 * annual_se,
-    annual_hi  = annual_kwh + 1.96 * annual_se, 
-    count_obs = n(),
-    .groups = "drop"
-  )
+# Annual sums of weekly ATTs within each window using full covariance:
+# se(sum) = sqrt(1' * Var(att_path_window) * 1)
+annual_sums <- bind_rows(
+  window_annual_summary(elec_cal, start_date, w1_start, w1_end, "Electricity") %>%
+    mutate(window = "Prev 12 months"),
+  window_annual_summary(gas_cal,  start_date, w1_start, w1_end, "Gas") %>%
+    mutate(window = "Prev 12 months"),
+  window_annual_summary(elec_cal, start_date, w2_start, w2_end, "Electricity") %>%
+    mutate(window = "Last 12 months"),
+  window_annual_summary(gas_cal,  start_date, w2_start, w2_end, "Gas") %>%
+    mutate(window = "Last 12 months")
+)
 
 # Window-specific "pre" baseline (annualised) to express as % of pre
 # We take the median pre within each window for stability.
