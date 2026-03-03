@@ -37,16 +37,26 @@ confidence_star <- function(coefficient, se, alpha) {
 # Build vcov for calendar-time ATT path from did::aggte output.
 # Priority: influence-function covariance; fallback: diagonal from se.egt.
 calendar_vcov <- function(cal_obj) {
-  inf_fun <- NULL
+  extract_inf_fun <- function(x, k) {
+    if (is.null(x)) return(NULL)
 
-  if (!is.null(cal_obj$inf.function)) {
-    if (is.list(cal_obj$inf.function) &&
-        !is.null(cal_obj$inf.function$calendar.inf.func.e)) {
-      inf_fun <- cal_obj$inf.function$calendar.inf.func.e
-    } else if (is.matrix(cal_obj$inf.function)) {
-      inf_fun <- cal_obj$inf.function
+    if (is.list(x)) {
+      for (nm in c("calendar.inf.func.e", "egt.inf.func", "att.inf.func.e")) {
+        if (!is.null(x[[nm]])) return(extract_inf_fun(x[[nm]], k))
+      }
+      if (length(x) == 1) return(extract_inf_fun(x[[1]], k))
+      return(NULL)
     }
+
+    if (is.data.frame(x) || is.matrix(x) || !is.null(dim(x))) {
+      m <- as.matrix(x)
+      if (ncol(m) == k) return(m)
+      if (nrow(m) == k) return(t(m))
+    }
+    NULL
   }
+
+  inf_fun <- extract_inf_fun(cal_obj$inf.function, length(cal_obj$egt))
 
   if (!is.null(inf_fun)) {
     n <- nrow(inf_fun)
@@ -57,6 +67,7 @@ calendar_vcov <- function(cal_obj) {
     return(cal_obj$V_egt)
   }
 
+  message("calendar_vcov: using diagonal fallback (off-diagonal covariance unavailable).")
   diag(as.numeric(cal_obj$se.egt)^2)
 }
 
