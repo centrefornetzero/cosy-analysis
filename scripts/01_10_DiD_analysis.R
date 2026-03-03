@@ -225,10 +225,29 @@ create_latex_table <- function(models, headers, title, file, label,
     format_decimal(pre_avg, 4)
   })
 
-  # Fit statistics (matching your CS table)
-  n_households <- sapply(models, function(m) format_number(m$DIDparams$id_count))
-  nG <- sapply(models, function(m) format_number(m$DIDparams$treated_groups_count))
-  nT <- sapply(models, function(m) format_number(m$DIDparams$time_periods_count))
+  # Fit statistics (support both old/new DIDparams field names)
+  get_did_stat <- function(m, stat) {
+    dp <- m$DIDparams
+
+    if (stat == "n_households") {
+      if (!is.null(dp$id_count)) return(dp$id_count)
+      if (!is.null(dp$n))        return(dp$n)
+    }
+    if (stat == "nG") {
+      if (!is.null(dp$treated_groups_count)) return(dp$treated_groups_count)
+      if (!is.null(dp$nG))                   return(dp$nG)
+    }
+    if (stat == "nT") {
+      if (!is.null(dp$time_periods_count)) return(dp$time_periods_count)
+      if (!is.null(dp$nT))                 return(dp$nT)
+    }
+
+    NA_real_
+  }
+
+  n_households <- sapply(models, function(m) format_number(get_did_stat(m, "n_households")))
+  nG <- sapply(models, function(m) format_number(get_did_stat(m, "nG")))
+  nT <- sapply(models, function(m) format_number(get_did_stat(m, "nT")))
 
   alpha <- models[[1]]$DIDparams$alp
   conf_level <- (1 - alpha) * 100
