@@ -498,23 +498,65 @@ window_annual_summary <- function(cal_obj, start_date, w_start, w_end, type_labe
 }
                          
 # ---- Rolling 12-month sum (yearly effect in kWh/year) + CI ----
-add_rolling_12m_sum <- function(df, window_weeks = 52) {
-  df %>%
+add_rolling_12m_sum <- function(df, cal_objs = NULL, window_weeks = 52, scale = 1 / 52.25) {
+  df <- df %>%
     arrange(type, week_date) %>%
     group_by(type) %>%
     mutate(
       estimate_12m = zoo::rollapply(
         estimate, width = window_weeks, FUN = sum,
         align = "right", fill = NA, na.rm = TRUE
-      ),
-      se_12m = sqrt(zoo::rollapply(
-        se^2, width = window_weeks, FUN = sum,
-        align = "right", fill = NA, na.rm = TRUE
-      )),
-      lower_ci_12m = estimate_12m - 1.96 * se_12m,
-      upper_ci_12m = estimate_12m + 1.96 * se_12m
+      )
     ) %>%
     ungroup()
+
+  # Backward-compatible fallback: diagonal-only rolling SE.
+  if (is.null(cal_objs)) {
+    return(
+      df %>%
+        group_by(type) %>%
+        mutate(
+          se_12m = sqrt(zoo::rollapply(
+            se^2, width = window_weeks, FUN = sum,
+            align = "right", fill = NA, na.rm = TRUE
+          )),
+          lower_ci_12m = estimate_12m - 1.96 * se_12m,
+          upper_ci_12m = estimate_12m + 1.96 * se_12m
+        ) %>%
+        ungroup()
+    )
+  }
+
+  # Covariance-aware rolling SE: se(sum_window) = sqrt(1' * V_window * 1)
+  out <- df %>%
+    group_split(type) %>%
+    lapply(function(dsub) {
+      type_name <- as.character(dsub$type[1])
+      cal_obj <- cal_objs[[type_name]]
+      if (is.null(cal_obj)) {
+        stop("Missing calendar object for type: ", type_name)
+      }
+
+      V <- calendar_vcov(cal_obj, scale = scale)
+      n <- nrow(dsub)
+      se_roll <- rep(NA_real_, n)
+
+      for (j in seq_len(n)) {
+        if (j < window_weeks) next
+        idx <- (j - window_weeks + 1):j
+        se_roll[j] <- sqrt(sum(V[idx, idx, drop = FALSE]))
+      }
+
+      dsub %>%
+        mutate(
+          se_12m = se_roll,
+          lower_ci_12m = estimate_12m - 1.96 * se_12m,
+          upper_ci_12m = estimate_12m + 1.96 * se_12m
+        )
+    }) %>%
+    bind_rows()
+
+  out
 }
 
 # ---- Rolling pre-treatment mean baseline (calendar time) + 52w rolling mean ----
@@ -977,7 +1019,11 @@ checkpoint("Saved graphs/hp_calendarplot_combined_with_annual_labels.png and out
 checkpoint("Build 12m rolling plot + quarterly points + COP panel")
 
 # ---- 1) Weekly calendar ATT series -> 12m rolling yearly series ----
-plot_data_12m <- add_rolling_12m_sum(plot_cal_data, window_weeks = 52) %>%
+plot_data_12m <- add_rolling_12m_sum(
+  plot_cal_data,
+  cal_objs = list(Electricity = elec_cal, Gas = gas_cal),
+  window_weeks = 52
+) %>%
   filter(!is.na(estimate_12m)) %>%
   mutate(week_date = as.Date(week_date)) %>%
   arrange(type, week_date)
