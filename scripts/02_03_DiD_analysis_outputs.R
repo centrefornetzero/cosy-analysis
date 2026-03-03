@@ -424,9 +424,21 @@ calendar_vcov <- function(cal_obj, scale = 1) {
     }
 
     if (is.data.frame(x) || is.matrix(x) || !is.null(dim(x))) {
-      m <- as.matrix(x)
+      m <- data.matrix(x)
+      if (ncol(m) != k && nrow(m) == k) m <- t(m)
       if (ncol(m) == k) return(m)
-      if (nrow(m) == k) return(t(m))
+
+      # Some did objects carry one extra IF column; drop the column that
+      # best matches reported se.egt when reconstructing diag(vcov).
+      if (ncol(m) == k + 1 && !is.null(cal_obj$se.egt)) {
+        se_target <- as.numeric(cal_obj$se.egt)
+        errs <- sapply(seq_len(ncol(m)), function(j) {
+          mm <- m[, -j, drop = FALSE]
+          se_try <- sqrt(diag(crossprod(mm) / (nrow(mm)^2)))
+          sum((se_try - se_target)^2, na.rm = TRUE)
+        })
+        return(m[, -which.min(errs), drop = FALSE])
+      }
     }
     NULL
   }
