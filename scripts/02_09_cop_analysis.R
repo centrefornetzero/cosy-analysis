@@ -213,7 +213,7 @@ if (!file.exists(file.path(datapath, "scratch/cop_boot_no_boxing.csv"))) {
           levels = -2:23,
           ordered = TRUE
         )) %>%
-      group_by(temp, degree) %>%
+      group_by(temp) %>%
       summarise(
         lower = quantile(quasi_cop, 0.025, na.rm = TRUE),
         upper = quantile(quasi_cop, 0.975, na.rm = TRUE),
@@ -222,86 +222,93 @@ if (!file.exists(file.path(datapath, "scratch/cop_boot_no_boxing.csv"))) {
       )
     fwrite(cop_boot, file.path(datapath, "scratch/cop_boot_no_boxing.csv"))
 } else {
-    cop_boot <- fread(file.path(datapath, "scratch/cop_boot_no_boxing.csv")) %>%
- mutate(
-      daily_avg_air_temperature_celsius = factor(
-      temp,
-      levels = -2:23,
-      ordered = TRUE
-    ))
+    cop_boot <- fread(file.path(datapath, "scratch/cop_boot_no_boxing.csv")) 
 }
 
-  
-# ASHP COP data from the EPRI chart
-ashp_cop <- data.frame(
+
+
+ashp_cop <- tibble(
   temp_f = c(-20, -10, 0, 10, 20, 30, 40, 50, 60),
-  cop = c(1.8, 1.8, 1.9, 2.1, 2.4, 2.7, 3.1, 3.5, 3.9)
-) %>% 
-  mutate(temp_c = (temp_f - 32) * 5 / 9) 
+  cop    = c(1.8, 1.8, 1.9, 2.1, 2.4, 2.7, 3.1, 3.5, 3.9)
+) %>%
+  mutate(temp_c = (temp_f - 32) * 5 / 9)
 
-# Create target Celsius values from 0 to 15°C
-target_temps <- tibble(temp_c = seq(0, 15, by = 1))
+target_temps <- tibble(temp_c = seq(-2, 15, by = 1))
 
-# Interpolate using base R's approx, wrapped in a tidyverse style
 ashp_interp_df <- target_temps %>%
-  mutate(cop = approx(x = ashp_cop$temp_c, y = ashp_cop$cop, xout = temp_c)$y)
+  mutate(cop = approx(x = ashp_cop$temp_c, y = ashp_cop$cop, xout = temp_c)$y,
+         source = "EPRI")
 
-# Define the linear model from The Brattle Group chart
-brattle_cop <- tibble(temp_c = seq(0, 15, by = 1)) %>%
+brattle_cop <- tibble(temp_c = seq(-2, 15, by = 1)) %>%
   mutate(
     temp_f = temp_c * 9 / 5 + 32,
     cop = 1.2 + 0.05 * temp_f,
-    temp = as.character(temp_c)  # to match factor format in cop_boot if needed
-  )
+    source = "Brattle"
+  ) %>%
+  select(temp_c, cop, source)
 
-ashp_interp_df <- ashp_interp_df %>%
-  mutate(source = "EPRI")
-
-brattle_cop <- brattle_cop %>%
-  select(temp_c, cop) %>%
-  mutate(source = "Brattle")
 
 cop_reference_lines <- bind_rows(ashp_interp_df, brattle_cop)
 
 # Your existing ggplot + ASHP COP overlay
 temp_breaks <- c(0, 5, 10, 15, 20, 25)
 temp_break_labels <- temp_labels[temp_levels %in% temp_breaks]
+temp_levels <- -2:23
 
-ggplot(cop_boot %>% filter(temp < 15),
-            aes(x = degree, y = median)) +
+# keep all bins from -2 to 15
+temp_levels <- -2:15
+temp_labels <- c("-2°C", "-1°C", "0°C", paste0(1:15, "°C"))
+
+# cap value = top of error bar at 14C
+cap_14 <- cop_boot %>%
+  mutate(temp_num = as.numeric(as.character(temp))) %>%
+  filter(temp_num == 14) %>%
+  summarise(cap = mean(upper, na.rm = TRUE)) %>%
+  pull(cap)
+
+cop_boot_plot <- cop_boot %>%
+  mutate(
+    temp_num = as.numeric(as.character(temp)),
+    degree_lab = factor(temp_num, levels = temp_levels, labels = temp_labels, ordered = TRUE),
+    upper_plot = ifelse(temp_num == 15, cap_14, upper),
+    upper_plot = pmax(upper_plot, median)   # keep valid error bar
+  ) %>%
+  filter(temp_num >= -2, temp_num <= 15)
+
+cop_reference_plot <- cop_reference_lines %>%
+  mutate(
+    temp_num = round(temp_c),
+    degree_lab = factor(temp_num, levels = temp_levels, labels = temp_labels, ordered = TRUE)
+  ) %>%
+  filter(temp_num >= -2, temp_num <= 15)
+
+p_quasi <- ggplot(cop_boot_plot, aes(x = degree_lab, y = median)) +
   geom_col(alpha = 0.6, fill = hp_color) +
-  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
-  geom_hline(yintercept = 3.49, linetype = "dashed", color = hp_color) +
+  geom_errorbar(aes(ymin = lower, ymax = upper_plot), width = 0.2, color = hp_color) +
+  annotate("text", x = "15°C", y = cap_14 + 0.11, label = "truncated", size = 2, color = hp_color) +
   annotate("text",
            x = "5°C", y = avg_cop + 1.5,
            label = paste0("Sample average ~ ", round(avg_cop, 2)),
            color = hp_color, size = 4) +
-  # make the overlay use the SAME discrete axis positions
-  geom_line(data = cop_reference_lines %>%
-              mutate(degree = factor(
-                round(temp_c),                    # 0..15
-                levels = temp_levels,
-                labels = temp_labels,
-                ordered = TRUE
-              )),
-            aes(x = degree, y = cop, linetype = source, group = source),
-            color = flexible_color) +
-  scale_linetype_manual(values = c("EPRI" = "solid", "Brattle" = "dashed")) +
-    scale_x_discrete(
-      limits = temp_labels[temp_levels <= 15],   # include 15
-      breaks = c("< 0°C", "0°C", "5°C", "10°C", "15°C"),
-      drop = FALSE
-    ) +
+  geom_line(
+    data = cop_reference_plot,
+    aes(x = degree_lab, y = cop, linetype = source, group = source),
+    color = flexible_color
+  ) +
   labs(
     x = "Average Weekly Temperature in Degrees (°C)",
     y = "Estimated ratio of heat output \nto energy input",
     linetype = "Engineering Models of COP"
+  )  +
+  scale_x_discrete(
+    limits = temp_labels,
+    breaks = c("0°C", "5°C", "10°C", "15°C"),
+    drop = FALSE
   ) +
   theme_minimal() +
   theme(legend.position = "bottom")
 
+ggsave("graphs/quasi_cop.png", plot = p_quasi, width = 16, height = 8, units = "cm")
 
-# Print the plot
-ggsave(paste0("graphs/quasi_cop.png"),
-       width = 16, height = 8, units = "cm")
+
                          

@@ -12,36 +12,6 @@
 #  calendar_att_12m_with_quarter_points_and_cop.png, quasi_cop.png).
 # ============================================================
 
-suppressPackageStartupMessages({
-  library(dplyr)
-  library(data.table)
-  library(readr)
-  library(lubridate)
-  library(tidyr)
-  library(ggplot2)
-  library(scales)
-  library(zoo)
-  library(fixest)
-  library(progress)
-  library(patchwork)
-})
-
-checkpoint <- function(msg) cat(paste0(">>> ", msg, " <<<\n"))
-
-# Colors (fallbacks if not defined by parent script)
-if (!exists("hp_color")) hp_color <- "#AD87CA"
-if (!exists("not_hp_color")) not_hp_color <- "#2D354A"
-if (!exists("flexible_color")) flexible_color <- "#4C515C"
-elec_color <- hp_color
-gas_color <- not_hp_color
-
-if (!exists("datapath")) {
-  if (getwd() == "/Users/louise/Documents/GitHub/cosy-analysis") {
-    datapath <- "data"
-  } else {
-    datapath <- "../gcs/cosy2"
-  }
-}
 
 write_main <- identical(Sys.getenv("WRITE_MAIN_FILENAMES", unset = "0"), "1")
 B_bootstrap <- as.integer(Sys.getenv("COP_BOOT_B", unset = "500"))
@@ -485,11 +455,7 @@ checkpoint("Build quasi_cop plot for gas-only sample")
 est_cs_gas_only <- readRDS(cs_files_gas_only$Electricity)
 did_data_gas_only <- clean_didparams_data(est_cs_gas_only$DIDparams$data)
 
-if (!("account_id" %in% names(did_data_gas_only))) {
-  stop("account_id not found in gas-only DID data. Cannot construct gas-only COP sample.")
-}
-
-ids_cs_elec_gas_only <- unique(did_data_gas_only$account_id)
+ids_cs_elec_gas_only <-  readRDS(file.path(datapath, "scratch/ids_cs_elec_gas_only.RS"))
 
 overall_weekly_cop <- read_rds(overall_weekly_path) %>%
   mutate_at(vars(elec_consumption, gas_consumption, total_consumption), ~ .x / 52.25) %>%
@@ -522,7 +488,7 @@ tempreg <- feols(
 # Readable labels
 temp_levels <- 0:25
 temp_labels <- as.character(temp_levels)
-temp_labels[temp_levels == 0]  <- "< 0°C"
+temp_labels[temp_levels == 0]  <- "≤ 0°C"
 temp_labels[temp_levels == 25] <- "≥ 25°C"
 temp_labels[!(temp_levels %in% c(0, 25))] <- paste0(temp_levels[!(temp_levels %in% c(0, 25))], "°C")
 
@@ -600,11 +566,20 @@ cop_reference_lines <- bind_rows(
   ashp_interp_df %>% mutate(source = "EPRI"),
   brattle_cop %>% select(temp_c, cop) %>% mutate(source = "Brattle")
 )
+                        
+cop_boot_plot <- cop_boot %>%
+  mutate(
+    temp_num = as.integer(as.character(temp)),
+    degree = factor(temp_num, levels = temp_levels, labels = temp_labels, ordered = TRUE),
+    upper_plot = if_else(degree == "15°C", pmin(upper, 6), upper)
+) %>%
+  filter(temp_num <= 15)                       
 
-p_quasi <- ggplot(cop_boot %>% filter(temp < 15), aes(x = degree, y = median)) +
+p_quasi <- ggplot(cop_boot_plot, aes(x = degree, y = median)) +
   geom_col(alpha = 0.6, fill = hp_color) +
-  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, color = hp_color) +
   geom_hline(yintercept = 3.49, linetype = "dashed", color = hp_color) +
+  geom_errorbar(aes(ymin = lower, ymax = upper_plot), width = 0.2, color = hp_color) +
+  annotate("text", x = "15°C", y = 6.1, label = "truncated", size = 2, color = hp_color) +
   annotate("text", x = "5°C", y = avg_cop + 1.5, label = paste0("Sample average ~ ", round(avg_cop, 2)), color = hp_color, size = 4) +
   geom_line(
     data = cop_reference_lines %>%
@@ -615,7 +590,7 @@ p_quasi <- ggplot(cop_boot %>% filter(temp < 15), aes(x = degree, y = median)) +
   scale_linetype_manual(values = c("EPRI" = "solid", "Brattle" = "dashed")) +
   scale_x_discrete(
     limits = temp_labels[temp_levels <= 15],
-    breaks = c("< 0°C", "0°C", "5°C", "10°C", "15°C"),
+    breaks = c("≤ 0°C", "0°C", "5°C", "10°C", "15°C"),
     drop = FALSE
   ) +
   labs(

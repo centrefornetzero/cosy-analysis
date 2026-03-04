@@ -136,6 +136,11 @@ fitstat_register("t_obs", function(x) {
   return(format_number(t_obs))
 }, "Number of Time Periods")
 
+# Define your colors (assumes hp_color/not_hp_color exist in your environment)
+elec_color <- hp_color
+gas_color  <- not_hp_color
+
+
 # Load data
 source("scripts/02_01_load_data.R")
 

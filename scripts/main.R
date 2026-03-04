@@ -33,6 +33,7 @@ if (getwd() != "/Users/louise/Documents/GitHub/cosy-analysis") {
   datapath <- "data"
 }
 
+checkpoint <- function(msg) cat(paste0(">>> ", msg, " <<<\n"))
 
 # Set estimation to mirror CS
 fixest::setFixest_estimation(fixef.rm = "none")
