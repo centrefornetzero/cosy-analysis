@@ -160,10 +160,14 @@ main_results <- eff_df %>% filter(window == "Last 12 months")
 avg_cop <- round(main_results$emp_eff, digits = 2)
 print(paste0("Average empirical efficiency ~ ", avg_cop))
 
+# Create rounded tempeture
+overall_weekly <- overall_weekly %>%
+  mutate(temp_rounded = factor(round(overall_weekly$avg_air_temperature_celsius), -2:23))
+
 # Set up bootstrapping
-if (!file.exists(file.path(datapath, "scratch/cop_boot.csv"))) {
+if (!file.exists(file.path(datapath, "scratch/cop_boot_no_boxing.csv"))) {
     set.seed(123456789)  # for reproducibility
-    B <- 500  # number of bootstrap samples
+    B <- 1000  # number of bootstrap samples
     results <- vector("list", B)
     pb <- progress_bar$new(total = B, format = "Bootstrapping [:bar] :percent ETA: :eta")
 
@@ -181,8 +185,8 @@ if (!file.exists(file.path(datapath, "scratch/cop_boot.csv"))) {
         inner_join(data.frame(account_id = sampled_ids), by = "account_id")
 
       boot_model <- feols(c(elec_consumption, gas_consumption) ~ 
-                i(is_hp_installed, temp_degree, ref = 0) |
-                account_id + temp_degree + settlement_week,
+                i(is_hp_installed, temp_rounded, ref = 0) |
+                account_id + temp_rounded + settlement_week,
               data = boot_data, cluster = ~account_id, lean=TRUE)
 
       # Extract estimates
@@ -204,12 +208,11 @@ if (!file.exists(file.path(datapath, "scratch/cop_boot.csv"))) {
     # Combine bootstrap results
     cop_boot <- bind_rows(results, .id = "bootstrap") %>%
         mutate(
-          degree = factor(
+          daily_avg_air_temperature_celsius = factor(
           temp,
-          levels = temp_levels,
-          labels = temp_labels,
+          levels = -2:23,
           ordered = TRUE
-        ))%>%
+        )) %>%
       group_by(temp, degree) %>%
       summarise(
         lower = quantile(quasi_cop, 0.025, na.rm = TRUE),
@@ -217,19 +220,17 @@ if (!file.exists(file.path(datapath, "scratch/cop_boot.csv"))) {
         median = median(quasi_cop, na.rm = TRUE),
         .groups = "drop"
       )
-    fwrite(cop_boot, file.path(datapath, "scratch/cop_boot.csv"))
+    fwrite(cop_boot, file.path(datapath, "scratch/cop_boot_no_boxing.csv"))
 } else {
-    cop_boot <- fread(file.path(datapath, "scratch/cop_boot.csv"))
-}
-# Reload if needed 
-cop_boot <- cop_boot %>%
+    cop_boot <- fread(file.path(datapath, "scratch/cop_boot_no_boxing.csv")) %>%
  mutate(
       daily_avg_air_temperature_celsius = factor(
       temp,
-      levels = temp_levels,
-      labels = temp_labels,
+      levels = -2:23,
       ordered = TRUE
     ))
+}
+
   
 # ASHP COP data from the EPRI chart
 ashp_cop <- data.frame(
