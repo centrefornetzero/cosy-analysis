@@ -88,7 +88,7 @@ make_did_data <- function(df,
   }
   
   # Keep only variables needed downstream
-  keep_vars <- c("id", "firstweek", "week",
+  keep_vars <- c("id", "firstweek", "week", "account_id",
                  "total_consumption", "elec_consumption", "gas_consumption")
   if (add_month) keep_vars <- c("id", "firstweek", "week", "month",
                                 "total_consumption", "elec_consumption", "gas_consumption")
@@ -256,8 +256,17 @@ est_cs_gas_only <- did::att_gt(
   base_period = "universal"
 )
 
+
 saveRDS(est_cs_gas_only, gas_only_file)
 message("Saved: ", gas_only_file)
+
+# extra: save account ids for gas only analysis
+ids_cs_elec_gas_only <- did_gas_only$data %>% 
+ filter(id %in% unique(est_cs_gas_only$DIDparams$data$id)) %>%
+  pull(account_id)
+saveRDS(ids_cs_elec_gas_only, file.path(datapath, "scratch/ids_cs_elec_gas_only.RS"))
+
+
 
 # ---------------------- CS with seasonality controls (trends) ----------------------
 
