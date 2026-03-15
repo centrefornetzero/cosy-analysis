@@ -808,10 +808,10 @@ final_table_with_sd <- final_table %>%
 
 stargazer(
   final_table_with_sd, type = "latex", summary = FALSE,
-  title = "Balance Table for \\textit{Cosy} Early and Late Adopters",
+  title = "Balance Table for Heat Pump Tariff Early and Late Adopters",
   rownames = FALSE,
   digits = 2,
-  label = "tab:cosy-adoption-stats",
+  label = "tab:cosy-late-early",
   out = "tables/balance_table_cosy_adoption.tex"
 )
 
@@ -897,6 +897,6 @@ stargazer(
   title = "Balance Table for Heat Pump Early and Late Adopters",
   rownames = FALSE,
   digits = 2,
-  label = "tab:cosy-adoption-stats",
+  label = "tab:hp-late-early",
   out = "tables/balance_table_hp_adoption.tex"
 )
