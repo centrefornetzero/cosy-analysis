@@ -110,30 +110,29 @@ panel_ranges <- tab %>%
     end   = cumsum(n)
   )
 
-# Index for sample groups (pack_rows)
-sample_index <- tab %>%
-  count(Sample) %>%
-  { setNames(.$n, .$Sample) }
-
-latex_table <- tab %>%
+# Flat layout: the series name goes in the first column and is shown ONCE per
+# series (on the "Pre" row), blank on the "Post" row, so "Heat Pump"/"Tariff"
+# no longer repeat on every line. Period stays in its own column. Panels are
+# bold sub-headers (group_rows). No nested pack_rows, no \hline (booktabs only).
+display <- tab %>%
   mutate(
-    Mean = scales::comma(Mean, accuracy = 0.01),
-    SD   = scales::comma(SD,   accuracy = 0.01)
+    Mean   = scales::comma(Mean, accuracy = 0.01),
+    SD     = scales::comma(SD,   accuracy = 0.01),
+    Series = if_else(Period == "Pre", as.character(Sample), "")
   ) %>%
-  # Drop Panel and Sample from the printed columns: the panel header
-  # (group_rows) and the row-group label (pack_rows) already carry that text,
-  # so keeping them here is what caused "Heat Pump"/"Tariff" to repeat on
-  # every line. pack_rows below still labels each group via sample_index.
-  select(Period, Obs, Mean, SD) %>%
+  select(Series, Period, Obs, Mean, SD)
+
+latex_table <- display %>%
   kbl(
     format = "latex",
     booktabs = TRUE,
-    align = "lrrr",
+    align = "llrrr",
+    col.names = c("", "Period", "Obs", "Mean", "SD"),
     caption = "Summary statistics before and after adoption",
     label = "summary_prepost",
     escape = FALSE
   ) %>%
-  kable_styling(latex_options = c("hold_position", "double_rule"))
+  kable_styling(latex_options = "hold_position")
 
 # Add PANEL headers (explicit namespace to avoid masking)
 for (i in seq_len(nrow(panel_ranges))) {
@@ -144,14 +143,11 @@ for (i in seq_len(nrow(panel_ranges))) {
     end_row     = panel_ranges$end[i],
     bold = TRUE,
     italic = TRUE,
-    hline_before = TRUE,
+    indent = FALSE,        # flat: don't indent the data rows under the panel
+    hline_before = FALSE,
     hline_after  = FALSE
   )
 }
-
-# Now add sample grouping (this inserts additional label rows, but we're done with panel indices)
-latex_table <- latex_table %>%
-  pack_rows(index = sample_index, bold = TRUE, escape = FALSE)
 
 latex_table
 save_kable(latex_table, file = "tables/summary_prepost.tex")
