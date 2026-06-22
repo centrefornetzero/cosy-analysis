@@ -54,43 +54,50 @@ cs_summary_prepost <- function(obj, y,
 
 # 3) Apply to all your estimates ---------------------------------------------
 
+# Row labels are deliberately self-explanatory: the panel header (group_rows)
+# already says whether the row is electricity/gas use (Panel A) or which tariff
+# band it refers to (Panel B), so we do NOT repeat "Heat Pump" / "Tariff" in
+# each row. Tariff bands carry their clock times so the reader knows what
+# "morning", "peak" and "other" mean. All quantities are annual kWh.
 summaries <- bind_rows(
   cs_summary_prepost(est_cs_elec_weekly,  elec_consumption, id = "id",
-                     label = "Heat Pump: Elec (kWh)", scale = 1),
+                     label = "Electricity consumption", scale = 1),
   cs_summary_prepost(est_cs_gas_weekly,   gas_consumption,  id = "id",
-                     label = "Heat Pump: Gas (kWh)",  scale = 1),
-    
+                     label = "Gas consumption",  scale = 1),
+
   cs_summary_prepost(est_cs_overall,   consumption_hh, id = "id",
-                     label = "Tariff: Elec Overall (kWh)", scale = 48*7*52.25),
+                     label = "Overall (all 24 hours)", scale = 48*7*52.25),
   cs_summary_prepost(est_cs_morning,   consumption_hh, id = "id",
-                     label = "Tariff: Elec Morning Off-peak (kWh)", scale = 6*7*52.25),
+                     label = "Morning off-peak (04:00–07:00)", scale = 6*7*52.25),
   cs_summary_prepost(est_cs_afternoon, consumption_hh, id = "id",
-                     label = "Tariff: Elec Afternoon Off-peak (kWh)", scale = 6*7*52.25),
+                     label = "Afternoon off-peak (13:00–16:00)", scale = 6*7*52.25),
   cs_summary_prepost(est_cs_peak,      consumption_hh, id = "id",
-                     label = "Tariff: Elec Peak Rate (kWh)", scale = 6*7*52.25),
+                     label = "Peak (16:00–19:00)", scale = 6*7*52.25),
   cs_summary_prepost(est_cs_other,     consumption_hh, id = "id",
-                     label = "Tariff: Elec Other (kWh)", scale = 30*7*52.25)
+                     label = "Standard rate, all other hours", scale = 30*7*52.25)
 )
 
 # 4) Create LaTeX table -------------------------------------------------------
 
 sample_levels <- c(
-  "Heat Pump: Elec (kWh)",
-  "Heat Pump: Gas (kWh)",
-  "Heat Pump: Total (kWh)",
-  "Tariff: Elec Overall (kWh)",
-  "Tariff: Elec Morning Off-peak (kWh)",
-  "Tariff: Elec Afternoon Off-peak (kWh)",
-  "Tariff: Elec Peak Rate (kWh)",
-  "Tariff: Elec Other (kWh)"
+  "Electricity consumption",
+  "Gas consumption",
+  "Overall (all 24 hours)",
+  "Morning off-peak (04:00–07:00)",
+  "Afternoon off-peak (13:00–16:00)",
+  "Peak (16:00–19:00)",
+  "Standard rate, all other hours"
 )
+
+# Samples that belong to the heat pump (Panel A) vs tariff (Panel B) sample
+panel_A_samples <- c("Electricity consumption", "Gas consumption")
 
 tab <- summaries %>%
   mutate(
     Sample = factor(Sample, levels = sample_levels),
-    Panel = if_else(grepl("^Heat Pump", as.character(Sample)),
-                    "Panel A: Heat Pump Adoption Analysis",
-                    "Panel B: Tariff Adoption Analysis"),
+    Panel = if_else(as.character(Sample) %in% panel_A_samples,
+                    "Panel A: Heat Pump Adoption Sample",
+                    "Panel B: Tariff Adoption Sample"),
     Period = factor(Period, levels = c("Pre", "Post"))
   ) %>%
   arrange(Panel, Sample, Period)
@@ -109,21 +116,24 @@ sample_index <- tab %>%
   { setNames(.$n, .$Sample) }
 
 latex_table <- tab %>%
-  select(Panel, Sample, Period, Obs, Mean, SD) %>%
   mutate(
     Mean = scales::comma(Mean, accuracy = 0.01),
     SD   = scales::comma(SD,   accuracy = 0.01)
   ) %>%
-  select(-Panel) %>%  # keep Sample for pack_rows
+  # Drop Panel and Sample from the printed columns: the panel header
+  # (group_rows) and the row-group label (pack_rows) already carry that text,
+  # so keeping them here is what caused "Heat Pump"/"Tariff" to repeat on
+  # every line. pack_rows below still labels each group via sample_index.
+  select(Period, Obs, Mean, SD) %>%
   kbl(
     format = "latex",
     booktabs = TRUE,
-    align = "llrrrrr",
+    align = "lrrr",
     caption = "Summary statistics before and after adoption",
     label = "summary_prepost",
-    escape = TRUE
+    escape = FALSE
   ) %>%
-  kable_styling(latex_options = c("hold_position", "double_rule")) 
+  kable_styling(latex_options = c("hold_position", "double_rule"))
 
 # Add PANEL headers (explicit namespace to avoid masking)
 for (i in seq_len(nrow(panel_ranges))) {
@@ -141,7 +151,32 @@ for (i in seq_len(nrow(panel_ranges))) {
 
 # Now add sample grouping (this inserts additional label rows, but we're done with panel indices)
 latex_table <- latex_table %>%
-  pack_rows(index = sample_index, bold = TRUE)
+  pack_rows(index = sample_index, bold = TRUE, escape = FALSE)
 
 latex_table
 save_kable(latex_table, file = "tables/summary_prepost.tex")
+
+# ---- Add explanatory note inside the float so it always follows the table ----
+# Defines Pre/Post, the annualisation, why Panel B is electricity-only, and the
+# tariff bands (with clock times) so "morning"/"other" are unambiguous.
+prepost_note <- paste0(
+  "\\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} ",
+  "This table reports summary statistics for the two estimation samples. ",
+  "All figures are annual consumption in kWh, obtained by annualising the ",
+  "(half-)hourly or weekly consumption used in the difference-in-differences models. ",
+  "``Pre'' is the period before adoption and ``Post'' the period after; weeks within ",
+  "the anticipation window are excluded. \\emph{Obs} is the number of household--period ",
+  "observations, and Mean and SD are computed across those observations. ",
+  "\\emph{Panel A} is the heat pump adoption sample and reports household electricity and gas use. ",
+  "\\emph{Panel B} is the Cosy Octopus time-of-use tariff adoption sample; consumption is ",
+  "electricity only because most of these households do not have a gas account, and the rows ",
+  "split the day into the tariff's pricing bands: two cheap off-peak windows in the morning ",
+  "(04:00--07:00) and the afternoon (13:00--16:00), a peak window (16:00--19:00) priced above ",
+  "the standard rate, and the standard rate that applies in all other hours (07:00--13:00 and ",
+  "19:00--04:00); ``Overall'' covers all 24 hours.}"
+)
+
+prepost_lines <- readLines("tables/summary_prepost.tex")
+caption_idx   <- grep("\\\\caption", prepost_lines)[1]
+prepost_lines <- append(prepost_lines, prepost_note, after = caption_idx)
+writeLines(prepost_lines, "tables/summary_prepost.tex")
