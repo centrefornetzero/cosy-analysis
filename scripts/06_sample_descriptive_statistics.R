@@ -130,7 +130,10 @@ latex_table <- display %>%
     col.names = c("", "Period", "Obs", "Mean", "SD"),
     caption = "Summary statistics before and after adoption",
     label = "summary_prepost",
-    escape = FALSE
+    escape = FALSE,
+    # Each series is a Pre/Post pair (2 rows); add a blank line after every
+    # second row so the series are visually separated and the table is airier.
+    linesep = c("", "\\addlinespace")
   ) %>%
   kable_styling(latex_options = "hold_position")
 
