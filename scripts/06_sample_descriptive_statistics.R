@@ -160,18 +160,16 @@ save_kable(latex_table, file = "tables/summary_prepost.tex")
 prepost_note <- paste0(
   "\\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} ",
   "This table reports summary statistics for the two estimation samples. ",
-  "All figures are annual consumption in kWh, obtained by annualising the ",
-  "(half-)hourly or weekly consumption used in the difference-in-differences models. ",
+  "All figures are annual consumption in kWh, obtained by annualizing the weekly ",
+  "consumption (panel A) and half-hourly (panel B) used in the difference-in-differences models. ",
   "``Pre'' is the period before adoption and ``Post'' the period after; weeks within ",
   "the anticipation window are excluded. \\emph{Obs} is the number of household--period ",
   "observations, and Mean and SD are computed across those observations. ",
   "\\emph{Panel A} is the heat pump adoption sample and reports household electricity and gas use. ",
-  "\\emph{Panel B} is the Cosy Octopus time-of-use tariff adoption sample; consumption is ",
-  "electricity only because most of these households do not have a gas account, and the rows ",
-  "split the day into the tariff's pricing bands: two cheap off-peak windows in the morning ",
-  "(04:00--07:00) and the afternoon (13:00--16:00), a peak window (16:00--19:00) priced above ",
-  "the standard rate, and the standard rate that applies in all other hours (07:00--13:00 and ",
-  "19:00--04:00); ``Overall'' covers all 24 hours.}"
+  "\\emph{Panel B} is the heat-pump time-of-use tariff adoption sample: two cheap off-peak windows ",
+  "in the morning (04:00--07:00) and the afternoon (13:00--16:00), a peak window (16:00--19:00) ",
+  "priced above the standard rate, and the standard rate that applies in all other hours ",
+  "(07:00--13:00 and 19:00--04:00); ``Overall'' covers all 24 hours.}"
 )
 
 prepost_lines <- readLines("tables/summary_prepost.tex")
