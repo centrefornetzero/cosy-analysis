@@ -110,34 +110,35 @@ panel_ranges <- tab %>%
     end   = cumsum(n)
   )
 
-# Flat layout: the series name goes in the first column and is shown ONCE per
-# series (on the "Pre" row), blank on the "Post" row, so "Heat Pump"/"Tariff"
-# no longer repeat on every line. Period stays in its own column. Panels are
-# bold sub-headers (group_rows). No nested pack_rows, no \hline (booktabs only).
+# Index for the series sub-headers (each series = its Pre/Post pair)
+sample_index <- tab %>%
+  count(Sample) %>%
+  { setNames(.$n, .$Sample) }
+
+# Layout: each series name (e.g. "Electricity consumption") is its own bold
+# header row, with Pre/Post listed beneath it. pack_rows adds a blank line
+# before each header, which gives the space after each "Post". Panels are the
+# top-level italic headers; only pack_rows indents (single indent, not double)
+# and we use booktabs rules only (no \hline) so the table is not busy.
 display <- tab %>%
   mutate(
-    Mean   = scales::comma(Mean, accuracy = 0.01),
-    SD     = scales::comma(SD,   accuracy = 0.01),
-    Series = if_else(Period == "Pre", as.character(Sample), "")
+    Mean = scales::comma(Mean, accuracy = 0.01),
+    SD   = scales::comma(SD,   accuracy = 0.01)
   ) %>%
-  select(Series, Period, Obs, Mean, SD)
+  select(Period, Obs, Mean, SD)
 
 latex_table <- display %>%
   kbl(
     format = "latex",
     booktabs = TRUE,
-    align = "llrrr",
-    col.names = c("", "Period", "Obs", "Mean", "SD"),
+    align = "lrrr",
     caption = "Summary statistics before and after adoption",
     label = "summary_prepost",
-    escape = FALSE,
-    # Each series is a Pre/Post pair (2 rows); add a blank line after every
-    # second row so the series are visually separated and the table is airier.
-    linesep = c("", "\\addlinespace")
+    escape = FALSE
   ) %>%
   kable_styling(latex_options = "hold_position")
 
-# Add PANEL headers (explicit namespace to avoid masking)
+# Panel headers (top level): no indent of children, no \hline
 for (i in seq_len(nrow(panel_ranges))) {
   latex_table <- kableExtra::group_rows(
     latex_table,
@@ -146,11 +147,15 @@ for (i in seq_len(nrow(panel_ranges))) {
     end_row     = panel_ranges$end[i],
     bold = TRUE,
     italic = TRUE,
-    indent = FALSE,        # flat: don't indent the data rows under the panel
+    indent = FALSE,
     hline_before = FALSE,
     hline_after  = FALSE
   )
 }
+
+# Series headers: bold, single indent for Pre/Post, blank line before each
+latex_table <- latex_table %>%
+  pack_rows(index = sample_index, bold = TRUE, italic = FALSE, escape = FALSE)
 
 latex_table
 save_kable(latex_table, file = "tables/summary_prepost.tex")
