@@ -565,14 +565,18 @@ cat("0.5 * SUBSIDY_HP =", 0.5 * SUBSIDY_HP,
 # a darker tint, to actually register visually. Above 1 stays a genuine
 # white-to-blue gradient. midpoint (=1) is anchored to the true data value,
 # not an arbitrary halfway point in the range, so the color break lines up
-# exactly with the MVPF=1 contour ----
+# exactly with the true MVPF=1 threshold.
+# No geom_contour: the MVPF=1 crossing is provably flat in m for this formula
+# (the CLIMATE_FE_SHARE split cancels out of numerator-minus-denominator, so
+# the threshold SCC doesn't depend on m) -- marching-squares contouring on an
+# exactly-flat isoline produces spurious fragments, and is redundant anyway
+# since the fill scale already marks the boundary exactly.
 avg_range <- range(sens_grid$Average)
 below_1_color <- red_palette[9]  # dark red from the existing brand palette
 eps <- 0.001 * diff(avg_range)
 
 p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
   geom_tile(aes(fill = Average)) +
-  geom_contour(aes(z = Average), color = not_hp_color, breaks = 1, linewidth = 0.35) +
   geom_point(data = baseline_pts, shape = 21, fill = "white", color = not_hp_color,
              stroke = 1.2, size = 2.5) +
   scale_fill_gradientn(
