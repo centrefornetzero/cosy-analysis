@@ -533,22 +533,46 @@ baseline_pts <- data.frame(
                          levels = c("2% discount rate", "3.5% discount rate"))
 )
 
+# Exact point on the MVPF = 1 contour (at a fixed m) to anchor a direct label,
+# rather than relying on the legend to convey the threshold
+find_scc_at_mvpf1 <- function(m, r_disc) {
+  f <- function(scc_mult) calc_hp("root", r_disc = r_disc, m = m, scc_vec = scc_hmg * scc_mult)$Average - 1
+  root <- tryCatch(
+    uniroot(f, lower = min(scc_mult_grid), upper = max(scc_mult_grid))$root,
+    error = function(e) NA_real_
+  )
+  root
+}
+
+label_m <- 0.15
+contour_labels <- data.frame(
+  m = label_m,
+  scc_mult = sapply(r_disc_grid, find_scc_at_mvpf1, m = label_m),
+  r_disc_label = factor(paste0(r_disc_grid * 100, "% discount rate"),
+                         levels = c("2% discount rate", "3.5% discount rate"))
+)
+contour_labels <- contour_labels[!is.na(contour_labels$scc_mult), ]
+contour_labels$label <- "MVPF = 1"
+
 p_sens <- ggplot(sens_grid, aes(x = m, y = scc_mult)) +
   geom_tile(aes(fill = Average)) +
-  geom_contour(aes(z = Average), color = "white", breaks = 1, linewidth = 0.6) +
-  geom_point(data = baseline_pts, shape = 21, fill = "black", color = "white", size = 2.5) +
+  geom_contour(aes(z = Average), color = not_hp_color, breaks = 1, linewidth = 1) +
+  geom_point(data = baseline_pts, shape = 21, fill = not_hp_color, color = "white", size = 2.5) +
+  geom_label(data = contour_labels, aes(label = label),
+             fill = "white", color = not_hp_color, label.size = 0,
+             size = 3.2, nudge_y = 0.12) +
   scale_fill_gradient2(
-    low = "#B23A48", mid = "white", high = "#2E7D32",
+    low = flexible_color, mid = "white", high = cosy_color,
     midpoint = 1, name = "MVPF"
   ) +
   facet_wrap(~ r_disc_label) +
   labs(
     x = "Marginal (subsidy-induced) share, m",
-    y = "SCC as multiple of HMG central path",
-    title = "MVPF sensitivity to additionality share and social cost of carbon",
-    subtitle = "White contour marks MVPF = 1; black point marks baseline assumptions (m = 0.50, SCC = HMG central)"
+    y = "SCC as multiple of HMG central path"
   ) +
   theme(
+    plot.title = element_blank(),
+    plot.subtitle = element_blank(),
     panel.background = element_rect(fill = "transparent", color = NA),
     plot.background = element_rect(fill = "transparent", color = NA),
     legend.background = element_rect(fill = "transparent", color = NA)
