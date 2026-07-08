@@ -533,38 +533,40 @@ baseline_pts <- data.frame(
                          levels = c("2% discount rate", "3.5% discount rate"))
 )
 
-# Exact point on the MVPF = 1 contour (at a fixed m) to anchor a direct label,
-# rather than relying on the legend to convey the threshold
-find_scc_at_mvpf1 <- function(m, r_disc) {
-  f <- function(scc_mult) calc_hp("root", r_disc = r_disc, m = m, scc_vec = scc_hmg * scc_mult)$Average - 1
-  root <- tryCatch(
-    uniroot(f, lower = min(scc_mult_grid), upper = max(scc_mult_grid))$root,
-    error = function(e) NA_real_
-  )
-  root
-}
-
-label_m <- 0.15
-contour_labels <- data.frame(
-  m = label_m,
-  scc_mult = sapply(r_disc_grid, find_scc_at_mvpf1, m = label_m),
-  r_disc_label = factor(paste0(r_disc_grid * 100, "% discount rate"),
-                         levels = c("2% discount rate", "3.5% discount rate"))
+# ---- Diagnostic: is Average MVPF genuinely flat in m? ----
+# Prints Average at low/mid/high m, holding SCC and discount rate fixed, plus
+# the two terms whose near-cancellation would explain flatness: the transfer
+# discount (0.5 * SUBSIDY_HP) vs the environmental NPV (climate + AQ) that
+# gets weighted by m. If these two are close in magnitude, m barely moves
+# Average MVPF because the lost transfer value is offset by gained env WTP.
+diag_check <- expand.grid(
+  m = c(0.1, 0.5, 0.9),
+  scc_mult = c(min(scc_mult_grid), 1, max(scc_mult_grid)),
+  r_disc = r_disc_grid
 )
-contour_labels <- contour_labels[!is.na(contour_labels$scc_mult), ]
-contour_labels$label <- "MVPF = 1"
+diag_check$Average <- mapply(
+  function(m, scc_mult, r_disc) calc_hp("diag", r_disc, m, scc_hmg * scc_mult)$Average,
+  diag_check$m, diag_check$scc_mult, diag_check$r_disc
+)
+cat("\n--- Diagnostic: Average MVPF across m (fixed SCC, discount rate) ---\n")
+print(diag_check[order(diag_check$r_disc, diag_check$scc_mult, diag_check$m), ], row.names = FALSE)
+cat("0.5 * SUBSIDY_HP =", 0.5 * SUBSIDY_HP,
+    "| NPV_clim_consumer + NPV_aq at SCC=central, r=3.5%:",
+    npv(tonnes_saved * scc_hmg * (1 - CLIMATE_FE_SHARE), 0.035) + npv(aq_benefits, r_aq), "\n\n")
+
+# ---- Discrete above/below-1 fill: continuous gradient compresses the
+# below-1 region into an unreadable sliver when most combinations clear 1 ----
+sens_grid$above_1 <- factor(
+  ifelse(sens_grid$Average >= 1, "MVPF ≥ 1", "MVPF < 1"),
+  levels = c("MVPF < 1", "MVPF ≥ 1")
+)
 
 p_sens <- ggplot(sens_grid, aes(x = m, y = scc_mult)) +
-  geom_tile(aes(fill = Average)) +
-  geom_contour(aes(z = Average), color = not_hp_color, breaks = 1, linewidth = 1) +
-  geom_point(data = baseline_pts, shape = 21, fill = not_hp_color, color = "white", size = 2.5) +
-  geom_label(data = contour_labels, aes(label = label),
-             fill = "white", color = not_hp_color, label.size = 0,
-             size = 3.2, nudge_y = 0.12) +
-  scale_fill_gradient2(
-    low = flexible_color, mid = "white", high = cosy_color,
-    midpoint = 1, name = "MVPF"
-  ) +
+  geom_tile(aes(fill = above_1)) +
+  geom_contour(aes(z = Average), color = "white", breaks = 1, linewidth = 0.8) +
+  geom_point(data = baseline_pts, shape = 21, fill = "white", color = not_hp_color,
+             stroke = 1.2, size = 2.5) +
+  scale_fill_manual(values = c("MVPF < 1" = flexible_color, "MVPF ≥ 1" = cosy_color), name = NULL) +
   facet_wrap(~ r_disc_label) +
   labs(
     x = "Marginal (subsidy-induced) share, m",
