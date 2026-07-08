@@ -494,4 +494,71 @@ ggsave("graphs/waterfall_hp_preferred.png", plot = p_wf,
 
 cat("Saved waterfall to graphs/waterfall_hp_preferred.png\n")
 
+# ============================================================
+# 11) SENSITIVITY ANALYSIS: MVPF over additionality share (m) and SCC
+#     Two judgment calls referees flagged: (i) the marginal/inframarginal
+#     split m (Boomhower & Davis, JPubEc 2014 find ~50% additionality in a
+#     similar program, but note this varies a lot across programs/settings),
+#     and (ii) the SCC, where reasonable analysts pick very different values.
+# ============================================================
+
+m_grid <- seq(0.10, 0.90, by = 0.02)
+# Multiples of the HMG central SCC path; ~0.25x-2.25x roughly spans the
+# Rennert et al. (2022) 5th-95th percentile range around their $185 central estimate
+scc_mult_grid <- seq(0.25, 2.25, by = 0.05)
+r_disc_grid <- c(0.02, 0.035)
+
+sens_grid <- expand.grid(
+  m = m_grid,
+  scc_mult = scc_mult_grid,
+  r_disc = r_disc_grid
+)
+
+sens_grid$Average <- mapply(
+  function(m, scc_mult, r_disc) {
+    calc_hp("sens", r_disc = r_disc, m = m, scc_vec = scc_hmg * scc_mult)$Average
+  },
+  sens_grid$m, sens_grid$scc_mult, sens_grid$r_disc
+)
+
+sens_grid$r_disc_label <- factor(
+  paste0(sens_grid$r_disc * 100, "% discount rate"),
+  levels = c("2% discount rate", "3.5% discount rate")
+)
+
+baseline_pts <- data.frame(
+  m = m_default,
+  scc_mult = 1,
+  r_disc_label = factor(c("2% discount rate", "3.5% discount rate"),
+                         levels = c("2% discount rate", "3.5% discount rate"))
+)
+
+p_sens <- ggplot(sens_grid, aes(x = m, y = scc_mult)) +
+  geom_tile(aes(fill = Average)) +
+  geom_contour(aes(z = Average), color = "white", breaks = 1, linewidth = 0.6) +
+  geom_point(data = baseline_pts, shape = 21, fill = "black", color = "white", size = 2.5) +
+  scale_fill_gradient2(
+    low = "#B23A48", mid = "white", high = "#2E7D32",
+    midpoint = 1, name = "MVPF"
+  ) +
+  facet_wrap(~ r_disc_label) +
+  labs(
+    x = "Marginal (subsidy-induced) share, m",
+    y = "SCC as multiple of HMG central path",
+    title = "MVPF sensitivity to additionality share and social cost of carbon",
+    subtitle = "White contour marks MVPF = 1; black point marks baseline assumptions (m = 0.50, SCC = HMG central)"
+  ) +
+  theme(
+    panel.background = element_rect(fill = "transparent", color = NA),
+    plot.background = element_rect(fill = "transparent", color = NA),
+    legend.background = element_rect(fill = "transparent", color = NA)
+  )
+
+p_sens
+
+ggsave("graphs/MVPF_sensitivity_heatmap.png", plot = p_sens,
+       width = 10, height = 6, bg = "transparent", dpi = 300)
+
+cat("Saved MVPF sensitivity heatmap to graphs/MVPF_sensitivity_heatmap.png\n")
+
 
