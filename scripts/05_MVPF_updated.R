@@ -526,9 +526,15 @@ sens_grid$r_disc_label <- factor(
   levels = c("2% discount rate", "3.5% discount rate")
 )
 
+# Express the SCC axis in £/tCO2 (matching how SCC is reported elsewhere in
+# this script), not as a bare multiplier: scale by the average HMG central
+# path level over the horizon so 1x reads as an actual £ figure
+mean_scc_hmg <- mean(scc_hmg)
+sens_grid$scc_gbp <- sens_grid$scc_mult * mean_scc_hmg
+
 baseline_pts <- data.frame(
   m = m_default,
-  scc_mult = 1,
+  scc_gbp = mean_scc_hmg,
   r_disc_label = factor(c("2% discount rate", "3.5% discount rate"),
                          levels = c("2% discount rate", "3.5% discount rate"))
 )
@@ -554,23 +560,28 @@ cat("0.5 * SUBSIDY_HP =", 0.5 * SUBSIDY_HP,
     "| NPV_clim_consumer + NPV_aq at SCC=central, r=3.5%:",
     npv(tonnes_saved * scc_hmg * (1 - CLIMATE_FE_SHARE), 0.035) + npv(aq_benefits, r_aq), "\n\n")
 
-# ---- Discrete above/below-1 fill: continuous gradient compresses the
-# below-1 region into an unreadable sliver when most combinations clear 1 ----
-sens_grid$above_1 <- factor(
-  ifelse(sens_grid$Average >= 1, "MVPF ≥ 1", "MVPF < 1"),
-  levels = c("MVPF < 1", "MVPF ≥ 1")
-)
+# ---- Continuous gradient, but with the MVPF=1 midpoint forced to sit at the
+# visual centre of the ramp (values = c(0, 0.5, 1)) rather than wherever it
+# falls in the raw data range -- a plain gradient2() buries the below-1 region
+# near one edge of the ramp because most combinations clear 1 ----
+avg_range <- range(sens_grid$Average)
 
-p_sens <- ggplot(sens_grid, aes(x = m, y = scc_mult)) +
-  geom_tile(aes(fill = above_1)) +
-  geom_contour(aes(z = Average), color = "white", breaks = 1, linewidth = 0.8) +
+p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
+  geom_tile(aes(fill = Average)) +
+  geom_contour(aes(z = Average), color = not_hp_color, breaks = 1, linewidth = 0.35) +
   geom_point(data = baseline_pts, shape = 21, fill = "white", color = not_hp_color,
              stroke = 1.2, size = 2.5) +
-  scale_fill_manual(values = c("MVPF < 1" = flexible_color, "MVPF ≥ 1" = cosy_color), name = NULL) +
+  scale_fill_gradientn(
+    colours = c(flexible_color, "white", cosy_color),
+    values = c(0, 0.5, 1),
+    limits = avg_range,
+    name = "MVPF"
+  ) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
   facet_wrap(~ r_disc_label) +
   labs(
     x = "Marginal (subsidy-induced) share, m",
-    y = "SCC as multiple of HMG central path"
+    y = "Social cost of carbon (£/tCO2, real 2023 prices)"
   ) +
   theme(
     plot.title = element_blank(),
