@@ -560,21 +560,24 @@ cat("0.5 * SUBSIDY_HP =", 0.5 * SUBSIDY_HP,
     "| NPV_clim_consumer + NPV_aq at SCC=central, r=3.5%:",
     npv(tonnes_saved * scc_hmg * (1 - CLIMATE_FE_SHARE), 0.035) + npv(aq_benefits, r_aq), "\n\n")
 
-# ---- Binned diverging gradient, correctly anchored at the true MVPF=1 value
-# (via midpoint = 1, not an arbitrary halfway point in the raw data range).
-# Binning (steps) rather than a smooth blend keeps the above/below-1 boundary
-# a sharp, correctly-placed color break instead of an ambiguous pale zone ----
+# ---- Below 1 is a flat, distinctly different hue (red) rather than a shade
+# of the same blue-grey family -- a thin sliver needs a hue change, not just
+# a darker tint, to actually register visually. Above 1 stays a genuine
+# white-to-blue gradient. midpoint (=1) is anchored to the true data value,
+# not an arbitrary halfway point in the range, so the color break lines up
+# exactly with the MVPF=1 contour ----
 avg_range <- range(sens_grid$Average)
+below_1_color <- red_palette[9]  # dark red from the existing brand palette
+eps <- 0.001 * diff(avg_range)
 
 p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
   geom_tile(aes(fill = Average)) +
   geom_contour(aes(z = Average), color = not_hp_color, breaks = 1, linewidth = 0.35) +
   geom_point(data = baseline_pts, shape = 21, fill = "white", color = not_hp_color,
              stroke = 1.2, size = 2.5) +
-  scale_fill_steps2(
-    low = flexible_color, mid = "white", high = cosy_color,
-    midpoint = 1,
-    breaks = c(0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5),
+  scale_fill_gradientn(
+    colours = c(below_1_color, below_1_color, "white", cosy_color),
+    values = scales::rescale(c(avg_range[1], 1 - eps, 1, avg_range[2]), from = avg_range),
     limits = avg_range,
     name = "MVPF"
   ) +
