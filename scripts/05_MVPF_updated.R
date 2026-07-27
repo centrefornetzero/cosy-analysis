@@ -502,10 +502,10 @@ cat("Saved waterfall to graphs/waterfall_hp_preferred.png\n")
 #     and (ii) the SCC, where reasonable analysts pick very different values.
 # ============================================================
 
-m_grid <- seq(0.10, 0.90, by = 0.02)
+m_grid <- seq(0.10, 0.90, by = 0.01)
 # Multiples of the HMG central SCC path; ~0.25x-2.25x roughly spans the
 # Rennert et al. (2022) 5th-95th percentile range around their $185 central estimate
-scc_mult_grid <- seq(0.25, 2.25, by = 0.05)
+scc_mult_grid <- seq(0.25, 2.25, by = 0.01)
 r_disc_grid <- c(0.02, 0.035)
 
 sens_grid <- expand.grid(
@@ -593,7 +593,7 @@ p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
   scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
   facet_wrap(~ r_disc_label) +
   labs(
-    x = "Marginal (subsidy-induced) share, m",
+    x = "Marginal (subsidy-induced) share",
     y = "Social cost of carbon (£/tCO2, real 2023 prices)"
   ) +
   theme(
