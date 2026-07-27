@@ -776,7 +776,31 @@ cs_files_gas_only <- list(
   Gas         = file.path(datapath, "scratch/est_cs_gas_weekly.RDS")
 )
 
-aggte_simple_elec_gasonly <- aggte(readRDS(cs_files_gas_only$Electricity), type = "simple",
+# est_cs_elec_weekly_gas_only.RDS (built in 02_02) is estimated on "any
+# account with a non-missing gas reading", which is a slightly larger
+# population than ids_cs_gas (the gas model's own att_gt estimation sample)
+# -- 1,111 vs 1,110 households. For this table specifically, refit the
+# electricity model restricted to exactly ids_cs_gas, so both columns
+# describe the identical population. Scoped to just this table/script: does
+# not touch 02_02 or overwrite the shared est_cs_elec_weekly_gas_only.RDS
+# file, which other (non-pipeline) scripts may still rely on.
+did_data_elec_gas_only <- did_data %>% dplyr::filter(account_id %in% ids_cs_gas)
+
+est_cs_elec_gas_only_matched <- did::att_gt(
+  yname = "elec_consumption",
+  tname = "week",
+  idname = "id",
+  gname = "firstweek",
+  data = did_data_elec_gas_only,
+  anticipation = 4,
+  clustervars = "id",
+  control_group = "notyettreated",
+  est_method = "ipw",
+  allow_unbalanced_panel = TRUE,
+  base_period = "universal"
+)
+
+aggte_simple_elec_gasonly <- aggte(est_cs_elec_gas_only_matched, type = "simple",
                                    na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05,min_e=-80, max_e=80)
 aggte_simple_gas_gasonly  <- aggte(readRDS(cs_files_gas_only$Gas), type = "simple",
                                    na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05, min_e=-80, max_e=80)
