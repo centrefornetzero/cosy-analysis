@@ -560,37 +560,16 @@ cat("0.5 * SUBSIDY_HP =", 0.5 * SUBSIDY_HP,
     "| NPV_clim_consumer + NPV_aq at SCC=central, r=3.5%:",
     npv(tonnes_saved * scc_hmg * (1 - CLIMATE_FE_SHARE), 0.035) + npv(aq_benefits, r_aq), "\n\n")
 
-# ---- Below 1 is a distinctly different hue (red) rather than a shade of the
-# same blue-grey family -- a thin sliver needs a hue change, not just a
-# darker tint, to actually register visually. Above 1 stays a genuine
-# white-to-blue gradient. midpoint (=1) is anchored to the true data value,
-# not an arbitrary halfway point in the range, so the color break lines up
-# exactly with the true MVPF=1 threshold.
-# No geom_contour: the MVPF=1 crossing is provably flat in m for this formula
-# (the CLIMATE_FE_SHARE split cancels out of numerator-minus-denominator, so
-# the threshold SCC doesn't depend on m) -- marching-squares contouring on an
-# exactly-flat isoline produces spurious fragments, and is redundant anyway
-# since the fill scale already marks the boundary exactly.
 avg_range <- range(sens_grid$Average)
 below_vals <- sort(sens_grid$Average[sens_grid$Average < 1])
 
-# Below-1 cells cluster tightly just under the threshold, with a handful of
-# much-lower outliers dragging avg_range[1] far down. A red ramp positioned
-# by raw magnitude (e.g. two stops at avg_range[1] and ~1) spends nearly all
-# its color budget on that thin outlier tail and renders the near-threshold
-# bulk as one flat shade -- which is why widening the two endpoint colors
-# didn't help. Positioning stops at quantiles of the below-1 cells instead
-# spends the color budget where the data actually is. The lightest stop
-# (closest to 1) is still capped at a mid-tone (red_palette[4]) rather than
-# the palette's palest reds, so it doesn't fade into the white at MVPF=1 and
-# blur the demarcation.
 n_red_stops <- 6
 below_breaks <- if (length(below_vals) >= n_red_stops) {
   sort(unique(quantile(below_vals, probs = seq(0, 1, length.out = n_red_stops), na.rm = TRUE)))
 } else {
   unique(below_vals)
 }
-red_ramp <- colorRampPalette(c(red_palette[9], red_palette[4]))(length(below_breaks))
+red_ramp <- colorRampPalette(c(red_palette[9], red_palette[1]))(length(below_breaks))
 
 p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
   geom_tile(aes(fill = Average)) +
