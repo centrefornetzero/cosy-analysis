@@ -451,15 +451,15 @@ if (write_main) ggsave("graphs/calendar_att_12m_with_quarter_points_and_cop.png"
 # ----------------------------
 checkpoint("Build quasi_cop plot for gas-only sample")
 
-# IDs from gas-only CS estimation sample
-est_cs_gas_only <- readRDS(cs_files_gas_only$Electricity)
-did_data_gas_only <- clean_didparams_data(est_cs_gas_only$DIDparams$data)
-
-ids_cs_elec_gas_only <-  readRDS(file.path(datapath, "scratch/ids_cs_elec_gas_only.RS"))
+# IDs from the gas model's own CS estimation sample -- not the electricity
+# model's, so the temperature-interaction sample matches the same households
+# behind the main gas ATT figure rather than whichever households survived a
+# different outcome's att_gt fit.
+ids_cs_gas <- readRDS(file.path(datapath, "scratch/ids_cs_gas.RS"))
 
 overall_weekly_cop <- read_rds(overall_weekly_path) %>%
   mutate_at(vars(elec_consumption, gas_consumption, total_consumption), ~ .x / 52.25) %>%
-  filter(account_id %in% ids_cs_elec_gas_only)
+  filter(account_id %in% ids_cs_gas)
 
 start_date_cop <- min(overall_weekly_cop$settlement_week)
 overall_weekly_cop <- overall_weekly_cop %>%
