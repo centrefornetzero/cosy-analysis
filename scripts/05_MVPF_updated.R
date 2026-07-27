@@ -560,9 +560,13 @@ cat("0.5 * SUBSIDY_HP =", 0.5 * SUBSIDY_HP,
     "| NPV_clim_consumer + NPV_aq at SCC=central, r=3.5%:",
     npv(tonnes_saved * scc_hmg * (1 - CLIMATE_FE_SHARE), 0.035) + npv(aq_benefits, r_aq), "\n\n")
 
-# ---- Below 1 is a flat, distinctly different hue (red) rather than a shade
-# of the same blue-grey family -- a thin sliver needs a hue change, not just
-# a darker tint, to actually register visually. Above 1 stays a genuine
+# ---- Below 1 is a distinctly different hue (red) rather than a shade of the
+# same blue-grey family -- a thin sliver needs a hue change, not just a
+# darker tint, to actually register visually. It's shaded as its own
+# light(er)-to-dark gradient (not flat) so magnitude below 1 is still
+# legible, but the near-threshold red is capped at a mid-tone (red_palette[4])
+# rather than the palette's palest reds -- too light and it would blend into
+# the white at MVPF=1 and blur the demarcation. Above 1 stays a genuine
 # white-to-blue gradient. midpoint (=1) is anchored to the true data value,
 # not an arbitrary halfway point in the range, so the color break lines up
 # exactly with the true MVPF=1 threshold.
@@ -572,7 +576,8 @@ cat("0.5 * SUBSIDY_HP =", 0.5 * SUBSIDY_HP,
 # exactly-flat isoline produces spurious fragments, and is redundant anyway
 # since the fill scale already marks the boundary exactly.
 avg_range <- range(sens_grid$Average)
-below_1_color <- red_palette[9]  # dark red from the existing brand palette
+below_1_dark  <- red_palette[9]  # darkest red, at the lowest MVPF in range
+below_1_near1 <- red_palette[4]  # mid-tone red as MVPF approaches 1 from below
 eps <- 0.001 * diff(avg_range)
 
 p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
@@ -580,7 +585,7 @@ p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
   geom_point(data = baseline_pts, shape = 21, fill = "white", color = not_hp_color,
              stroke = 1.2, size = 2.5) +
   scale_fill_gradientn(
-    colours = c(below_1_color, below_1_color, "white", cosy_color),
+    colours = c(below_1_dark, below_1_near1, "white", cosy_color),
     values = scales::rescale(c(avg_range[1], 1 - eps, 1, avg_range[2]), from = avg_range),
     limits = avg_range,
     name = "MVPF"
