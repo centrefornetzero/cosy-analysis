@@ -222,23 +222,15 @@ run_cs_models(
 
 # ---------------------- Gas-only subset ----------------------
 
-# Restrict to exactly the households retained by the main gas att_gt model
-# above (est_cs_gas_weekly.RDS), not just "any non-missing gas reading" --
-# att_gt's own estimation sample can be a bit smaller than that raw
-# non-missing count. Using the same household set here means the electricity
-# model fit on this "gas-only" comparison group is estimated on precisely the
-# same population as the gas model, so the two are directly comparable
-# (Table hp_did_overall_cs_gas_only.tex previously showed 1,111 households
-# for electricity vs. 1,110 for gas -- a mismatch from the two models
-# independently deciding their own samples).
-est_cs_gas_main <- readRDS(out_file("est_cs_gas_weekly.RDS"))
-ids_cs_gas <- did_data %>%
-  dplyr::filter(id %in% unique(est_cs_gas_main$DIDparams$data$id)) %>%
-  dplyr::pull(account_id) %>%
-  unique()
+# Restrict to accounts with at least one non-missing gas consumption observation.
+gas_accounts <- overall_weekly %>%
+  dplyr::group_by(account_id) %>%
+  dplyr::summarise(has_gas = any(!is.na(gas_consumption)), .groups = "drop") %>%
+  dplyr::filter(has_gas) %>%
+  dplyr::pull(account_id)
 
 did_gas_only <- make_did_data(
-  df = dplyr::filter(overall_weekly, account_id %in% ids_cs_gas),
+  df = dplyr::filter(overall_weekly, account_id %in% gas_accounts),
   start_date = start_date,
   max_week = 129,
   cap_firstweek = TRUE,
