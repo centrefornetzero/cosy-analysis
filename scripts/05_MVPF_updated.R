@@ -562,11 +562,7 @@ cat("0.5 * SUBSIDY_HP =", 0.5 * SUBSIDY_HP,
 
 # ---- Below 1 is a distinctly different hue (red) rather than a shade of the
 # same blue-grey family -- a thin sliver needs a hue change, not just a
-# darker tint, to actually register visually. It's shaded as its own
-# light(er)-to-dark gradient (not flat) so magnitude below 1 is still
-# legible, but the near-threshold red is capped at a mid-tone (red_palette[4])
-# rather than the palette's palest reds -- too light and it would blend into
-# the white at MVPF=1 and blur the demarcation. Above 1 stays a genuine
+# darker tint, to actually register visually. Above 1 stays a genuine
 # white-to-blue gradient. midpoint (=1) is anchored to the true data value,
 # not an arbitrary halfway point in the range, so the color break lines up
 # exactly with the true MVPF=1 threshold.
@@ -576,17 +572,33 @@ cat("0.5 * SUBSIDY_HP =", 0.5 * SUBSIDY_HP,
 # exactly-flat isoline produces spurious fragments, and is redundant anyway
 # since the fill scale already marks the boundary exactly.
 avg_range <- range(sens_grid$Average)
-below_1_dark  <- red_palette[9]  # darkest red, at the lowest MVPF in range
-below_1_near1 <- red_palette[4]  # mid-tone red as MVPF approaches 1 from below
-eps <- 0.001 * diff(avg_range)
+below_vals <- sort(sens_grid$Average[sens_grid$Average < 1])
+
+# Below-1 cells cluster tightly just under the threshold, with a handful of
+# much-lower outliers dragging avg_range[1] far down. A red ramp positioned
+# by raw magnitude (e.g. two stops at avg_range[1] and ~1) spends nearly all
+# its color budget on that thin outlier tail and renders the near-threshold
+# bulk as one flat shade -- which is why widening the two endpoint colors
+# didn't help. Positioning stops at quantiles of the below-1 cells instead
+# spends the color budget where the data actually is. The lightest stop
+# (closest to 1) is still capped at a mid-tone (red_palette[4]) rather than
+# the palette's palest reds, so it doesn't fade into the white at MVPF=1 and
+# blur the demarcation.
+n_red_stops <- 6
+below_breaks <- if (length(below_vals) >= n_red_stops) {
+  sort(unique(quantile(below_vals, probs = seq(0, 1, length.out = n_red_stops), na.rm = TRUE)))
+} else {
+  unique(below_vals)
+}
+red_ramp <- colorRampPalette(c(red_palette[9], red_palette[4]))(length(below_breaks))
 
 p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
   geom_tile(aes(fill = Average)) +
   geom_point(data = baseline_pts, shape = 21, fill = "white", color = not_hp_color,
              stroke = 1.2, size = 2.5) +
   scale_fill_gradientn(
-    colours = c(below_1_dark, below_1_near1, "white", cosy_color),
-    values = scales::rescale(c(avg_range[1], 1 - eps, 1, avg_range[2]), from = avg_range),
+    colours = c(red_ramp, "white", cosy_color),
+    values = scales::rescale(c(below_breaks, 1, avg_range[2]), from = avg_range),
     limits = avg_range,
     name = "MVPF"
   ) +
