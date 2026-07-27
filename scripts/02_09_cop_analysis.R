@@ -5,15 +5,21 @@
 # Load main yearly results
 eff_df <- fread(file.path(datapath, "output/eff_df.csv")) 
 
-# Load main sample IDs
+# Load main sample IDs. tempreg below fits elec_consumption and gas_consumption
+# jointly, with feols dropping NA rows per-outcome independently -- so the base
+# pool needs to be the union of both models' own CS estimation samples, not
+# just the electricity one, otherwise the gas equation's N is silently capped
+# at "electricity-model households that also have gas" rather than the gas
+# model's own (larger) estimation sample.
 ids_cs_elec <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
+ids_cs_gas  <- readRDS(file.path(datapath, "scratch/ids_cs_gas.RS"))
 
 # Load data for regression
-overall_weekly <- 
+overall_weekly <-
   read_rds(file.path(datapath, "output/overall_weekly.rds")) %>%
-  mutate_at(vars(elec_consumption, gas_consumption, total_consumption), 
-            ~.x / 52.25) %>% 
-  filter(account_id %in% ids_cs_elec)
+  mutate_at(vars(elec_consumption, gas_consumption, total_consumption),
+            ~.x / 52.25) %>%
+  filter(account_id %in% union(ids_cs_elec, ids_cs_gas))
 
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
