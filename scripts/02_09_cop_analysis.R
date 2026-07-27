@@ -5,12 +5,8 @@
 # Load main yearly results
 eff_df <- fread(file.path(datapath, "output/eff_df.csv")) 
 
-# Load main sample IDs -- the exact estimation samples behind the main
-# electricity/gas att_gt tables (Tables A.1/A.3), so Figure 4 can be pinned
-# to precisely the same households rather than whatever feols happens to
-# retain when fed a joint elec+gas frame.
+# Load main sample IDs
 ids_cs_elec <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
-ids_cs_gas  <- readRDS(file.path(datapath, "scratch/ids_cs_gas.RS"))
 
 # Load data for regression
 overall_weekly <-
@@ -41,49 +37,25 @@ gc()
 
 # ====================================================================
 # --------- Figure 4: HP Impacts by Outside Temperature --------------
-# ====================================================================
-# Fit elec and gas equations separately, each pinned to its own main-DiD
-# estimation sample (ids_cs_elec / ids_cs_gas). A single joint
-# feols(c(elec_consumption, gas_consumption) ~ ...) call lets each outcome's
-# NA-dropping run independently, which can drift by a household or two from
-# the corresponding att_gt sample -- it did here (1,111 vs. the correct
-# 1,110) -- rather than matching it exactly by construction.
-overall_weekly_gas <- overall_weekly %>% filter(account_id %in% ids_cs_gas)
-
-m1_elec <- feols(elec_consumption ~ i(is_hp_installed) |
-                    hdd + account_id + settlement_week,
-                  data = overall_weekly, cluster = ~account_id)
-m1_gas  <- feols(gas_consumption ~ i(is_hp_installed) |
-                    hdd + account_id + settlement_week,
-                  data = overall_weekly_gas, cluster = ~account_id)
+# ====================================================================   
+# Fit the model
+m1 <- feols(c(elec_consumption, gas_consumption) ~ i(is_hp_installed) | 
+              hdd + account_id + settlement_week, 
+            data =  overall_weekly, 
+            cluster = ~account_id)
 
 # Run the regression model
-tempreg_elec <- feols(elec_consumption ~
-                         i(is_hp_installed, temp_degree, ref = 0) |
-                         account_id + temp_degree + settlement_week,
-                       data = overall_weekly, cluster = ~account_id)
-tempreg_gas  <- feols(gas_consumption ~
-                         i(is_hp_installed, temp_degree, ref = 0) |
-                         account_id + temp_degree + settlement_week,
-                       data = overall_weekly_gas, cluster = ~account_id)
+tempreg <- feols(c(elec_consumption, gas_consumption) ~ 
+                   i(is_hp_installed, temp_degree, ref=0) |
+                   account_id + temp_degree  + settlement_week,
+                 data = overall_weekly,
+                 cluster = ~account_id)
 
-etable(m1_elec, m1_gas, tempreg_elec, tempreg_gas, fitstat = ~ g + N)
-
-# Re-stack each pair of single-outcome models into the same lhs-tagged shape
-# a joint multi-lhs feols() call would have produced, so the coefficient-
-# extraction code below (separate(), inner_join(), etc.) is unchanged.
-tidy_lhs <- function(model, lhs_name) {
-  coeftable(model) %>%
-    data.frame() %>%
-    tibble::rownames_to_column("coefficient") %>%
-    mutate(lhs = lhs_name)
-}
+etable(m1, tempreg, fitstat = ~ g + N)
 
 # Extract coefficients and standard errors
-coefs_m1 <- bind_rows(
-  tidy_lhs(m1_elec, "elec_consumption"),
-  tidy_lhs(m1_gas,  "gas_consumption")
-) %>%
+coefs_m1 <- coeftable(m1) %>%
+  data.frame() %>%
   select(lhs, Estimate) %>%
   rename(avg_ate = Estimate)
 
@@ -96,11 +68,9 @@ temp_labels[!(temp_levels %in% c(0, 25))] <-
   paste0(temp_levels[!(temp_levels %in% c(0, 25))], "°C")
 
 # Main interaction table
-coefs <- bind_rows(
-  tidy_lhs(tempreg_elec, "elec_consumption"),
-  tidy_lhs(tempreg_gas,  "gas_consumption")
-) %>%
-  separate(coefficient,
+coefs <- coeftable(tempreg) %>%
+  data.frame() %>%
+  separate(coefficient, 
            into = c("is_hp_installed", "remove1", "daily_avg_air_temperature_celsius", "remove2"), sep = "::") %>%
   mutate(daily_avg_air_temperature_celsius = factor(daily_avg_air_temperature_celsius, levels = 0:25),
          lower_ci = Estimate - 1.96 * `Std..Error`,
