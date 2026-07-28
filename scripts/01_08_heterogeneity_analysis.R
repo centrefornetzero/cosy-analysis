@@ -331,7 +331,7 @@ fitstat_register("pre_avg_tou", function(x) {
   outcome_values <- data_used[[outcome_variable]]
   
   # Create pre-avg for non-HP installed group
-  pre_avg <- mean(outcome_values[data_used$previous_is_charged_half_hourly == 1 & is.na(data_used$first_adoption)], na.rm = TRUE)
+  pre_avg <- mean(outcome_values[data_used$previous_is_charged_half_hourly == 1 & data_used$cosy_contract_active == 0], na.rm = TRUE)
   
   # Format the pre-avg
   formatted_pre_avg <- format_decimal(pre_avg)
@@ -364,7 +364,7 @@ fitstat_register("pre_avg_nontou", function(x) {
   outcome_values <- data_used[[outcome_variable]]
   
   # Create pre-avg for non-HP installed group
-  pre_avg <- mean(outcome_values[data_used$previous_is_charged_half_hourly == 0 & is.na(data_used$first_adoption)], na.rm = TRUE)
+  pre_avg <- mean(outcome_values[data_used$previous_is_charged_half_hourly == 0 & data_used$cosy_contract_active == 0], na.rm = TRUE)
   
   # Format the pre-avg
   formatted_pre_avg <- format_decimal(pre_avg)
