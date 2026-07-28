@@ -187,21 +187,25 @@ rm(list = setdiff(ls(), list_env))
 source("scripts/01_05_balance_table.R")
 rm(list = setdiff(ls(), list_env))
 
-source("scripts/01_06_lct_ownership_and_leavers.R")
+# Runs before 01_07/01_08 because it caches scratch/cosy_mpans_universe.RDS
+# (the 6,631-household CS-estimable sample used in did.tex/cosy_did_cs.tex),
+# which those two scripts read so did_leavers.tex/did_prevar.tex use the
+# same sample. Once the cache exists, 01_07/01_08 can still be re-run standalone.
+source("scripts/01_06_DiD_analysis.R")
+rm(list = setdiff(ls(), list_env))
+gc()
+
+source("scripts/01_07_lct_ownership_and_leavers.R")
 rm(list = setdiff(ls(), list_env))
 
-source("scripts/01_07_heterogeneity_analysis.R")
+source("scripts/01_08_heterogeneity_analysis.R")
 rm(list = setdiff(ls(), list_env))
-gc()   
+gc()
 
-source("scripts/01_08_cosy_and_hp_coadoption.R")
+source("scripts/01_09_cosy_and_hp_coadoption.R")
 rm(list = setdiff(ls(), list_env))
-gc()  
+gc()
 
-source("scripts/01_09_structural_winner.R")
+source("scripts/01_10_structural_winner.R")
 rm(list = setdiff(ls(), list_env))
-gc()  
-
-source("scripts/01_10_DiD_analysis.R")
-rm(list = setdiff(ls(), list_env))
-gc()  
+gc()

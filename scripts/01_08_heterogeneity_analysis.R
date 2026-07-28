@@ -373,9 +373,13 @@ fitstat_register("pre_avg_nontou", function(x) {
 }, "Half Hourly Consumption Non-ToU")
 
 
-m3 <- feols(consumption_hh ~ i(cosy_contract_active) +  i(cosy_contract_active, previous_is_charged_half_hourly, ref=0) | 
-              hdd + account_id + date, 
-            data = aggregated_data, 
+# Same 6,631-household CS-estimable sample used in did.tex/cosy_did_cs.tex
+# (cached by 01_06_DiD_analysis.R; re-run that script first if this is missing)
+mpans <- readRDS(file.path(datapath, "scratch/cosy_mpans_universe.RDS"))
+
+m3 <- feols(consumption_hh ~ i(cosy_contract_active) +  i(cosy_contract_active, previous_is_charged_half_hourly, ref=0) |
+              hdd + account_id + date,
+            data = aggregated_data %>% filter(hashed_mpan %in% mpans),
             cluster = ~account_id,
             split = ~ rate_period)
 

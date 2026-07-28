@@ -925,8 +925,12 @@ ids <- aggte_simple$DIDparams$data$id %>% unique()
 # cur_group_id() call, which does not reliably round-trip against att_gt()'s
 # internal handling of unbalanced panels.
 mpans <- did_data %>% filter(id %in% ids) %>% pull(hashed_mpan) %>% unique()
-               
-               
+
+# Cache the 6,631-household CS-estimable sample so did_leavers.tex (01_06)
+# and did_prevar.tex (01_07) can be restricted to the same sample as
+# did.tex/cosy_did_cs.tex without needing this whole script to run first.
+saveRDS(mpans, file.path(datapath, "scratch/cosy_mpans_universe.RDS"))
+
 m1 <- feols(
   consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
   data = aggregated_data %>% filter(hashed_mpan %in% mpans),
