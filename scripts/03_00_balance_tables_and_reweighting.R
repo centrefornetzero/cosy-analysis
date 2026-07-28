@@ -666,7 +666,22 @@ print("Balance survey")
 aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
 
 survey_selection <- fread(file.path(datapath, "input/cosy_survey_ids.csv"))
-responders <- fread(file.path(datapath, "input/survey_ids.csv"))
+
+# Respondent list: deduplicated on the survey's own customer key (kid), which
+# is the same identifier as account_number in cosy_survey_ids.csv. Cached by
+# 01_11_cosy_survey_figures.R from the raw questionnaire export -- see that
+# script for the dedup logic (3 households submitted the survey twice; the
+# later submission is kept). Replaces the older, stale survey_ids.csv (384
+# rows), which did not match the raw export's 390 deduplicated respondents.
+respondent_account_numbers <- readRDS(file.path(datapath, "scratch/cosy_survey_respondent_kids.RDS"))
+unmatched <- setdiff(respondent_account_numbers, survey_selection$account_number)
+if (length(unmatched) > 0) {
+  cat(sprintf("NOTE: %d of %d survey respondents not found in cosy_survey_ids.csv\n",
+              length(unmatched), length(respondent_account_numbers)))
+}
+responders <- survey_selection %>%
+  filter(account_number %in% respondent_account_numbers) %>%
+  distinct(account_id, account_number)
 
 cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_24.csv")) %>%
   inner_join(aggregated_data %>% distinct(hashed_mpan, account_id))

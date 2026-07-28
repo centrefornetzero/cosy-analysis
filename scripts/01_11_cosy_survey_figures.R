@@ -19,8 +19,9 @@ library(dplyr)
 library(readr)
 library(tibble)
 
-IN_CSV    <- "responses.csv"
-OUT_TEX   <- "survey_numbers.tex"
+IN_CSV    <- file.path(datapath, "input/responses.csv")
+OUT_TEX   <- "tables/survey_numbers.tex"
+OUT_KIDS  <- file.path(datapath, "scratch/cosy_survey_respondent_kids.RDS")
 N_SENT    <- 1000
 SEND_DATE <- as.Date("2024-07-08")
 
@@ -152,6 +153,12 @@ ded <- dat %>%
   slice_max(submit_ts, n = 1, with_ties = FALSE) %>%
   ungroup()
 stopifnot(nrow(ded) == nrow(dat) - length(dup_kids), !any(duplicated(ded$kid)))
+
+# Cache the deduplicated respondent list (kid == account_number in
+# cosy_survey_ids.csv/survey_ids.csv) so other scripts -- e.g. the survey
+# responders-vs-non-responders balance table in 03_00 -- can identify
+# respondents without re-deriving this dedup logic against the raw export.
+saveRDS(ded$kid, OUT_KIDS)
 
 # --- install dates that cannot be right ------------------------------------
 bad <- dat %>% filter(!is.na(install_date), install_date > submit_date)

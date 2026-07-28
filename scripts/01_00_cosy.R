@@ -209,3 +209,7 @@ gc()
 source("scripts/01_10_structural_winner.R")
 rm(list = setdiff(ls(), list_env))
 gc()
+
+source("scripts/01_11_cosy_survey_figures.R")
+rm(list = setdiff(ls(), list_env))
+gc()
