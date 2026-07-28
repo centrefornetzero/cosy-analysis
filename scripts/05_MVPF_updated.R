@@ -569,7 +569,7 @@ below_breaks <- if (length(below_vals) >= n_red_stops) {
 } else {
   unique(below_vals)
 }
-red_ramp <- colorRampPalette(c(red_palette[9], red_palette[1]))(length(below_breaks))
+red_ramp <- colorRampPalette(c("#3D0000", "#FFB3B3"))(length(below_breaks))
 
 p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
   geom_tile(aes(fill = Average)) +

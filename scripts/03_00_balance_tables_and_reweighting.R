@@ -514,9 +514,8 @@ matched_data2 <- match.data(match_obj2)
 # ----------------------------
 register_fitstats_hp()
 
-# Restricting (kept your file names as-is, including RS)
 ids_elec <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
-ids_gas  <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
+ids_gas  <- readRDS(file.path(datapath, "scratch/ids_cs_gas.RS"))
 
 m1 <- feols(
   elec_consumption ~ i(is_hp_installed) | hdd + account_id + settlement_week,

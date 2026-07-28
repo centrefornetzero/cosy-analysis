@@ -147,7 +147,7 @@ source("scripts/02_01_load_data.R")
 # List objects in the environment
 list_env <- c(ls(), "list_env")
 
-#source("scripts/02_02_DiD_analysis.R")
+source("scripts/02_02_DiD_analysis.R")
 rm(list = setdiff(ls(), list_env))
 
 source("scripts/02_03_DiD_analysis_outputs.R")
@@ -196,5 +196,6 @@ source("scripts/02_13_event_study.R")
 rm(list = setdiff(ls(), list_env))
 
 
+source("scripts/02_14_gas_only_sample_robustness_check.R")
 
 

@@ -851,7 +851,7 @@ ggsave("graphs/calendarplot_combined.png", plot = p_calendar_combined,
 
 cat(">>> Saved combined calendar ATT plot <<<\n")
 
-               # ============================================================
+# ============================================================
 # 6) CS “simple” estimates per period -> inject into did.tex
 # ============================================================
 cat("\n>>> CS simple aggregation + LaTeX injection <<<\n")
