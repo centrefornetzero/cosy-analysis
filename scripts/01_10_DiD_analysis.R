@@ -920,25 +920,11 @@ cat("\n>>> TWFE table (fixest::etable) <<<\n")
 
 # list CS ids
 ids <- aggte_simple$DIDparams$data$id %>% unique()
-mpans <- aggregated_data %>%
-        ungroup() %>%
-        filter(rate_period == period, !hashed_mpan == "1185945433") %>%
-        mutate(
-          settlement_week = floor_date(date, "week"),
-          week      = difftime(settlement_week, start_date, units = "weeks"),
-          firstweek  = difftime(floor_date(first_adoption, "week"), start_date, units = "weeks")
-        ) %>%
-        group_by(hashed_mpan, firstweek, week) %>%
-        summarise(consumption_hh = mean(consumption_hh), .groups = "drop") %>%
-        mutate(
-          firstweek = as.numeric(firstweek),
-          week      = as.numeric(week)
-        ) %>%
-        group_by(hashed_mpan) %>%
-        mutate(id = cur_group_id()) %>%
-        ungroup() %>%
-        filter(id %in% ids) %>%
-        pull(hashed_mpan)
+# Recover the exact households att_gt() used by filtering did_data (the object
+# already fed into att_gt() above) rather than re-deriving id via a fresh
+# cur_group_id() call, which does not reliably round-trip against att_gt()'s
+# internal handling of unbalanced panels.
+mpans <- did_data %>% filter(id %in% ids) %>% pull(hashed_mpan) %>% unique()
                
                
 m1 <- feols(
