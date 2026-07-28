@@ -90,35 +90,4 @@ ggplot(weekly_adoptions, aes(x = first_week, y = adoptions)) +
 ggsave("graphs/weekly_adoptions.png", width = 16, height = 8, units = "cm")
 
 
-# Analyze contracts
-contract_analysis <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
-  inner_join(distinct(aggregated_data, account_id, hashed_mpan)) %>%
-  filter(product_display_name == "Cosy Octopus") %>%
-  arrange(account_id, hashed_mpan, agreement_valid_from) %>%
-  mutate(
-    from = as.Date(agreement_valid_from),
-    to = as.Date(agreement_valid_to)
-  ) %>%
-  select(account_id, hashed_mpan, from, to) %>%
-  group_by(account_id) %>%
-  summarise(
-    num_contracts = n(),  # Count number of contracts per customer
-    ongoing = sum(is.na(to)),  # Count how many contracts are ongoing
-    ended = sum(!is.na(to))  # Count how many contracts have ended
-  ) %>%
-  mutate(
-    category = case_when(
-      num_contracts == 1 & ongoing == 1 ~ "Stayed on Tariff (ongoing)",
-      num_contracts == 1 & ended == 1 ~ "Tried then switched",
-      num_contracts > 1 ~ "Multiple contracts",
-      TRUE ~ "Other"  # Catch-all for any other cases
-    )
-  )
-
-# Count each category
-category_counts <- contract_analysis %>%
-  count(category)
-
-print(category_counts)
-
 

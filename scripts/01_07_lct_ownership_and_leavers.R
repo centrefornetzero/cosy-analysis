@@ -32,7 +32,11 @@ ev_users <- ev_charging %>%
   summarise(is_ev_detected= min(as.Date(interval_start)))
 
 # Update hp_installed with the new ev_charging values using case_when
-aggregated_data <- aggregated_data %>%
+aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
+mpans <- readRDS(file.path(datapath, "scratch/cosy_mpans_universe.RDS"))
+
+aggregated_data <- aggregated_data %>% 
+  filter(hashed_mpan %in% mpans) %>%
   left_join(ev_charging_agg) %>%
   mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging),
          ev_charging = case_when(
@@ -205,9 +209,47 @@ create_ggplot <- function(period_data, period_name) {
   return(p)
 }
 
+# Analyze contracts
+contract_analysis <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
+  inner_join(distinct(aggregated_data, account_id, hashed_mpan)) %>%
+  filter(product_display_name == "Cosy Octopus") %>%
+  arrange(account_id, hashed_mpan, agreement_valid_from) %>%
+  mutate(
+    from = as.Date(agreement_valid_from),
+    to = as.Date(agreement_valid_to)
+  ) %>%
+  select(account_id, hashed_mpan, from, to) %>%
+  group_by(account_id) %>%
+  summarise(
+    num_contracts = n(),  # Count number of contracts per customer
+    ongoing = sum(is.na(to)),  # Count how many contracts are ongoing
+    ended = sum(!is.na(to))  # Count how many contracts have ended
+  ) %>%
+  mutate(
+    category = case_when(
+      num_contracts == 1 & ongoing == 1 ~ "Stayed on Tariff (ongoing)",
+      num_contracts == 1 & ended == 1 ~ "Tried then switched",
+      num_contracts > 1 ~ "Multiple contracts",
+      TRUE ~ "Other"  # Catch-all for any other cases
+    )
+  )
+
+# Count each category
+category_counts <- contract_analysis %>%
+  count(category)
+
+print(category_counts)
+
+# reset data
+aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
+mpans <- readRDS(file.path(datapath, "scratch/cosy_mpans_universe.RDS"))
+
+aggregated_data <- aggregated_data %>% 
+  filter(hashed_mpan %in% mpans) 
+
 # Identify the cases where cosy_contract_active switches from 1 to 0
 aggregated_data <- aggregated_data %>%
-  mutate(leavers = (account_id %in% contract_analysis[!contract_analysis$category == "Stayed (ongoing)",]$account_id))
+  mutate(leavers = (account_id %in% contract_analysis[!contract_analysis$category == "Stayed on Tariff (ongoing)",]$account_id))
 
 # Identify when they leave
 leave_date <- aggregated_data  %>%
@@ -304,6 +346,13 @@ survey_responses <- survey_responses %>%
 # View the resulting dataframe
 summary(survey_responses)
 
+# reset data
+aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
+mpans <- readRDS(file.path(datapath, "scratch/cosy_mpans_universe.RDS"))
+
+aggregated_data <- aggregated_data %>% 
+  filter(hashed_mpan %in% mpans) 
+                                    
 df <- aggregated_data %>%
   select(account_id, consumption_hh, cosy_contract_active, date, hdd, rate_period) %>%
   inner_join(survey_responses %>% 
