@@ -1442,8 +1442,8 @@ ggsave("graphs/property_value_combined.png", device = "png", width = 16, height 
 
 
 ### Figure A.36: Impact of Cosy by Region
-m_region <- feols(consumption_hh ~ i(cosy_contract_active, region, ref =0) 
-                  | date +  account_id + hdd,
+m_region <- feols(consumption_hh ~ i(cosy_contract_active, region, ref =0)
+                  | hdd + account_id + date,
                   data = aggregated_data %>% filter(!is.na(region), !region==""),
                   split = ~ rate_period,
                   cluster = ~account_id)

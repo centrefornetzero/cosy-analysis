@@ -370,7 +370,7 @@ tempreg <- feols(consumption_hh ~ i(cosy_contract_active) +
                    i(cosy_contract_active, `Home battery`, ref=0) +
                    i(cosy_contract_active, `Has Solar PV`, ref=0) +
                    i(cosy_contract_active, `Has EV`, ref=0) |
-                   account_id + date + hdd,
+                   hdd + account_id + date,
                  data = df,
                  split = ~ rate_period,
                  cluster = ~account_id)
