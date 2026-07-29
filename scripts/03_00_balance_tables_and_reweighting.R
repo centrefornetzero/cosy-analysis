@@ -666,6 +666,7 @@ print("Balance survey")
 aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
 
 survey_selection <- fread(file.path(datapath, "input/cosy_survey_ids.csv"))
+n_frame <- nrow(survey_selection)
 
 # Respondent list: deduplicated on the survey's own customer key (kid), which
 # is the same identifier as account_number in cosy_survey_ids.csv. Cached by
@@ -674,14 +675,20 @@ survey_selection <- fread(file.path(datapath, "input/cosy_survey_ids.csv"))
 # later submission is kept). Replaces the older, stale survey_ids.csv (384
 # rows), which did not match the raw export's 390 deduplicated respondents.
 respondent_account_numbers <- readRDS(file.path(datapath, "scratch/cosy_survey_respondent_kids.RDS"))
+n_resp_raw <- length(respondent_account_numbers)
 unmatched <- setdiff(respondent_account_numbers, survey_selection$account_number)
 if (length(unmatched) > 0) {
   cat(sprintf("NOTE: %d of %d survey respondents not found in cosy_survey_ids.csv\n",
-              length(unmatched), length(respondent_account_numbers)))
+              length(unmatched), n_resp_raw))
 }
 responders <- survey_selection %>%
   filter(account_number %in% respondent_account_numbers) %>%
   distinct(account_id, account_number)
+n_resp_matched <- nrow(responders)
+
+non_responders_frame <- survey_selection %>% filter(!account_id %in% responders$account_id)
+n_nonresp_frame <- nrow(non_responders_frame)
+stopifnot(n_resp_matched + n_nonresp_frame == n_frame)
 
 cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_24.csv")) %>%
   inner_join(aggregated_data %>% distinct(hashed_mpan, account_id))
@@ -690,19 +697,42 @@ cosy_survey <- cosy_hp_details %>%
   filter(account_id %in% responders$account_id) %>%
   select(-account_id) %>%
   distinct() %>%
-  ungroup() %>%
+  ungroup()
+n_resp_linked <- nrow(cosy_survey)
+cosy_survey <- cosy_survey %>%
   select(floor_area, estimated_annual_consumption, energy_efficiency, property_value)
 
-cosy_non_survey <- survey_selection %>%
-  filter(!account_id %in% responders$account_id) %>%
+cosy_non_survey <- non_responders_frame %>%
   inner_join(cosy_hp_details, by = "account_id") %>%
-  ungroup() %>%
+  ungroup()
+n_nonresp_linked <- nrow(cosy_non_survey)
+cosy_non_survey <- cosy_non_survey %>%
   select(floor_area, estimated_annual_consumption, energy_efficiency, property_value)
 
-rm(aggregated_data, cosy_hp_details, responders, survey_selection)
+rm(aggregated_data, cosy_hp_details, responders, survey_selection, non_responders_frame)
 
 n_survey   <- count_observations(cosy_survey)$N
 n_nosurvey <- count_observations(cosy_non_survey)$N
+
+# --- Reconciling macros for the survey attrition footnote (subsec:survey) --
+# Traces exactly how the 390 respondents / non-respondent frame narrow down
+# to the N actually shown in tab:cosy-survey-stats, so the paper text can
+# cite the intermediate stages instead of just the final N.
+survey_balance_tex <- c(
+  sprintf("%% Auto-generated %s by 03_00_balance_tables_and_reweighting.R -- do not edit by hand.",
+          format(Sys.time(), "%Y-%m-%d %H:%M")),
+  sprintf("\\newcommand{\\SurveyBalanceRespondents}{%d}", n_resp_raw),
+  sprintf("\\newcommand{\\SurveyBalanceRespondentsMatched}{%d}", n_resp_matched),
+  sprintf("\\newcommand{\\SurveyBalanceRespondentsLinked}{%d}", n_resp_linked),
+  sprintf("\\newcommand{\\SurveyBalanceN}{%d}", n_survey),
+  sprintf("\\newcommand{\\SurveyBalanceFrame}{%d}", n_frame),
+  sprintf("\\newcommand{\\SurveyBalanceNonRespondentsFrame}{%d}", n_nonresp_frame),
+  sprintf("\\newcommand{\\SurveyBalanceNonRespondentsLinked}{%d}", n_nonresp_linked),
+  sprintf("\\newcommand{\\SurveyBalanceNoSurveyN}{%d}", n_nosurvey)
+)
+writeLines(survey_balance_tex, "tables/survey_balance_numbers.tex")
+cat(sprintf("Wrote tables/survey_balance_numbers.tex (%d definitions)\n",
+            sum(grepl("^\\\\newcommand", survey_balance_tex))))
 
 cosy_survey_numeric <- summarise_numeric(cosy_survey)
 cosy_non_survey_numeric <- summarise_numeric(cosy_non_survey)
