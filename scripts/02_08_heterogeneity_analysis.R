@@ -311,22 +311,14 @@ postcode_matched <- cosy_hp_details %>%
   select(msoa21cd, postcode) %>%
   distinct(postcode, .keep_all = TRUE)
 
-# income is on 2011 MSOA boundaries (7,201 E&W areas), while postcode_matched (via
-# postcode_msoa) is on 2021 MSOA boundaries (7,264 E&W areas). Rather than matching
-# msoa21cd directly against 2011-vintage MSOA codes (which would drop the 184 areas
-# created/renumbered in the 2011->2021 boundary review), we look up each household's
-# own postcode directly in the 2011-vintage postcode lookup to get its msoa11cd --
-# postcodes are unambiguous across vintages -- and join income on that instead.
-postcode_msoa11 <- fread(file.path(datapath, "input/PCD_OA_LSOA_MSOA_LAD_NOV21_UK_LU.csv"),
-                         select = c("pcds", "msoa11cd"))
-
-income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
+# Income is now on 2021 MSOA boundaries natively (ONS FYE2023 release), matching
+# postcode_matched/postcode_msoa directly -- no postcode-to-2011-MSOA crosswalk needed.
+income <- readxl::read_excel(file.path(datapath, "input/small_area_income_estimates_fye2023.xlsx"), sheet = "Total annual income", skip = 3) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct(`MSOA code`, .keep_all = TRUE)
 
 income_by_postcode <- postcode_matched %>%
-  left_join(postcode_msoa11, by = c("postcode" = "pcds")) %>%
-  left_join(income, by = c("msoa11cd" = "MSOA code")) %>%
+  left_join(income, by = c("msoa21cd" = "MSOA code")) %>%
   distinct(postcode, .keep_all = TRUE)
 
 cosy_hp_details <- cosy_hp_details %>%

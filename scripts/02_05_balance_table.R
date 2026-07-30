@@ -82,34 +82,36 @@ postcode_msoa <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG
   group_by(msoa21cd) %>%
   summarise(treated = sum(n))
 
-income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
+# Income is now on 2021 MSOA boundaries natively (ONS FYE2023 release), matching
+# postcode_msoa and the Census-derived tables below -- no crosswalk needed here.
+income <- readxl::read_excel(file.path(datapath, "input/small_area_income_estimates_fye2023.xlsx"), sheet = "Total annual income", skip = 3) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
-  distinct() 
-
-net_income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Net annual income", skip = 4) %>%
-  select(`MSOA code`, `Net annual income (£)`) %>%
-  distinct() 
-
-net_housing_income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Net income after housing costs", skip = 4) %>%
-  select(`MSOA code`, `Net annual income after housing costs (£)`) %>%
   distinct()
 
-# Load and preprocess the property_prices data (2011-vintage MSOA; kept as "MSOA code" here)
+net_income <- readxl::read_excel(file.path(datapath, "input/small_area_income_estimates_fye2023.xlsx"), sheet = "Net annual income", skip = 3) %>%
+  select(`MSOA code`, `Disposable (net) annual income (£)`) %>%
+  distinct()
+
+net_housing_income <- readxl::read_excel(file.path(datapath, "input/small_area_income_estimates_fye2023.xlsx"), sheet = "Net income after housing costs", skip = 3) %>%
+  select(`MSOA code`, `Disposable (net) annual income after housing costs (£)`) %>%
+  distinct()
+
+# Load and preprocess the property_prices data (still 2011-vintage MSOA; ONS has not
+# rebased HPSSA Dataset 3 to 2021 boundaries as of this writing). Kept as "MSOA code" here.
 property_prices <- read_excel(file.path(datapath, "/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls"),
                               sheet = "1a", skip = 4) %>%
   select(`MSOA code`, `Year ending Mar 2023`) %>%
   rename(`Property price (£)` = `Year ending Mar 2023`)
 
-# income and property_prices are on 2011 MSOA boundaries (7,201 E&W areas), while
-# postcode_msoa and the Census-derived tables below are on 2021 MSOA boundaries
-# (7,264 E&W areas); matching msoa21cd directly against 2011-vintage MSOA codes
-# would silently drop the 184 areas created/renumbered in the 2011->2021 boundary
-# review. Postcodes have no such ambiguity (each belongs to exactly one 2011 MSOA
-# and one 2021 MSOA), so we build a postcode-level crosswalk between the two
-# vintages and attach income/price there, then average up to msoa21cd -- this
-# correctly handles both 2011->2021 splits (all child postcodes share one
-# 2011-vintage value, so the mean is just that value) and merges (child postcodes
-# span >1 2011 MSOA, so we average across them).
+# property_prices is on 2011 MSOA boundaries (7,201 E&W areas), while postcode_msoa
+# and the Census-derived tables below are on 2021 MSOA boundaries (7,264 E&W areas);
+# matching msoa21cd directly against 2011-vintage MSOA codes would silently drop the
+# 184 areas created/renumbered in the 2011->2021 boundary review. Postcodes have no
+# such ambiguity (each belongs to exactly one 2011 MSOA and one 2021 MSOA), so we
+# build a postcode-level crosswalk and attach property price there, then average up
+# to msoa21cd -- this correctly handles both 2011->2021 splits (all child postcodes
+# share one 2011-vintage value, so the mean is just that value) and merges (child
+# postcodes span >1 2011 MSOA, so we average across them).
 msoa21_to_msoa11 <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv"),
                           select = c("pcds", "msoa21cd")) %>%
   inner_join(
@@ -118,13 +120,10 @@ msoa21_to_msoa11 <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_
   )
 
 income_property_2021 <- msoa21_to_msoa11 %>%
-  left_join(income, by = c("msoa11cd" = "MSOA code")) %>%
   left_join(property_prices, by = c("msoa11cd" = "MSOA code")) %>%
   group_by(msoa21cd) %>%
-  summarise(
-    `Total annual income (£)` = mean(`Total annual income (£)`, na.rm = TRUE),
-    `Property price (£)` = mean(`Property price (£)`, na.rm = TRUE)
-  )
+  summarise(`Property price (£)` = mean(`Property price (£)`, na.rm = TRUE)) %>%
+  left_join(income, by = c("msoa21cd" = "MSOA code"))
 
 hh_size <- fread(file.path(datapath, "input/custom-filtered-2024-07-03T10_58_30Z.csv")) %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
