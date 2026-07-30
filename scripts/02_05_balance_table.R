@@ -1,20 +1,31 @@
 ### Table A.15: External Validity by Area for Heat Pump Installation
 
 # Function to calculate weighted standard deviation
+# NB: filters (x, w) to jointly non-missing pairs first. Some MSOAs are missing
+# income/property price (2011-vintage ONS releases) after the 2021 MSOA boundary
+# review, so w can be non-missing while x is NA; without this filter, sum_w would
+# include weight from those NA-x rows and bias mean_w/SD downward.
 weighted_sd <- function(x, w) {
-  sum_w <- sum(w, na.rm = TRUE)
-  mean_w <- sum(w * x, na.rm = TRUE) / sum_w
-  sqrt(sum(w * (x - mean_w)^2, na.rm = TRUE) / sum_w)
+  ok <- !is.na(x) & !is.na(w)
+  x <- x[ok]; w <- w[ok]
+  sum_w <- sum(w)
+  mean_w <- sum(w * x) / sum_w
+  sqrt(sum(w * (x - mean_w)^2) / sum_w)
 }
 
 # Function to perform weighted t-test
+# NB: same jointly-non-missing filtering as weighted_sd, for the same reason.
 weighted_t_test <- function(x, w, y, v) {
-  n_x <- sum(w, na.rm = TRUE)
-  n_y <- sum(v, na.rm = TRUE)
-  mean_x <- sum(w * x, na.rm = TRUE) / n_x
-  mean_y <- sum(v * y, na.rm = TRUE) / n_y
-  var_x <- sum(w * (x - mean_x)^2, na.rm = TRUE) / n_x
-  var_y <- sum(v * (y - mean_y)^2, na.rm = TRUE) / n_y
+  okx <- !is.na(x) & !is.na(w)
+  oky <- !is.na(y) & !is.na(v)
+  x <- x[okx]; w <- w[okx]
+  y <- y[oky]; v <- v[oky]
+  n_x <- sum(w)
+  n_y <- sum(v)
+  mean_x <- sum(w * x) / n_x
+  mean_y <- sum(v * y) / n_y
+  var_x <- sum(w * (x - mean_x)^2) / n_x
+  var_y <- sum(v * (y - mean_y)^2) / n_y
   t_stat <- (mean_x - mean_y) / sqrt(var_x / n_x + var_y / n_y)
   df <- (var_x / n_x + var_y / n_y)^2 / ((var_x / n_x)^2 / (n_x - 1) + (var_y / n_y)^2 / (n_y - 1))
   p_value <- 2 * pt(-abs(t_stat), df)
@@ -83,11 +94,37 @@ net_housing_income <- readxl::read_excel(file.path(datapath, "input/saiefy1920fi
   select(`MSOA code`, `Net annual income after housing costs (£)`) %>%
   distinct()
 
-# Load and preprocess the property_prices data
-property_prices <- read_excel(file.path(datapath, "/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls"), 
+# Load and preprocess the property_prices data (2011-vintage MSOA; kept as "MSOA code" here)
+property_prices <- read_excel(file.path(datapath, "/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls"),
                               sheet = "1a", skip = 4) %>%
   select(`MSOA code`, `Year ending Mar 2023`) %>%
-  rename(msoa21cd = `MSOA code`, `Property price (£)` = `Year ending Mar 2023`)
+  rename(`Property price (£)` = `Year ending Mar 2023`)
+
+# income and property_prices are on 2011 MSOA boundaries (7,201 E&W areas), while
+# postcode_msoa and the Census-derived tables below are on 2021 MSOA boundaries
+# (7,264 E&W areas); matching msoa21cd directly against 2011-vintage MSOA codes
+# would silently drop the 184 areas created/renumbered in the 2011->2021 boundary
+# review. Postcodes have no such ambiguity (each belongs to exactly one 2011 MSOA
+# and one 2021 MSOA), so we build a postcode-level crosswalk between the two
+# vintages and attach income/price there, then average up to msoa21cd -- this
+# correctly handles both 2011->2021 splits (all child postcodes share one
+# 2011-vintage value, so the mean is just that value) and merges (child postcodes
+# span >1 2011 MSOA, so we average across them).
+msoa21_to_msoa11 <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG23_UK_LU.csv"),
+                          select = c("pcds", "msoa21cd")) %>%
+  inner_join(
+    fread(file.path(datapath, "input/PCD_OA_LSOA_MSOA_LAD_NOV21_UK_LU.csv"), select = c("pcds", "msoa11cd")),
+    by = "pcds"
+  )
+
+income_property_2021 <- msoa21_to_msoa11 %>%
+  left_join(income, by = c("msoa11cd" = "MSOA code")) %>%
+  left_join(property_prices, by = c("msoa11cd" = "MSOA code")) %>%
+  group_by(msoa21cd) %>%
+  summarise(
+    `Total annual income (£)` = mean(`Total annual income (£)`, na.rm = TRUE),
+    `Property price (£)` = mean(`Property price (£)`, na.rm = TRUE)
+  )
 
 hh_size <- fread(file.path(datapath, "input/custom-filtered-2024-07-03T10_58_30Z.csv")) %>%
   group_by(`Middle layer Super Output Areas Code`) %>%
@@ -110,10 +147,9 @@ education <- fread(file.path(datapath, "input/custom-filtered-2024-07-03T11_22_3
          `Share Level 4 Qualifications (%)` = 100 * Observation / sum_obs) %>%
   filter(`Highest level of qualification (7 categories) Code` == 4)
 
-# Merge all datasets by `MSOA code` or `Middle layer Super Output Areas Code`
+# Merge all datasets by `msoa21cd` or `Middle layer Super Output Areas Code`
 merged_data <- postcode_msoa %>%
-  inner_join(income, by = c("msoa21cd"="MSOA code")) %>%
-  inner_join(property_prices,by = c("msoa21cd"="msoa21cd")) %>%
+  left_join(income_property_2021, by = "msoa21cd") %>%
   inner_join(hh_size, by = c("msoa21cd" = "Middle layer Super Output Areas Code")) %>%
   inner_join(hh_deprivaton, by = c("msoa21cd" = "Middle layer Super Output Areas Code")) %>%
   inner_join(avg_age, by = c("msoa21cd" = "Middle layer Super Output Areas Code")) %>%
