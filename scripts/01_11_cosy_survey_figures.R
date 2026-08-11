@@ -19,7 +19,7 @@ library(dplyr)
 library(readr)
 library(tibble)
 
-IN_CSV    <- file.path(datapath, "input/responses.csv")
+IN_CSV    <- file.path("data/input/responses.csv")
 OUT_TEX   <- "tables/survey_numbers.tex"
 OUT_KIDS  <- file.path(datapath, "scratch/cosy_survey_respondent_kids.RDS")
 N_SENT    <- 1000

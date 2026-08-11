@@ -773,8 +773,8 @@ final_table_with_sd <- final_table %>%
     )
   ) %>%
   rename(
-    !!paste0("Survey (N = ", n_survey, ")") := Survey,
-    !!paste0("No Survey (N = ", n_nosurvey, ")") := NoSurvey
+    !!paste0("Responders (N = ", n_survey, ")") := Survey,
+    !!paste0("Non-Responders (N = ", n_nosurvey, ")") := NoSurvey
   )
 
 stargazer(
