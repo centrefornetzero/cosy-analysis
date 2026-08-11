@@ -318,6 +318,12 @@ ggplot(grouped_data, aes(x = as.factor(leavers), y = proportion, fill = as.facto
 
 ggsave(filename= "graphs/leavers_ev.png",width = 10, height = 8, dpi = 300)
 
+leaver_pcts <- grouped_data %>% filter(has_ev == TRUE)
+writeLines(c(
+  sprintf("\\newcommand{\\LeaversEVPct}{%.0f\\%%}", 100 * leaver_pcts$proportion[leaver_pcts$leavers == TRUE]),
+  sprintf("\\newcommand{\\StayersEVPct}{%.0f\\%%}", 100 * leaver_pcts$proportion[leaver_pcts$leavers == FALSE])
+), "tables/leavers_ev_numbers.tex")
+
 ### Table A.11: Impact of Cosy by LCTs Ownership
 survey_responses <- fread(file.path(datapath, "input/cosy_-_smart_tariff_survey_2024_09_12.csv"))
 
