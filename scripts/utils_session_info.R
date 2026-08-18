@@ -58,11 +58,20 @@ local({
   cat("\n==== RUNTIME ====\n")
   cat("Only two files in the pipeline are cached (skip-if-exists): data/scratch/aggregated_data.RDS\n")
   cat("(01_01_load_data.R) and data/scratch/cop_boot_no_boxing.csv (02_09_cop_analysis.R). If either\n")
-  cat("already exists from a prior run, source(\"scripts/main.R\") will skip rebuilding it and the\n")
-  cat("timing below will UNDERSTATE a true cold-start run. To get an accurate cold-start time, delete\n")
-  cat("both first, then time the full pipeline separately (this will take a while):\n")
-  cat('  file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))\n')
-  cat('  file.remove(file.path(datapath, "scratch/cop_boot_no_boxing.csv"))\n')
+  cat("exists, source(\"scripts/main.R\") will skip rebuilding it and any timing would UNDERSTATE a\n")
+  cat("true cold-start run, so both are deleted below to force a full rebuild on the next run.\n")
+
+  cache_files <- file.path(datapath, c("scratch/aggregated_data.RDS", "scratch/cop_boot_no_boxing.csv"))
+  for (f in cache_files) {
+    if (file.exists(f)) {
+      file.remove(f)
+      cat("Deleted:", f, "\n")
+    } else {
+      cat("Not present (nothing to delete):", f, "\n")
+    }
+  }
+
+  cat("\nNow time the full pipeline separately (this will take a while):\n")
   cat('  start <- Sys.time(); source("scripts/main.R"); Sys.time() - start\n')
 })
 
