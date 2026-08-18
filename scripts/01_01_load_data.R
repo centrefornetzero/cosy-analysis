@@ -137,7 +137,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     eac_mwh = estimated_annual_consumption/1000) %>%
     left_join(Prev_contract) 
   
-  # Create categorical for average daily temperature ranging from 0 - 15 (confusingly named HDD but it is not)
+  # Create categorical for average daily temperature ranging from 0 - 15 (not a heating-degree-days measure despite the variable name; labeled "Temp. Bin (°C)" in tables)
   aggregated_data <- aggregated_data %>% 
     mutate(hdd = factor(
       case_when(
@@ -151,14 +151,5 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
   
   rm(weather, adoption, consumption_with_indicator, agreements)
 } else {
-  aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS")) 
-}
-
-# Run on a subsample of the data for faster processing
-if (random_subsample) {
-  set.seed(123)
-  sampled_accounts <- sample(unique(aggregated_data$account_id), 1000)
-  aggregated_data <- aggregated_data %>% 
-    filter(account_id %in% sampled_accounts)
-  gc()
+  aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
 }

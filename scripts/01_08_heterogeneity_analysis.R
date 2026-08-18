@@ -1528,7 +1528,10 @@ postcode_msoa <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG
   select(msoa21cd, pcds) %>%
   distinct(pcds, .keep_all = TRUE)
 
-income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
+# Income is natively on 2021 MSOA boundaries (ONS FYE2023 release), matching
+# postcode_msoa -- no crosswalk needed here. Matches the source used in
+# 01_05_balance_table.R (previously this read the older saiefy1920 vintage).
+income <- readxl::read_excel(file.path(datapath, "input/small_area_income_estimates_fye2023.xlsx"), sheet = "Total annual income", skip = 3) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct() %>%
   inner_join(postcode_msoa, by=c("MSOA code"="msoa21cd")) %>%
@@ -1536,8 +1539,8 @@ income <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownlo
 
 
 # Create unique breaks for predicted_heatloss_watts
-income_dist <- readxl::read_excel(file.path(datapath, "input/saiefy1920finalqaddownload280923.xlsx"), sheet = "Total annual income", skip = 4) %>%
-  select(`MSOA code`, `Total annual income (£)`) 
+income_dist <- readxl::read_excel(file.path(datapath, "input/small_area_income_estimates_fye2023.xlsx"), sheet = "Total annual income", skip = 3) %>%
+  select(`MSOA code`, `Total annual income (£)`)
 
 
 breaks <- unique(quantile(income_dist$`Total annual income (£)`/1000, probs = seq(0, 1, by = 0.1)))

@@ -35,3 +35,6 @@ Rplots.pdf
 
 # Generated outputs
 tables/
+
+# Referee reports (not part of the replication package)
+referee_reports/

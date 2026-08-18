@@ -43,7 +43,10 @@ event_study_df <- hp_installed %>%
     ),
 
     # Time controls / FE keys
-    week  = week(date),
+    # Named week_of_year (not "week") to avoid colliding with the sequential
+    # DiD time index used elsewhere in the pipeline (e.g. 02_02/02_03/02_09),
+    # which counts weeks since start_date rather than calendar week-of-year.
+    week_of_year = week(date),
     month = month(date),
 
     # Weeklyise half-hourly kWh to kWh/week:
@@ -53,7 +56,7 @@ event_study_df <- hp_installed %>%
   select(
     account_id, weeks_since_hp,
     consumption_hh, elec_consumption_weekly_kwh,
-    hdd, date, rate_period, month, week, tariff_gsp_group_id
+    hdd, date, rate_period, month, week_of_year, tariff_gsp_group_id
   )
 
 gc()
@@ -202,12 +205,12 @@ plot_event_study(
 rm(m_overall_month_fe); gc()
 
 # ==============================================================================
-# (4) Overall + (GSP × week) fixed effects (flexible grid-time shocks)
+# (4) Overall + (GSP × week-of-year) fixed effects (flexible grid-time shocks)
 # ==============================================================================
 m_overall_gsp_week_fe <- run_event_study(
   data    = event_study_df %>% filter(rate_period == "Overall"),
   outcome = "elec_consumption_weekly_kwh",
-  fe_rhs  = "account_id + hdd + date + week:tariff_gsp_group_id"
+  fe_rhs  = "account_id + hdd + date + week_of_year:tariff_gsp_group_id"
 )
 
 etable(m_overall_gsp_week_fe)

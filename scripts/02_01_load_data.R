@@ -48,7 +48,8 @@ weather <- fread(file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.c
 hp_installed <- hp_installed %>%
   left_join(weather)
 
-# Round degrees Celsius 
+# Round degrees Celsius into a capped temperature bin, used as a fixed effect
+# (not a heating-degree-days measure despite the variable name; labeled "Temp. Bin (°C)" in tables)
 hp_installed <- hp_installed %>% mutate(hdd = factor(
   case_when(
     daily_avg_air_temperature_celsius < 0 ~ 0,
@@ -105,15 +106,6 @@ summary(hp_installed)
 # HP deals and installation
 deals_and_installations <- fread(file.path(datapath, "/input/cosy_-_hp_deals_and_installation_2025_06_06.csv")) %>%
   distinct(account_id, .keep_all = TRUE)
-
-# Run on a subsample of the data for faster processing
-if (random_subsample) {
-  set.seed(123)
-  sampled_accounts <- sample(unique(hp_installed$account_id), 1000)
-  hp_installed <- hp_installed %>% 
-    filter(account_id %in% sampled_accounts)
-  gc()
-}
 
 
 
@@ -184,7 +176,9 @@ weather_weekly <- fread(file.path(datapath, "input/cosy_-_weather_weekly_2024_06
 
 # merge with consumption data
 overall_weekly <- overall_weekly %>%
-  left_join(weather_weekly, by = c("tariff_gsp_group_id", "settlement_week")) %>% 
+  left_join(weather_weekly, by = c("tariff_gsp_group_id", "settlement_week")) %>%
+  # hdd: capped temperature bin used as a fixed effect, not a heating-degree-days
+  # measure despite the variable name; labeled "Temp. Bin (°C)" in tables
   mutate(hdd = factor(
       case_when(
           avg_air_temperature_celsius < 0 ~ 0,
