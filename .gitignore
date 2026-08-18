@@ -38,3 +38,9 @@ tables/
 
 # Referee reports (not part of the replication package)
 referee_reports/
+
+# Personal/tooling files, not part of the replication package
+CLAUDE.md
+overleaf-export/
+cosy-analysis.Rproj
+lit/

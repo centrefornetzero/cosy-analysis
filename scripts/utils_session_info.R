@@ -3,39 +3,67 @@
 # Data Editors template / DCAS #13). Not part of the analysis pipeline itself.
 #
 # Usage: source("scripts/main.R") first to install the analysis packages,
-# then source("scripts/utils_session_info.R"). Paste the printed output back
-# into the README.
+# then source("scripts/utils_session_info.R"). Output is written to
+# data/output/session_info.txt (and also echoed to the console) -- paste the
+# relevant parts back into the README's Computational Requirements section.
+#
+# Each run fully overwrites session_info.txt from scratch: the file
+# connection below is opened in "wt" mode, which truncates any existing file
+# before writing, so a re-run can never leave stale content from a previous
+# run mixed in with the new output.
 
-cat("==== OPERATING SYSTEM ====\n")
-print(Sys.info())
-cat(readLines("/etc/os-release", warn = FALSE), sep = "\n")
+local({
+  output_path <- file.path(datapath, "output", "session_info.txt")
+  dir.create(dirname(output_path), showWarnings = FALSE, recursive = TRUE)
 
-cat("\n==== CPU ====\n")
-system("lscpu | grep -E 'Model name|Socket|Core|Thread|CPU\\(s\\)'")
+  con <- file(output_path, open = "wt")
+  sink(con, split = TRUE)  # split = TRUE: still echo to console as it runs
+  on.exit({
+    sink(type = "output")
+    close(con)
+  }, add = TRUE)
 
-cat("\n==== MEMORY ====\n")
-system("free -h")
+  cat("Session info captured:", format(Sys.time()), "\n\n")
 
-cat("\n==== DISK SPACE (home + data mount) ====\n")
-system("df -h ~ 2>/dev/null")
-system("df -h /home/jupyter/gcs 2>/dev/null")
+  cat("==== OPERATING SYSTEM ====\n")
+  print(Sys.info())
+  cat(readLines("/etc/os-release", warn = FALSE), sep = "\n")
 
-cat("\n==== R VERSION AND PACKAGES ====\n")
-print(sessionInfo())
+  cat("\n==== CPU ====\n")
+  cat(system("lscpu | grep -E 'Model name|Socket|Core|Thread|CPU\\(s\\)'", intern = TRUE), sep = "\n")
 
-cat("\n==== EXACT VERSIONS OF PACKAGES USED BY main.R ====\n")
-packages <- c(
-  "knitr", "kableExtra", "did", "fixest", "data.table", "lubridate",
-  "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", "readr",
-  "forcats", "viridis", "stringr", "stargazer", "panelView", "readxl", "purrr",
-  "progress", "lfe", "tibble", "didimputation", "ggtext", "MatchIt", "zoo",
-  "patchwork"
-)
-for (p in packages) {
-  v <- tryCatch(as.character(packageVersion(p)), error = function(e) "NOT INSTALLED")
-  cat(sprintf("%-15s %s\n", p, v))
-}
+  cat("\n==== MEMORY ====\n")
+  cat(system("free -h", intern = TRUE), sep = "\n")
 
-cat("\n==== RUNTIME ====\n")
-cat("To time the full pipeline, run separately (this will take a while):\n")
-cat('  start <- Sys.time(); source("scripts/main.R"); Sys.time() - start\n')
+  cat("\n==== DISK SPACE (home + data mount) ====\n")
+  cat(system("df -h ~ 2>/dev/null", intern = TRUE), sep = "\n")
+  cat(system("df -h /home/jupyter/gcs 2>/dev/null", intern = TRUE), sep = "\n")
+
+  cat("\n==== R VERSION AND PACKAGES ====\n")
+  print(sessionInfo())
+
+  cat("\n==== EXACT VERSIONS OF PACKAGES USED BY main.R ====\n")
+  packages <- c(
+    "knitr", "kableExtra", "did", "fixest", "data.table", "lubridate",
+    "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", "readr",
+    "forcats", "viridis", "stringr", "stargazer", "panelView", "readxl", "purrr",
+    "progress", "lfe", "tibble", "didimputation", "ggtext", "MatchIt", "zoo",
+    "patchwork"
+  )
+  for (p in packages) {
+    v <- tryCatch(as.character(packageVersion(p)), error = function(e) "NOT INSTALLED")
+    cat(sprintf("%-15s %s\n", p, v))
+  }
+
+  cat("\n==== RUNTIME ====\n")
+  cat("Only two files in the pipeline are cached (skip-if-exists): data/scratch/aggregated_data.RDS\n")
+  cat("(01_01_load_data.R) and data/scratch/cop_boot_no_boxing.csv (02_09_cop_analysis.R). If either\n")
+  cat("already exists from a prior run, source(\"scripts/main.R\") will skip rebuilding it and the\n")
+  cat("timing below will UNDERSTATE a true cold-start run. To get an accurate cold-start time, delete\n")
+  cat("both first, then time the full pipeline separately (this will take a while):\n")
+  cat('  file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))\n')
+  cat('  file.remove(file.path(datapath, "scratch/cop_boot_no_boxing.csv"))\n')
+  cat('  start <- Sys.time(); source("scripts/main.R"); Sys.time() - start\n')
+})
+
+cat("\nSaved to:", file.path(datapath, "output", "session_info.txt"), "\n")
