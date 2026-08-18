@@ -31,7 +31,7 @@ df <-
   mutate(temperature = round(daily_avg_heating_degree))
 
 # Main model: includes interaction and fixed effects
-ref_ing <- unique(df$hp_engineer)[1]   # Reference engineer defaults to the first one in the data; an explicit engineer is used instead in the model below
+ref_ing <- unique(df$hp_engineer)[1]   # Reference engineer defaults to the first one in the data
 
 reg <- feols(
   consumption_hh ~ i(is_hp_installed, ref = 0) +
@@ -50,16 +50,21 @@ etable(reg)
 # =====================================================================
 # stratified randomisation
 set.seed(123)
-installers$insample <- randomizr::strata_rs(strata = installers$hp_engineer, 
+installers$insample <- randomizr::strata_rs(strata = installers$hp_engineer,
                                             prob = 0.5)
+
+# Reference engineer for the in-sample model defaults to the first one in the
+# in-sample subset (same convention as ref_ing above, scoped to this subset)
+insample_engineers <- installers[installers$insample == 1,]$hp_engineer
+ref_ing_insample <- unique(df$hp_engineer[df$hp_engineer %in% insample_engineers])[1]
 
 # Regression in sample
 m_insample <- feols(
   consumption_hh ~ i(is_hp_installed, ref = 0) +
-    i(is_hp_installed, hp_engineer, ref = 0, ref2 = "Steven Wiltshire") |
+    i(is_hp_installed, hp_engineer, ref = 0, ref2 = ref_ing_insample) |
     date + hdd,
   cluster = ~account_id,
-  data = df %>% filter(hp_engineer %in% installers[installers$insample == 1,]$hp_engineer)
+  data = df %>% filter(hp_engineer %in% insample_engineers)
 )
 
 # Predict out of sample
