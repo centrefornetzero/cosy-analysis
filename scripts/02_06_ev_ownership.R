@@ -3,7 +3,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # --------------------- Data Cleaning --------------------------
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ev half hours 
+# EV charging is detected at half-hourly resolution
 
 
 # Read the CSV file
@@ -122,12 +122,12 @@ etable(m_charging1, m_charging2, m_charging3, m_charging4,
 file_path <- "tables/hp_ev_charging.tex"
 file_content <- readLines(file_path)
 
-# ---- settings you control ----
+# ---- configurable settings ----
 new_row_name   <- "Baseline charging"          # what the row should be called in the table
 new_label_line <- "\\emph{Baseline charging}\\\\"
 
-# where to insert the baseline row (choose an anchor that exists in your table)
-# examples: "Is HP Installed", "Treatment", "Constant", etc.
+# where to insert the baseline row: the anchor must be a label string present in
+# the etable's row names, such as "Is HP Installed", "Treatment", or "Constant"
 anchor_pattern <- "Is HP Installed"
 insert_offset  <- 2   # how many lines after the anchor match to insert
 # ------------------------------
@@ -137,7 +137,7 @@ pre_idx <- grep("Pre-Treatment Consumption", file_content)
 
 if (length(pre_idx) == 0) stop("Couldn't find 'Pre-Treatment Consumption' in the .tex file.")
 
-# If it appears multiple times, pick the 2nd like you were doing, otherwise the 1st
+# If it appears multiple times, use the second occurrence; otherwise use the only occurrence
 pre_line_index <- if (length(pre_idx) == 1) pre_idx[1] else pre_idx[2]
 
 # grab the row line (single line) and remove it from file

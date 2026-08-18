@@ -31,7 +31,7 @@ df <-
   mutate(temperature = round(daily_avg_heating_degree))
 
 # Main model: includes interaction and fixed effects
-ref_ing <- unique(df$hp_engineer)[1]   # or choose explicitly, see below
+ref_ing <- unique(df$hp_engineer)[1]   # Reference engineer defaults to the first one in the data; an explicit engineer is used instead in the model below
 
 reg <- feols(
   consumption_hh ~ i(is_hp_installed, ref = 0) +
@@ -44,9 +44,9 @@ reg <- feols(
 etable(reg)
 
 # =====================================================================
-# Delete?
-# If I train my heat-pump consumption model on half the engineers, can it 
-# correctly predict consumption outcomes for customers of other engineers?
+# Out-of-sample validation: train the heat-pump consumption model on half
+# of the engineers and test whether it predicts consumption outcomes for
+# customers of the other engineers
 # =====================================================================
 # stratified randomisation
 set.seed(123)
@@ -156,8 +156,8 @@ stargazer(var_decomp,
 
 # =====================================================================
 # 3. Bias-Corrected FE Covariance (felm)
-# DELETE?
-# ====================================================================
+# Re-estimates the variance decomposition using bias-corrected fixed-effect covariances
+# =====================================================================
 
 df2 <- df %>%
   inner_join(data.frame(date = as.Date(names(fes$date)), time_fe = fes$date)) %>%
@@ -256,7 +256,7 @@ rm(results)
 
 # =====================================================================
 # Plot engineer specific coefs
-# DELETE?
+# Yearly effect of HP installation by installing engineer, relative to the average treatment effect
 # ====================================================================
 # Installer FE
 installers <- fread(file.path(datapath, "/input/cosy_-_hp_engineers_2025_03_17.csv")) 

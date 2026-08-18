@@ -141,7 +141,7 @@ postcode_msoa <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG
   select(msoa21cd, n) %>%
   group_by(msoa21cd) %>%
   summarise(treated = sum(n))
-# Income is now on 2021 MSOA boundaries natively (ONS FYE2023 release), matching
+# Income is natively on 2021 MSOA boundaries (ONS FYE2023 release), matching
 # postcode_msoa and the Census-derived tables below -- no crosswalk needed here.
 # https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/earningsandworkinghours/datasets/smallareaincomeestimatesformiddlelayersuperoutputareasenglandandwales/financialyearending2023
 income <- readxl::read_excel(file.path(datapath,"input/small_area_income_estimates_fye2023.xlsx"), sheet = "Total annual income", skip = 3) %>%
@@ -278,7 +278,6 @@ writeLines(latex_table, "tables/balance_table_cosy.tex")
 
 
 
-# DELETE?
 # Load and preprocess the property_prices data
 # Merge all datasets
 # NB: reuses income_property_2021 (postcode-level 2011->2021 crosswalk) computed above.

@@ -98,7 +98,7 @@ coefs_wider <- coefs  %>%
   pivot_wider(names_from = lhs, values_from = c(Estimate)) %>%
   mutate(quasi_cop = abs(0.9*gas_consumption / elec_consumption)) 
 
-# READIBLE axis
+# Human-readable temperature axis breaks and labels
 temp_breaks <- c(0, 5, 10, 15, 20, 25)
 temp_break_labels <- temp_labels[temp_levels %in% temp_breaks]
 
@@ -250,7 +250,7 @@ brattle_cop <- tibble(temp_c = seq(-2, 15, by = 1)) %>%
 
 cop_reference_lines <- bind_rows(ashp_interp_df, brattle_cop)
 
-# Your existing ggplot + ASHP COP overlay
+# Set up temperature axis labels for the plot combining bootstrapped COP estimates with the ASHP COP overlay
 temp_breaks <- c(0, 5, 10, 15, 20, 25)
 temp_break_labels <- temp_labels[temp_levels %in% temp_breaks]
 temp_levels <- -2:23

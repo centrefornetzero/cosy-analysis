@@ -1,1259 +1,604 @@
-############################## Initial numbers from paper/other sources ###################################################
-# We will keep everything in 2023 currency
-# Load packages
-library(dplyr)
-library(ggplot2)
-library(tidyr)
-############################# Hard coded numbers #######################################################
+# ============================================================
+# MVPF (HP only): HMG baseline + marginal share + Rennert sensitivity
+# Output: LaTeX table + Rennert SCC sensitivity plot
+# ============================================================
 
-# ________ values which can be changed _____________
-discount_rate <- 0.035 # 0.035 0.02
-social_cost_of_carbon <- "uk" #"usa""uk"
-energy_prices <- "hmg" #"hmg""octopus"
-gas_connection <- "no" #"yes""no"
-percent_marginal_consumers <- 0.5
-base_year <- 2024
+# ----------------------------
+# 0) PATHS
+# ----------------------------
+PATH_XLSX <- file.path(datapath, "input/HP and Cosy paper welfare analysis.xlsx")
+stopifnot(file.exists(PATH_XLSX))
+
+dir.create("tables", showWarnings = FALSE)
+dir.create("graphs", showWarnings = FALSE)
+
+# ----------------------------
+# 1) BASELINE PARAMETERS (HP only)
+# ----------------------------
+YEARS <- 2024:2043
+T <- length(YEARS)
+base_year <- min(YEARS)
+tt <- YEARS - base_year  # 0..19
+
+# Behavioural / policy inputs
+m_default <- 0.50
+
+SUBSIDY_HP  <- 7500
+BOILER_COST <- 2250
+
+# Calculate the average value for the dashed line
+main_results <- fread(file.path(datapath, "output/eff_df.csv"))  %>% filter(window == "Last 12 months")
+
+ELEC_KWH_CHANGE <- main_results$Electricity
+GAS_KWH_CHANGE  <- main_results$Gas
+
+# Fiscal share for climate FE
 uk_gdp_as_proportion_of_global <- 0.032
 uk_tax_as_proportion_of_gdp <- 0.335
+CLIMATE_FE_SHARE <- uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp
 
-# ______________________________________________________
+# Air-quality (AQ) benefits are always discounted at a fixed 3.5%, independent
+# of the scenario discount rate r_disc used for climate benefits below
+r_aq <- 0.035
 
-# ___________________ Heat pump numbers from paper __________________________________
-# per year
-# change in electricity consumption due to heat pump annually in kWh
-electricity_change_heatpump <- 3080.0
-# change in gas consumption due to heat pump annually in kWh
-gas_change_heatpump <- -9350.7
-# overall energy change in kWh.  (why is it not 3080 -9350.7 = -6,270.7)
-total_energy_change_heatpump <- -6119.8
-
-# initial electricity consumption annually in kWh
-electricity_initial_use_heatpump <- 5062.1
-# initial gas consumption annually in kWh
-gas_initial_use_heatpump <- 10355.7
-# overall initial energy usage in kWh
-total_initial_energy_use_heatpump <- 15287.2
-
-gov_subsidy_heatpump <- 7500
-
-# from https://assets.publishing.service.gov.uk/media/5f4e14328fa8f57fba704517/cost-of-installing-heating-measures-in-domestic-properties.pdf
-private_cost_gas_boiler <- 2250
-implied_before_tax_cost_boiler <- private_cost_gas_boiler/1.2
-
-# ___________________________ Cosy numbers _________________________________________
-# per half hour
-morning_time_initial_use_cosy <- 0.3659 
-afternoon_time_initial_use_cosy <- 0.3199
-peak_time_initial_use_cosy <- 0.4404
-other_time_initial_use_cosy <- 0.3843
-
-morning_time_change_cosy <- 0.5071
-afternoon_time_change_cosy <- 0.2926
-peak_time_change_cosy <- -0.2242
-other_time_change_cosy <- -0.1066
-
-morning_time_length_cosy <- 6
-afternoon_time_length_cosy <- 6
-peak_time_length_cosy <- 6
-other_time_length_cosy <- 30
-
-morning_time_price_cosy <- 0.1151
-afternoon_time_price_cosy <- 0.1151
-peak_time_price_cosy <- 0.3406
-other_time_price_cosy <- 0.2349
-
-
-# _____________ Octopus electricity prices in 2023 __________
-# convert to yearly
-electricity_standing_charge_octopus <- 0.5803 * 365
-gas_standing_charge_octopus <- 0.2936 * 365
-
-# per kWh
-electricity_unit_rate_octopus <- 0.245
-gas_unit_rate_octopus <- 0.0604
-
-
-# ------------ import all the data from different sources about social cost of carbon, carbon intensity, etc --------
-
-# _____________ UK GDP deflator data __________________________
-deflator_df <- read.csv(file.path(datapath, "input/GDP deflator.csv"))
-# Keep only the desired columns
-deflator_df <- deflator_df[, c(8, 9)]
-# remove empty rows
-deflator_df <- deflator_df[-c(1:9), ]
-# Rename column X.6 to year
-colnames(deflator_df)[1] <- "Year"
-# Rename column X.7 to deflator
-colnames(deflator_df)[2] <- "Deflator"
-deflator_df$Year <- as.numeric(as.character(deflator_df$Year))
-# where 2023 is 100 
-gdp_deflator_2020 <- as.numeric(deflator_df %>% filter(Year == 2020) %>% pull(Deflator))
-gdp_deflator_2021 <- as.numeric(deflator_df %>% filter(Year == 2021) %>% pull(Deflator))
-gdp_deflator_2022 <- as.numeric(deflator_df %>% filter(Year == 2022) %>% pull(Deflator))
-gdp_deflator_2023 <- as.numeric(deflator_df %>% filter(Year == 2023) %>% pull(Deflator))
-
-# ____________________ Air quality data __________________________
-air_quality_df <- read.csv(file.path(datapath, "input/Air quality.csv"))
-# clean csv
-air_quality_df <- as.data.frame(t(air_quality_df)) 
-# Make row 2 the column names (the type of fuel)
-colnames(air_quality_df) <- air_quality_df[2, ]
-# Rename column V10 to year
-colnames(air_quality_df)[10] <- "Year"
-# Keep only the desired columns
-air_quality_df <- air_quality_df[, -c(1:9, 11, 14:ncol(air_quality_df))]
-# remove empty rows
-air_quality_df <- air_quality_df[-c(1:3), ]
-# convert to pounds 
-air_quality_df$Gas_air_quality <- as.numeric(as.character(air_quality_df$Gas)) / 100
-air_quality_df$Elec_air_quality <- as.numeric(as.character(air_quality_df$Electricity)) / 100
-air_quality_df <- air_quality_df[, c("Gas_air_quality", "Elec_air_quality", "Year"), drop = FALSE]
-air_quality_df$Year <- as.numeric(as.character(air_quality_df$Year))
-air_quality_df$Gas_air_quality <- air_quality_df$Gas_air_quality  * gdp_deflator_2023 / gdp_deflator_2022
-air_quality_df$Elec_air_quality <- air_quality_df$Elec_air_quality * gdp_deflator_2023 / gdp_deflator_2022
-
-# ______________ UK carbon intensity data DEFRA kg/kWh carbon intensity for gas _____________
-defra_df <- read.csv(file.path(datapath, "input/Defra gas and elec carbon intensity.csv"))
-# Make row 2 the column names (the type of fuel)
-colnames(defra_df) <- defra_df[6, ]
-# remove irrelevant rows
-defra_df <- defra_df[-c(1:22, 27:38), ]
-# only keep row called kWh (Net CV)
-defra_df <- defra_df[defra_df$Unit == "kWh (Net CV)", , drop = FALSE]
-# only keep column called CO2e
-defra_df <- defra_df[, "kg CO2e", drop = FALSE]  
-years <- 2024:2043
-defra_df <- data.frame(Year = years, Carbon_intensity_gas_heatpump = rep(defra_df$`kg CO2e`, length(years)))
-# convert to tonnes
-defra_df$Carbon_intensity_gas_heatpump <- as.numeric(as.character(defra_df$Carbon_intensity_gas_heatpump))
-defra_df$Carbon_intensity_gas_heatpump <- defra_df$Carbon_intensity_gas_heatpump/1000
-
-# ____________________ UK carbon intensity data for electricity ____________________
-desnz_df <- read.csv(file.path(datapath, "input/DESNZ elec carbon intensity.csv"))
-# domestic consumption based long run marginal carbon intensity
-# Make row 12 the column names (the type of fuel)
-colnames(desnz_df) <- desnz_df[12, ]
-# remove irrelevant rows
-desnz_df <- desnz_df[-c(1:12), ]
-# only keep column called Domestic and Year
-desnz_df <- desnz_df[, c("Domestic", "Year"), drop = FALSE]
-desnz_df$Carbon_intensity_electricity_heatpump <- desnz_df$Domestic
-desnz_df <- desnz_df[, c("Carbon_intensity_electricity_heatpump", "Year"), drop = FALSE]
-desnz_df$Year <- as.numeric(as.character(desnz_df$Year))
-# convert to tonnes
-desnz_df$Carbon_intensity_electricity_heatpump <- as.numeric(as.character(desnz_df$Carbon_intensity_electricity_heatpump))
-desnz_df$Carbon_intensity_electricity_heatpump <- desnz_df$Carbon_intensity_electricity_heatpump/1000
-
-# ____________________ MCS cost data  ____________________
-mcs_cost_df <- read.csv(file.path(datapath, "input/MCS cost data.csv"))
-# Make row 2 the column names 
-colnames(mcs_cost_df) <- mcs_cost_df[2, ]
-# find average installation cost
-mcs_cost_df <- mcs_cost_df[49:56, ]
-# find average installation cost
-mcs_cost_df$`Average installation cost (£)` <- as.numeric(gsub(",", "", mcs_cost_df$`Average installation cost (£)`))
-total_installation_cost_heatpump <- mean(mcs_cost_df$`Average installation cost (£)`, na.rm = TRUE)
-private_cost_heatpump <- total_installation_cost_heatpump - gov_subsidy_heatpump
-
-# ____________________ NGESO carbon intensity data for ____________________
-ngeso_df <- read.csv(file.path(datapath, "input/NGESO carbon intensity.csv"))
-
-# ____________________ Retail price data energy ____________________
-retail_prices_df <- read.csv(file.path(datapath, "input/Retail energy prices forecast.csv"))
-# use retail prices forecast - its in 2022 currency and in pence
-# Make row 8 the column names 
-colnames(retail_prices_df) <- retail_prices_df[8, ]
-# remove empty rows
-retail_prices_df <- retail_prices_df[-c(1:8), ]
-# convert air quality to 2023 currency
-colnames(retail_prices_df) <- make.names(colnames(retail_prices_df), unique = TRUE)
-retail_prices_df$Domestic.1 <- as.numeric(gsub(",", "", retail_prices_df$Domestic.1))
-retail_prices_df$Domestic.4 <- as.numeric(gsub(",", "", retail_prices_df$Domestic.4))
-retail_prices_df$Electricity_prices <- retail_prices_df$`Domestic.1`/100
-retail_prices_df$Gas_prices <- retail_prices_df$Domestic.4/100
-retail_prices_df$Gas_prices <- retail_prices_df$Gas_prices  * gdp_deflator_2023 / gdp_deflator_2022
-retail_prices_df$Electricity_prices <- retail_prices_df$Electricity_prices * gdp_deflator_2023 / gdp_deflator_2022
-retail_prices_df <- retail_prices_df[, c("Gas_prices", "Electricity_prices", "Year"), drop = FALSE]
-retail_prices_df$Year <- as.numeric(as.character(retail_prices_df$Year))
-
-# __________ UK social cost of carbon data ____________________
-scc_hmg_df <- read.csv(file.path(datapath, "input/SCC HMG.csv"))
-# Make row 3 the column names 
-colnames(scc_hmg_df) <- scc_hmg_df[3, ]
-# remove empty rows
-scc_hmg_df <- scc_hmg_df[-c(1:3), ]
-# keep important columns
-scc_hmg_df$Social_cost_carbon_uk_gov <- scc_hmg_df$`Central Series`
-scc_hmg_df <- scc_hmg_df[, c("Social_cost_carbon_uk_gov", "Year"), drop = FALSE]
-scc_hmg_df$Year <- as.numeric(as.character(scc_hmg_df$Year))
-scc_hmg_df$Social_cost_carbon_uk_gov <- as.numeric(as.character(scc_hmg_df$Social_cost_carbon_uk_gov))
-scc_hmg_df$Social_cost_carbon_uk_gov <- scc_hmg_df$Social_cost_carbon_uk_gov * gdp_deflator_2023 / gdp_deflator_2020
-
-# ____________ USA social cost of carbon data ________________
-scc_iwf_df <- read.csv(file.path(datapath, "input/SCC IWG.csv"))
-# Make row 3 the column names 
-colnames(scc_iwf_df) <- scc_iwf_df[2, ]
-# remove empty rows
-scc_iwf_df <- scc_iwf_df[-c(1:2), ]
-# use 3% discount rate
-scc_iwf_df$Social_cost_carbon_usa_gov_dollars  <- scc_iwf_df$`3.0%_CO2`
-scc_iwf_df$Year  <- scc_iwf_df$`year`
-scc_iwf_df$exchange_rate <- 0.8
-scc_iwf_df$Social_cost_carbon_usa_gov_dollars <- as.numeric(gsub(",", "", scc_iwf_df$Social_cost_carbon_usa_gov_dollars))
-scc_iwf_df$Social_cost_carbon_usa_gov <- scc_iwf_df$Social_cost_carbon_usa_gov_dollars * scc_iwf_df$exchange_rate
-scc_iwf_df <- scc_iwf_df[, c("Social_cost_carbon_usa_gov", "Year"), drop = FALSE]
-scc_iwf_df$Year <- as.numeric(as.character(scc_iwf_df$Year))
-scc_iwf_df$Social_cost_carbon_usa_gov <- scc_iwf_df$Social_cost_carbon_usa_gov * gdp_deflator_2023 / gdp_deflator_2021
-
-# _________________ System price data _____________________________
-system_price_df <- read.csv(file.path(datapath, "input/System price.csv"))
-# Make row 3 the column names 
-colnames(system_price_df) <- system_price_df[3, ]
-system_price_df <- system_price_df[-c(1:3), ]
-# Keep only the desired columns
-system_price_df <- system_price_df[, c(1:4)]
-colnames(system_price_df)[4] <-"2024"
-colnames(system_price_df)[1] <- "Cosy_intervals"
-# half hour intervals: 
-# overnight cosy 4am-7am: cosy_intervals 9-14
-# day cosy 1pm-4pm: cosy_intervals 27-32
-# peak 4pm-7pm: cosy_intervals 33-38
-# other times: cosy_intervals: 1-8, 15-26, 39-48
-# units seem to be in 
-system_price_df$cosy <- with(system_price_df, 
-                                      ifelse(Cosy_intervals %in% 9:14, "off_peak_night",
-                                      ifelse(Cosy_intervals %in% 27:32, "off_peak_afternoon",
-                                      ifelse(Cosy_intervals %in% 33:38, "peak",
-                                      "normal_rate"))))
-# find mean prices of electricity for every kWh of electricity 
-peak_time_price_2022_cosy <- (system_price_df %>%
-  filter(cosy == "peak") %>% 
-  summarise(avg_price = mean(`2022`, na.rm = TRUE)) %>% 
-  pull(avg_price) )/1000
-peak_time_price_2023_cosy <- (system_price_df %>%
-  filter(cosy == "peak") %>% 
-  summarise(avg_price = mean(`2023`, na.rm = TRUE)) %>% 
-  pull(avg_price) )/1000
-peak_time_price_2024_cosy <- (system_price_df %>%
-  filter(cosy == "peak") %>% 
-  summarise(avg_price = mean(as.numeric(`2024`), na.rm = TRUE)) %>%  
-  pull(avg_price)  )/1000
-off_peak_night_price_2022_cosy <- (system_price_df %>%
-  filter(cosy == "off_peak_night") %>% 
-  summarise(avg_price = mean(`2022`, na.rm = TRUE)) %>% 
-  pull(avg_price)   )/1000
-off_peak_night_price_2023_cosy <- (system_price_df %>%
-  filter(cosy == "off_peak_night") %>% 
-  summarise(avg_price = mean(`2023`, na.rm = TRUE)) %>% 
-  pull(avg_price) )/1000
-off_peak_night_price_2024_cosy <- (system_price_df %>%
-  filter(cosy == "off_peak_night") %>% 
-  summarise(avg_price = mean(as.numeric(`2024`), na.rm = TRUE)) %>%  
-  pull(avg_price)  )/1000 
-off_peak_afternoon_price_2022_cosy <- (system_price_df %>%
-  filter(cosy == "off_peak_afternoon") %>% 
-  summarise(avg_price = mean(`2022`, na.rm = TRUE)) %>% 
-  pull(avg_price)   )/1000
-off_peak_afternoon_price_2023_cosy <- (system_price_df %>%
-  filter(cosy == "off_peak_afternoon") %>% 
-  summarise(avg_price = mean(`2023`, na.rm = TRUE)) %>% 
-  pull(avg_price)   )/1000 
-off_peak_afternoon_price_2024_cosy <- (system_price_df %>%
-  filter(cosy == "off_peak_afternoon") %>% 
-  summarise(avg_price = mean(as.numeric(`2024`), na.rm = TRUE)) %>%  
-  pull(avg_price)   )/1000
-normal_price_2022_cosy <- (system_price_df %>%
-  filter(cosy == "normal_rate") %>% 
-  summarise(avg_price = mean(`2022`, na.rm = TRUE)) %>% 
-  pull(avg_price)  )/1000
-normal_price_2023_cosy <- (system_price_df %>%
-  filter(cosy == "normal_rate") %>% 
-  summarise(avg_price = mean(`2023`, na.rm = TRUE)) %>% 
-  pull(avg_price)  )/1000
-normal_price_2024_cosy <- (system_price_df %>%
-  filter(cosy == "normal_rate") %>% 
-  summarise(avg_price = mean(as.numeric(`2024`), na.rm = TRUE)) %>% 
-  pull(avg_price) )/1000
-
-# _______ UK emissions trading scheme average prices ____________________
-uk_ets_df <- read.csv(file.path(datapath, "input/UK ETS.csv"))
-# Make row 5 the column names 
-colnames(uk_ets_df) <- uk_ets_df[5, ]
-# remove empty rows
-uk_ets_df <- uk_ets_df[-c(1:6), ]
-uk_ets_df$Carbon_trading_permit_prices <- uk_ets_df$`Market Carbon Values`
-# only keep column called Carbon_trading_permit_prices and Year
-uk_ets_df <- uk_ets_df[, c("Carbon_trading_permit_prices", "Year"), drop = FALSE]
-uk_ets_df$Year <- as.numeric(as.character(uk_ets_df$Year))
-
-# ____________________ WattTime marginal carbon intensity ___________________________
-watt_time_df <- read.csv(file.path(datapath, "input/WattTime marginal carbon intensity.csv"))
-# in g/kWh so divide by 1000
-watt_time_df <- as.data.frame(t(watt_time_df)) 
-# Make row 8 the column names 
-colnames(watt_time_df) <- watt_time_df[1, ]
-# remove empty rows and columns
-watt_time_df <- watt_time_df[-c(1:3), ]
-watt_time_df <- watt_time_df[, -c(1)]
-# Rename column .1 to year
-colnames(watt_time_df)[1] <- "Year"
-# Rename column Off Peak Morning
-colnames(watt_time_df)[2] <- "Carbon_intensity_off_peak_morning_cosy"
-watt_time_df$Carbon_intensity_off_peak_morning_cosy <- as.numeric(as.character(watt_time_df$Carbon_intensity_off_peak_morning_cosy))
-watt_time_df$Carbon_intensity_off_peak_morning_cosy <- watt_time_df$Carbon_intensity_off_peak_morning_cosy/1000
-# Rename column Off Peak Afternoon
-colnames(watt_time_df)[3] <- "Carbon_intensity_off_peak_afternoon_cosy"
-watt_time_df$Carbon_intensity_off_peak_afternoon_cosy <- as.numeric(as.character(watt_time_df$Carbon_intensity_off_peak_afternoon_cosy))
-watt_time_df$Carbon_intensity_off_peak_afternoon_cosy <- watt_time_df$Carbon_intensity_off_peak_afternoon_cosy/1000
-# Rename column Peak
-colnames(watt_time_df)[4] <- "Carbon_intensity_peak_cosy"
-watt_time_df$Carbon_intensity_peak_cosy <- as.numeric(as.character(watt_time_df$Carbon_intensity_peak_cosy))
-watt_time_df$Carbon_intensity_peak_cosy <- watt_time_df$Carbon_intensity_peak_cosy/1000
-# Rename column Normal Rate
-colnames(watt_time_df)[5] <- "Carbon_intensity_normal_rate_cosy"
-watt_time_df$Carbon_intensity_normal_rate_cosy <- as.numeric(as.character(watt_time_df$Carbon_intensity_normal_rate_cosy))
-watt_time_df$Carbon_intensity_normal_rate_cosy <- watt_time_df$Carbon_intensity_normal_rate_cosy/1000
-watt_time_df$Year <- as.numeric(as.character(watt_time_df$Year))
-# extend it from 2024-2043
-# Create a new data frame with extended years and repeat the last available values
-extra_years <- 2025:2043
-df_extra <- data.frame(
-  Year = extra_years,
-  Carbon_intensity_off_peak_morning_cosy = rep(NA, length(extra_years)), 
-  Carbon_intensity_off_peak_afternoon_cosy = rep(NA, length(extra_years)),
-  Carbon_intensity_peak_cosy = rep(NA, length(extra_years)),
-  Carbon_intensity_normal_rate_cosy = rep(NA, length(extra_years)))
-# Bind the original dataframe with the extended rows
-watt_time_df <- bind_rows(watt_time_df, df_extra)
-
-
-
-# ---------------------learning by doing numbers -----------------------------------
-# calculations from MVPF climate paper Hahn, Hendren, Metcalfe and Sprung-Keyser 2024
-# look at other code
-
+# Learning-by-doing (LBD) cost reductions: environmental + price components
 lbd_environmental_heatpump <- 3192.62
 lbd_price_heatpump <- 1697.59
+LBD_TOTAL <- lbd_environmental_heatpump + lbd_price_heatpump
 
-# -------------------------------------------------------------------------------------------------------------------------
-
-# From 2024-2043 - we are working over a 20 year time horizon
-# merge all the dataframes together
-
-whole_df <- left_join(defra_df, air_quality_df, by = "Year")
-whole_df <- left_join(whole_df, desnz_df, by = "Year")
-whole_df <- left_join(whole_df, retail_prices_df, by = "Year")
-whole_df <- left_join(whole_df, scc_hmg_df, by = "Year")
-whole_df <- left_join(whole_df, scc_iwf_df, by = "Year")
-whole_df <- left_join(whole_df, uk_ets_df, by = "Year")
-whole_df <- left_join(whole_df, watt_time_df, by = "Year")
-whole_df[] <- lapply(whole_df, function(x) as.numeric(as.character(x)))
-
-
-# fill in the rest of the years for carbon intensity for cosy - use DESNZ carbon intensity for electricity for the future
-# Extract reference values for all carbon intensity types and electricity heatpump
-reference_values <- whole_df %>%
-  filter(Year == base_year) %>%
-  select(  Carbon_intensity_normal_rate_cosy, 
-    Carbon_intensity_off_peak_morning_cosy,
-    Carbon_intensity_off_peak_afternoon_cosy,
-    Carbon_intensity_peak_cosy,
-    Carbon_intensity_electricity_heatpump)
-# Apply the transformation for all years >= 2025
-whole_df <- whole_df %>%
-  mutate(
-    Carbon_intensity_normal_rate_cosy = ifelse(
-      Year >= 2025,
-      reference_values$Carbon_intensity_normal_rate_cosy * Carbon_intensity_electricity_heatpump / reference_values$Carbon_intensity_electricity_heatpump,
-      Carbon_intensity_normal_rate_cosy ),
-    Carbon_intensity_off_peak_morning_cosy = ifelse(
-      Year >= 2025,
-      reference_values$Carbon_intensity_off_peak_morning_cosy * Carbon_intensity_electricity_heatpump / reference_values$Carbon_intensity_electricity_heatpump,
-      Carbon_intensity_off_peak_morning_cosy ),
-    Carbon_intensity_off_peak_afternoon_cosy = ifelse(
-      Year >= 2025,
-      reference_values$Carbon_intensity_off_peak_afternoon_cosy * Carbon_intensity_electricity_heatpump / reference_values$Carbon_intensity_electricity_heatpump,
-      Carbon_intensity_off_peak_afternoon_cosy  ),
-    Carbon_intensity_peak_cosy = ifelse(
-      Year >= 2025,
-      reference_values$Carbon_intensity_peak_cosy * Carbon_intensity_electricity_heatpump / reference_values$Carbon_intensity_electricity_heatpump,
-      Carbon_intensity_peak_cosy ) )
-
-
-############################## Intermediate Calculations ###################################################
-
-
-# ---------------------- individual wtp for heat pump -------------------
-# price of heatpump - marginal consumers wtp- assume half of subsidy since we do not know what price they are marginal at
-marginal_wtp_heatpump <- percent_marginal_consumers * 0.5 * gov_subsidy_heatpump
-# inframarginal consumers would have been wtp the entire thing since they would have bought it anyway but now gain
-inframarginal_wtp_heatpump <- (1-percent_marginal_consumers) * gov_subsidy_heatpump
-
-
-# _____ 1. using octopus energy prices _____________
-whole_df$Gas_price_change_octopus_heatpump <- gas_unit_rate_octopus * gas_change_heatpump
-whole_df$Electricity_price_change_octopus_heatpump <- electricity_unit_rate_octopus * electricity_change_heatpump
-# if they continue having gas at home in some capacity
-whole_df$Change_payments_octopus <- whole_df$Electricity_price_change_octopus_heatpump + whole_df$Gas_price_change_octopus_heatpump 
-# if they cut off their gas connection entirely
-whole_df$Change_payments_octopus_no_standing <- whole_df$Change_payments_octopus - gas_standing_charge_octopus
-
-# __________ 2. using hmg prices ___________________
-whole_df$Gas_price_change_heatpump <- whole_df$Gas_prices * gas_change_heatpump
-whole_df$Electricity_price_change_heatpump <- whole_df$Electricity_prices * electricity_change_heatpump
-# if they continue having gas at home in some capacity
-whole_df$Change_payments_hmg <- whole_df$Electricity_price_change_heatpump + whole_df$Gas_price_change_heatpump 
-# if they cut off their gas connection entirely
-whole_df$Change_payments_hmg_no_standing <- whole_df$Change_payments_hmg - gas_standing_charge_octopus
-
-whole_df <- whole_df %>%
-  mutate(Change_energy_payments = case_when(
-    energy_prices == "octopus" & gas_connection == "yes" ~ Change_payments_octopus,
-    energy_prices == "octopus" & gas_connection == "no" ~ Change_payments_octopus_no_standing,
-    energy_prices == "hmg" & gas_connection == "yes" ~ Change_payments_hmg,
-    energy_prices == "hmg" & gas_connection == "no" ~ Change_payments_hmg_no_standing ))
-
-# Apply the discounting formula
-whole_df <- whole_df %>%
-  mutate(Discounted_change_energy_payments = Change_energy_payments / (1 + discount_rate)^(Year - base_year), )
-
-
-# ---------------------- environmental wtp for heat pump -------------------
-
-# ------------ carbon wtp ----------------
-# find the change in co2 due to gas usage using carbon intensity
-whole_df$Gas_carbon_change_heatpump <- whole_df$Carbon_intensity_gas_heatpump * gas_change_heatpump
-# find the change in co2 due to electricity usage using carbon intensity
-whole_df$Electricity_carbon_change_heatpump <- whole_df$Carbon_intensity_electricity_heatpump * electricity_change_heatpump
-# find overall change in co2 due to heat pumps 
-whole_df$Carbon_quantity_change_heatpump <- whole_df$Gas_carbon_change_heatpump + whole_df$Electricity_carbon_change_heatpump
-# convert to a monetary value using SCC
-whole_df$Carbon_change_usa_heatpump <- whole_df$Carbon_quantity_change_heatpump * whole_df$Social_cost_carbon_usa_gov * (1 - uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp)
-whole_df$Carbon_change_uk_heatpump <- whole_df$Carbon_quantity_change_heatpump * whole_df$Social_cost_carbon_uk_gov * (1 - uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp)
-
-# ------------ air quality wtp ----------------
-# find the change in air quality due to gas usage 
-whole_df$Gas_airquality_change_heatpump <- whole_df$Gas_air_quality * gas_change_heatpump
-# find the change in air quality due to electricity usage
-whole_df$Electricity_airquality_change_heatpump <- whole_df$Elec_air_quality * electricity_change_heatpump
-# find overall change in air quality due to heat pumps 
-whole_df$Airquality_change_heatpump <- (whole_df$Electricity_airquality_change_heatpump + whole_df$Gas_airquality_change_heatpump)
-
-
-# --------- conditional uk/usa social cost of carbon total ---------
-whole_df <- whole_df %>%
-  mutate(Environmental_wtp_heatpump = case_when(
-      social_cost_of_carbon == "uk"  ~ Airquality_change_heatpump + Carbon_change_uk_heatpump,
-      social_cost_of_carbon == "usa" ~ Airquality_change_heatpump + Carbon_change_usa_heatpump  ))
-
-# Apply the discounting formula
-whole_df <- whole_df %>%
-  mutate(Discounted_environmental_wtp_heatpump = Environmental_wtp_heatpump / (1 + discount_rate)^(Year - base_year), )
-
-whole_df <- whole_df %>%
-  mutate(Discounted_airquality_change_heatpump = Airquality_change_heatpump / (1 + discount_rate)^(Year - base_year), )
-
-whole_df <- whole_df %>%
-  mutate(Discounted_carbon_change_uk_heatpump = Carbon_change_uk_heatpump / (1 + discount_rate)^(Year - base_year), )
-
-
-# -------------------------------------- fiscal externality ---------------------------------------------------
-
-# ------------ co2 externality ------------
-# to get the global fiscal externality of carbon emissions, we multiply uk_gdp_as_proportion_of_global by 
-# uk_tax_as_proportion_of_gdp since the UK government will only bear this cost as part of the social cost of carbon
-whole_df <- whole_df %>%
-  mutate(Environmental_gov_rev_heatpump = case_when(
-    social_cost_of_carbon == "uk"  ~ uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp * Carbon_change_uk_heatpump,
-    social_cost_of_carbon == "usa" ~ uk_gdp_as_proportion_of_global *  uk_tax_as_proportion_of_gdp * Carbon_change_usa_heatpump  ))
-whole_df <- whole_df %>%
-  mutate(Discounted_environmental_gov_rev_heatpump = Environmental_gov_rev_heatpump / (1 + discount_rate)^(Year - base_year), )
-
-# ------------ vat externality ------------
-# 5% * (electricity unit rate * electricity change + gas unit rate * gas change) 
-whole_df$Vat_elec_gas_change_heatpump <- 0.05 * (whole_df$Electricity_prices * electricity_change_heatpump + whole_df$Gas_prices * gas_change_heatpump)
-whole_df <- whole_df %>%
-  mutate(Discounted_vat_elec_gas_change_heatpump = Vat_elec_gas_change_heatpump / (1 + discount_rate)^(Year - base_year), )
-
-# 20% tax on boilers. 0% tax on heat pumps
-# buy one less boiler and one more heat pump - assume one time loss since the lifetime of these is about 20 years
-Vat_boiler_change_heatpump <- -0.2 * implied_before_tax_cost_boiler
-
-# ----------- trading permit externality -----
-# there won't be one since permits get sold anyway and so the government still earns the same (heat pump might affect the demand for electricity
-# and therefore the demand for permits but this effect will be very small)
-
-# ____________________________________________________ cosy _____________________________________________________
-
-# ---------------------- individual wtp for cosy -------------------
-
-# ------ initial payments with cosy if behavior unchanged
-# price difference * quantity change in consumption in that period * 365 days
-morning_time_payment_cosy <- (morning_time_price_cosy - other_time_price_cosy) * morning_time_initial_use_cosy * morning_time_length_cosy * 365
-afternoon_time_payment_cosy <- (afternoon_time_price_cosy - other_time_price_cosy) * afternoon_time_initial_use_cosy * afternoon_time_length_cosy * 365
-peak_time_payment_cosy <- (peak_time_price_cosy - other_time_price_cosy) * peak_time_initial_use_cosy * peak_time_length_cosy * 365
-# since price doesn't change for consumption during these periods
-other_time_payment_cosy <- (other_time_price_cosy - other_time_price_cosy) * other_time_initial_use_cosy * other_time_length_cosy * 365
-tot <- other_time_payment_cosy + peak_time_payment_cosy + afternoon_time_payment_cosy + morning_time_payment_cosy
-
-# ------ change payments with cosy since people change when they consume
-# price difference * quantity change in consumption in that period * 365 days
-morning_time_payment_change_cosy <- morning_time_price_cosy * morning_time_change_cosy * morning_time_length_cosy * 365
-afternoon_time_payment_change_cosy <- afternoon_time_price_cosy * afternoon_time_change_cosy * afternoon_time_length_cosy * 365
-peak_time_payment_change_cosy <- peak_time_price_cosy * peak_time_change_cosy * peak_time_length_cosy * 365
-other_time_payment_change_cosy <- other_time_price_cosy * other_time_change_cosy * other_time_length_cosy * 365
-
-# ------ change payments with cosy 
-total_change_payment_cosy <-    morning_time_payment_change_cosy + afternoon_time_payment_change_cosy + 
-  peak_time_payment_change_cosy + other_time_payment_change_cosy + morning_time_payment_cosy + 
-  afternoon_time_payment_cosy + peak_time_payment_cosy + other_time_payment_cosy
-
-# Apply the discounting formula
-whole_df <- whole_df %>% mutate(Discounted_total_change_payment_cosy = total_change_payment_cosy / (1 + discount_rate)^(Year - base_year), )
-
-# ----- change electricity vat with cosy
-# 5% * (electricity unit rate * electricity change
-morning_time_vat_change_cosy <- 0.05 * morning_time_price_cosy * morning_time_change_cosy * morning_time_length_cosy * 365
-afternoon_time_vat_change_cosy <- 0.05 * afternoon_time_price_cosy * afternoon_time_change_cosy * afternoon_time_length_cosy * 365
-peak_time_vat_change_cosy <- 0.05 * peak_time_price_cosy * peak_time_change_cosy * peak_time_length_cosy * 365
-other_time_vat_change_cosy <- 0.05 * other_time_price_cosy * other_time_change_cosy * other_time_length_cosy * 365
-total_vat_change_cosy <- morning_time_vat_change_cosy + afternoon_time_vat_change_cosy + peak_time_vat_change_cosy + other_time_vat_change_cosy
-
-# Apply the discounting formula
-whole_df <- whole_df %>% mutate(Discounted_total_vat_change_cosy = total_vat_change_cosy / (1 + discount_rate)^(Year - base_year), )
-
-
-########### ------------ cosy environmental wtp --------------------------
-
-# change in electricity every year
-change_electricity_morning_cosy <- morning_time_change_cosy * morning_time_length_cosy * 365
-change_electricity_afternoon_cosy <- afternoon_time_change_cosy * afternoon_time_length_cosy * 365
-change_electricity_peak_cosy <- peak_time_change_cosy * peak_time_length_cosy * 365
-change_electricity_other_cosy <- other_time_change_cosy * other_time_length_cosy * 365
-
-# convert to change in co2 tonnes using carbon intensities
-whole_df$Change_carbon_morning_cosy <- change_electricity_morning_cosy * whole_df$Carbon_intensity_off_peak_morning_cosy /1000
-whole_df$Change_carbon_afternoon_cosy <- change_electricity_afternoon_cosy * whole_df$Carbon_intensity_off_peak_afternoon_cosy /1000
-whole_df$Change_carbon_peak_cosy <- change_electricity_peak_cosy * whole_df$Carbon_intensity_peak_cosy /1000
-whole_df$Change_carbon_other_cosy <- change_electricity_other_cosy * whole_df$Carbon_intensity_normal_rate_cosy /1000
-
-whole_df$Total_carbon_change_cosy <- whole_df$Change_carbon_morning_cosy +whole_df$Change_carbon_afternoon_cosy +
-                                      whole_df$Change_carbon_peak_cosy + whole_df$Change_carbon_other_cosy 
-# convert to a monetary value using SCC
-whole_df$Total_carbon_change_usa_cosy <- whole_df$Total_carbon_change_cosy * whole_df$Social_cost_carbon_usa_gov  * (1 - uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp)
-whole_df$Total_carbon_change_uk_cosy <- whole_df$Total_carbon_change_cosy * whole_df$Social_cost_carbon_uk_gov * (1 - uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp)
-
-# --------- conditional uk/usa social cost of carbon total ---------
-whole_df <- whole_df %>%
-  mutate(Environmental_wtp_cosy = case_when(
-    social_cost_of_carbon == "uk"  ~ Total_carbon_change_uk_cosy,
-    social_cost_of_carbon == "usa" ~ Total_carbon_change_usa_cosy  ))
-# Apply the discounting formula
-whole_df <- whole_df %>% mutate(Discounted_environmental_wtp_cosy = Environmental_wtp_cosy / (1 + discount_rate)^(Year - base_year), )
-
-
-# -------------------------------------- fiscal externality cosy ----------------------------------------------
-
-# long term gov revenue change
-whole_df$Discounted_environmental_gov_wtp_cosy <- whole_df$Discounted_environmental_wtp_cosy * uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp
-
-
-############################## Final MVPF Calculations ###################################################
-
-# ------------------------ heatpump ----------------------------
-
-# total wtp by consumers
-Final_consumer_wtp_heatpump <- marginal_wtp_heatpump + inframarginal_wtp_heatpump
-# environmental wtp - sum over 20 years - multiply by -1 since it is a benefit 
-Discounted_environmental_wtp_heatpump <- sum(whole_df$Discounted_environmental_wtp_heatpump) * -1
-Final_environmental_wtp_heatpump <- Discounted_environmental_wtp_heatpump * percent_marginal_consumers 
-# total wtp 
-Numerator <- Final_environmental_wtp_heatpump + Final_consumer_wtp_heatpump
-
-
-# gov transfer = price of subsidy
-Final_gov_transfer <- gov_subsidy_heatpump
-# vat change from change in gas and electricity use
-Discounted_vat_elec_gas_change_heatpump <- sum(whole_df$Discounted_vat_elec_gas_change_heatpump)
-# vat change from boiler and heatpump
-Final_vat_change_heatpump <- (Discounted_vat_elec_gas_change_heatpump + Vat_boiler_change_heatpump) * percent_marginal_consumers
-# gov revenue change due to co2 effects long term
-Discounted_environmental_gov_rev_heatpump <- sum(whole_df$Discounted_environmental_gov_rev_heatpump) * -1
-Final_environmental_gov_rev_heatpump <- Discounted_environmental_gov_rev_heatpump * percent_marginal_consumers
-# total fiscal cost
-Demominator <- Final_gov_transfer - Final_vat_change_heatpump - Final_environmental_gov_rev_heatpump
-
-# MVPF heatpump
-MVPF <- Numerator / Demominator
-
-MVPF_with_LBD <- (Numerator + lbd_environmental_heatpump + lbd_price_heatpump) / Demominator
-
-
-
-# ------------------------ cosy and heatpump ----------------------------
-
-# environmental wtp - sum over 20 years 
-Discounted_environmental_wtp_cosy <- sum(whole_df$Discounted_environmental_wtp_cosy) * -1
-Final_environmental_wtp_cosy <- (Discounted_environmental_wtp_cosy + Discounted_environmental_wtp_heatpump) * percent_marginal_consumers
-# total wtp 
-Numerator_cosy <- Final_environmental_wtp_cosy + Final_consumer_wtp_heatpump
-
-# most fiscal externalities same as before
-Discounted_environmental_gov_wtp_cosy <- sum(whole_df$Discounted_environmental_gov_wtp_cosy) * -1
-Discounted_total_vat_change_cosy <- sum(whole_df$Discounted_total_vat_change_cosy) 
-Final_environmental_gov_rev_cosy <- (Discounted_environmental_gov_rev_heatpump + Discounted_environmental_gov_wtp_cosy + Discounted_total_vat_change_cosy) * percent_marginal_consumers
-# total fiscal cost
-Demominator_cosy <- Final_gov_transfer - Final_vat_change_heatpump - Final_environmental_gov_rev_cosy
-
-# MVPF heatpump + cosy
-MVPF_cosy <- Numerator_cosy / Demominator_cosy
-
-
-# _________________________________ social and government cost per tonne ___________________________________________________
-
-# ---------------- heatpump -----------
-
-# direct change of energy payments due to change in gas and electricity usage from heatpump
-Discounted_change_energy_payments <- sum(whole_df$Discounted_change_energy_payments)
-# change in consumer payments if consumers buy heatpumps and don't buy boilers
-private_cost_heatpump_not_boiler <- private_cost_heatpump - private_cost_gas_boiler + Discounted_change_energy_payments
-
-# change in air quality effect
-Discounted_airquality_change_heatpump <- sum(whole_df$Discounted_airquality_change_heatpump) * -1
-Final_airquality_change_heatpump <- Discounted_airquality_change_heatpump * percent_marginal_consumers
-
-# cost to consumers, societal cost of air pollution, fiscal revenue change
-social_cost_heatpump <- private_cost_heatpump_not_boiler - Final_airquality_change_heatpump - Final_vat_change_heatpump - Final_environmental_gov_rev_heatpump
-
-# divide it by co2 tonnes abated
-Carbon_tonnes_abated <- sum(whole_df$Carbon_quantity_change_heatpump) * -1 
-social_cost_per_tonne_heatpump <-  social_cost_heatpump / Carbon_tonnes_abated
- 
-# government cost  
-government_cost_heatpump <- Final_gov_transfer - Final_vat_change_heatpump - Final_environmental_gov_rev_heatpump
-government_cost_per_tonne_heatpump <- government_cost_heatpump / (Carbon_tonnes_abated * percent_marginal_consumers)
-
-# resource cost  
-resource_cost_heatpump <- private_cost_heatpump_not_boiler
-resource_cost_per_tonne_heatpump <- resource_cost_heatpump / Carbon_tonnes_abated
-
-# ------------------ cosy --------------
-
-# direct change in energy payments if they have cosy
-Discounted_total_change_payment_cosy <- sum(whole_df$Discounted_total_change_payment_cosy)
-Final_total_change_payment_cosy <- Discounted_total_change_payment_cosy * percent_marginal_consumers
-
-# cost to consumers of having a heatpump and not a boiler and also being on the cosy tariff
-private_cost_cosy <- private_cost_heatpump - private_cost_gas_boiler + Discounted_change_energy_payments + Discounted_total_change_payment_cosy
-
-# cost to consumers, societal cost of air pollution, fiscal revenue change
-social_cost_cosy <- private_cost_cosy - Final_airquality_change_heatpump - Final_vat_change_heatpump - Final_environmental_gov_rev_cosy
-# divide it by co2 tonnes abated
-social_cost_per_tonne_cosy <- social_cost_cosy / Carbon_tonnes_abated
-  
-# government cost  
-government_cost_cosy <- Final_gov_transfer - Final_vat_change_heatpump - Final_environmental_gov_rev_cosy
-government_cost_per_tonne_cosy <- government_cost_heatpump / (Carbon_tonnes_abated * percent_marginal_consumers)
-
-resource_cost_cosy <- private_cost_cosy
-resource_cost_per_tonne_cosy <- resource_cost_cosy / Carbon_tonnes_abated 
-
-# _________________________________ marginal MVPF ___________________________________________________
-
-
-consumer_transfer <- 1
-gov_spending <- 1
+# First-£ parameters (keep explicit & editable)
 elasticity <- 1.2
-Numerator_first_pound <- consumer_transfer + (Discounted_environmental_wtp_heatpump*elasticity/total_installation_cost_heatpump)
-Denominator_first_pound <- gov_spending + ((Discounted_environmental_gov_rev_heatpump - Discounted_vat_elec_gas_change_heatpump - Vat_boiler_change_heatpump)*elasticity/total_installation_cost_heatpump)
+
+# Rennert preferred SCC (Rennert et al 2022): $185/tCO2 (2020 USD)
+RENNERT_USD2020 <- 185
+# GBP per USD in 2020 from 
+# https://www.ons.gov.uk/economy/nationalaccounts/balanceofpayments/timeseries/auss/diop.
+GBP_PER_USD_2020 <- 0.80
+
+# ----------------------------
+# 2) HELPERS
+# ----------------------------
+disc <- function(r) 1 / (1 + r)^tt
+
+npv <- function(x, r) sum(as.numeric(x) * disc(r), na.rm = TRUE)
+
+money_gbp <- function(x) paste0("£", format(round(x), big.mark = ","))
+pct <- function(x) paste0(round(100*x), "\\%")
+
+# ----------------------------
+# 3) READ SERIES FROM EXCEL
+# ----------------------------
+
+# Electricity CI (DESNZ long-run marginal: Domestic)
+elec_ci <- read_excel(PATH_XLSX, sheet = "DESNZ elec carbon intensity", range = "B13:F54") |>
+  rename(year = 1) |>
+  mutate(year = as.integer(year)) |>
+  transmute(year, elec_ci = Domestic) |>
+  right_join(tibble(year = YEARS), by = "year") |>
+  arrange(year) |>
+  pull(elec_ci)
+stopifnot(length(elec_ci) == T, !any(is.na(elec_ci)))
+
+# Gas CI (DEFRA single cell)
+gas_ci <- read_excel(PATH_XLSX, sheet = "Defra gas and elec carbon inten",
+                     range = "D26:D26", col_names = FALSE)[[1]][1]
+
+# AQ costs (already inflated in Formulas)
+aq_vals <- read_excel(PATH_XLSX, sheet = "Formulas", range = "F119:Y120", col_names = FALSE)
+aq_elec <- as.numeric(unlist(aq_vals[1, ]))
+aq_gas  <- as.numeric(unlist(aq_vals[2, ]))
+stopifnot(length(aq_elec) == T, length(aq_gas) == T)
+
+# Retail prices (HMG) from Formulas
+prices <- read_excel(PATH_XLSX, sheet = "Formulas", range = "F134:Y135", col_names = FALSE)
+elec_price <- as.numeric(unlist(prices[1, ]))
+gas_price  <- as.numeric(unlist(prices[2, ]))
+stopifnot(length(elec_price) == T, length(gas_price) == T)
+
+# Gas standing charge (Formulas)
+gas_sc <- as.numeric(unlist(read_excel(PATH_XLSX, sheet = "Formulas", range = "F133:Y133", col_names = FALSE)))
+stopifnot(length(gas_sc) == T)
+
+# Boiler price for VAT loss (Formulas)
+boiler_price <- as.numeric(read_excel(PATH_XLSX, sheet = "Formulas", range = "F128:F128", col_names = FALSE)[1, ])
+vat_boiler_oneoff <- -0.2 * boiler_price
+
+# MCS installation costs: use mean as total installation cost
+mcs_cost <- read_excel(PATH_XLSX, sheet = "MCS cost data", range = "C50:C57", col_names = FALSE) |>
+  unlist() |>
+  as.numeric()
+total_installation_cost_hp <- mean(mcs_cost, na.rm = TRUE)
+private_cost_heatpump <- total_installation_cost_hp - SUBSIDY_HP
+
+# ----------------------------
+# 4) PHYSICAL IMPACTS (independent of SCC)
+# ----------------------------
+
+# CO2 tonnes saved each year (tonnes)
+tonnes_saved <- - (GAS_KWH_CHANGE * gas_ci + ELEC_KWH_CHANGE * elec_ci) / 1000
+stopifnot(length(tonnes_saved) == T)
+
+# AQ benefits each year (£): negative of damages change (so benefits positive if damages fall)
+aq_benefits <- - (ELEC_KWH_CHANGE * aq_elec + GAS_KWH_CHANGE * aq_gas)
+stopifnot(length(aq_benefits) == T)
+
+# VAT on energy each year (£)
+vat_energy <- 0.05 * (ELEC_KWH_CHANGE * elec_price + GAS_KWH_CHANGE * gas_price)
+
+# Running cost change each year (£) using HMG unit rates + removing gas standing charge if no connection
+running_cost <- (rep(ELEC_KWH_CHANGE, T) * elec_price +
+                   rep(GAS_KWH_CHANGE,  T) * gas_price -
+                   gas_sc * 365)
+
+# ----------------------------
+# 5) SCC: HMG central in £2023 + Rennert constant in £2023
+# ----------------------------
+gdp_defl <- read_excel(PATH_XLSX, sheet = "GDP deflator", col_names = FALSE)
+get_cell <- function(df, r, c) as.numeric(as.matrix(df)[r, c])
+
+DEF_I76 <- get_cell(gdp_defl, 76, 9) # 2020
+DEF_I79 <- get_cell(gdp_defl, 79, 9) # 2023
+GBP2020_to_GBP2023 <- 1 / (DEF_I76 / DEF_I79)
+
+scc_hmg_tbl <- read_excel(PATH_XLSX, sheet = "SCC HMG", skip = 2) |>
+  rename(year = 1) |>
+  transmute(year = as.integer(year),
+            scc_gbp2023 = as.numeric(`Central Series`) * GBP2020_to_GBP2023)
+
+scc_hmg <- tibble(year = YEARS) |>
+  left_join(scc_hmg_tbl, by = "year") |>
+  arrange(year) |>
+  mutate(scc_gbp2023 = na.locf(scc_gbp2023, na.rm = FALSE),
+         scc_gbp2023 = na.locf(scc_gbp2023, fromLast = TRUE)) |>
+  pull(scc_gbp2023) |>
+  as.numeric()
+
+# Rennert SCC (constant across years), converted to £2023
+rennert_scc_gbp2023 <- (RENNERT_USD2020 * GBP_PER_USD_2020) * GBP2020_to_GBP2023
+scc_rennert <- rep(rennert_scc_gbp2023, T)
+
+# ----------------------------
+# 6) SINGLE-SCENARIO CALCULATION
+# ----------------------------
+calc_hp <- function(label, r_disc, m, scc_vec) {
+
+  # --- climate damages monetised ---
+  # Total climate benefit (global SCC) each year
+  clim_global <- tonnes_saved * scc_vec
+
+  # Consumer WTP for climate excludes the UK fiscal share:
+  # consumer climate WTP = SCC * (1 - UK share taxed)
+  clim_consumer <- clim_global * (1 - CLIMATE_FE_SHARE)
+
+  # Gov “climate FE” revenue effect = SCC * CLIMATE_FE_SHARE
+  clim_gov <- clim_global * CLIMATE_FE_SHARE
+
+  # --- discounted NPVs ---
+  NPV_clim_consumer <- npv(clim_consumer, r_disc)
+  NPV_clim_gov      <- npv(clim_gov, r_disc)
+
+  # AQ benefits are discounted at the fixed r_aq rather than the scenario's
+  # r_disc, since air-quality valuation is treated as a separate discounting
+  # series from climate benefits (see r_aq definition above).
+  NPV_aq <- npv(aq_benefits, r_aq)
   
-MVPF_first_pound <- Numerator_first_pound/Denominator_first_pound
+  # Energy VAT (discount at r_disc)
+  NPV_vat_energy <- npv(vat_energy, r_disc)
+  
+  # Running costs + capex (resource cost)
+  NPV_running <- npv(running_cost, r_disc)
+  resource_cost_total <- private_cost_heatpump - BOILER_COST + NPV_running
+  
+  # Abatement (tonnes) over horizon (not discounted)
+  tonnes_total <- sum(tonnes_saved, na.rm = TRUE)
+  
+  # -----------------
+  # A) "Average" MVPF (the paper's baseline definition)
+  # -----------------
+  # consumer transfer WTP = subsidy*(1 - 0.5*m)
+  consumer_transfer <- SUBSIDY_HP * (1 - 0.5*m)
 
-Numerator_first_pound_with_LBD <- consumer_transfer + ((Discounted_environmental_wtp_heatpump + lbd_environmental_heatpump + lbd_price_heatpump)*elasticity/total_installation_cost_heatpump)
-Denominator_first_pound_with_LBD <- gov_spending + ((Discounted_environmental_gov_rev_heatpump - Discounted_vat_elec_gas_change_heatpump - Vat_boiler_change_heatpump)*elasticity/total_installation_cost_heatpump)
+  # environmental WTP in numerator: marginal share * (NPV climate consumer + NPV AQ)
+  env_wtp_marginal <- m * (NPV_clim_consumer + NPV_aq)
 
-MVPF_first_pound_with_LBD <- Numerator_first_pound_with_LBD / Denominator_first_pound_with_LBD
+  numerator_avg <- consumer_transfer + env_wtp_marginal
+
+  # fiscal components (scaled by m)
+  vat_component <- m * (NPV_vat_energy + vat_boiler_oneoff)
+  climate_gov_component <- m * (NPV_clim_gov)
+  
+  denominator_avg <- SUBSIDY_HP - vat_component - climate_gov_component
+  
+  mvpf_avg <- numerator_avg / denominator_avg
+  
+  # -----------------
+  # B) "First £" MVPF
+  # -----------------
+  # This is the marginal impact per £ of gov spending, scaled by elasticity / total install cost:
+  # Numerator_first_pound = 1 + (Discounted_environmental_wtp * elasticity / total_installation_cost)
+  # Denominator_first_pound = 1 + ((Discounted_env_gov_rev - Discounted_VAT)* elasticity / total_installation_cost)
+  #
+  # Note on sign convention: the environmental WTP series (AQ + climate consumer
+  # NPVs) is already expressed as a positive benefit, so no sign flip is needed.
+  #
+  disc_env_wtp_total <- (NPV_clim_consumer + NPV_aq)           # not scaled by m, unlike the Average MVPF above
+  disc_env_gov_total <- (NPV_clim_gov)                         # same
+  disc_vat_total     <- (NPV_vat_energy + vat_boiler_oneoff)   # same
+
+  numerator_fp <- 1 + (disc_env_wtp_total * elasticity / total_installation_cost_hp)
+  denominator_fp <- 1 + ((disc_env_gov_total - disc_vat_total) * elasticity / total_installation_cost_hp)
+
+  mvpf_fp <- numerator_fp / denominator_fp
+
+  # With LBD: add LBD (environmental + price) to the environmental WTP term in numerator
+  numerator_fp_lbd <- 1 + ((disc_env_wtp_total + LBD_TOTAL) * elasticity / total_installation_cost_hp)
+  mvpf_fp_lbd <- numerator_fp_lbd / denominator_fp
+
+  # -----------------
+  # C) cost per tonne metrics
+  # -----------------
+  resource_cpt <- resource_cost_total / tonnes_total
+  gov_cost_total <- denominator_avg
+  gov_cpt <- gov_cost_total / (tonnes_total * m)
+  social_cpt <- (resource_cost_total + gov_cost_total) / tonnes_total
+  
+  tibble(
+    type = label,
+    discount_rate = r_disc,
+    marginal = m,
+    Average = mvpf_avg,
+    `First £` = mvpf_fp,
+    `First £, w/ LBD` = mvpf_fp_lbd,
+    Resource = resource_cpt,
+    Government = gov_cpt,
+    Social = social_cpt
+  )
+}
+
+# ----------------------------
+# 7) TABLE ROWS: MAC-based (m = 0.50, 0.25) and SCC/IAM-based (r = 2%, 3.5%)
+# ----------------------------
+out_tbl <- bind_rows(
+  calc_hp("MAC-based", r_disc = 0.035, m = 0.50, scc_vec = scc_hmg),
+  calc_hp("MAC-based", r_disc = 0.035, m = 0.25, scc_vec = scc_hmg),
+  calc_hp("SCC (IAM)", r_disc = 0.020, m = 0.50, scc_vec = scc_rennert),
+  calc_hp("SCC (IAM)", r_disc = 0.035, m = 0.50, scc_vec = scc_rennert)
+
+)
+
+print(out_tbl)
+
+# 1) Format a display table (NO % characters left unescaped)
+latex_tbl <- out_tbl %>%
+  mutate(
+    disc_str = paste0(round(100 * discount_rate, 1), "\\%"),
+    marg_str = paste0(round(100 * marginal, 0), "\\%"),
+
+    avg_str  = format(signif(Average, 3), trim = TRUE),
+    fp_str   = format(signif(`First £`, 3), trim = TRUE),
+    fplbd_str = format(signif(`First £, w/ LBD`, 3), trim = TRUE),
+    
+    res_str  = money_gbp(Resource),
+    gov_str  = money_gbp(Government),
+    soc_str  = money_gbp(Social)
+  ) %>%
+  select(type, disc_str, marg_str, avg_str, fp_str, fplbd_str, res_str, gov_str, soc_str)
+
+# 2) Turn rows into LaTeX lines
+row_lines <- apply(latex_tbl, 1, function(r) {
+  paste0(
+    r[[1]], " & ", r[[2]], " & ", r[[3]], " & ",
+    r[[4]], " & ", r[[5]], " & ", r[[6]], " & ",
+    r[[7]], " & ", r[[8]], " & ", r[[9]], " \\\\"
+  )
+})
+
+# 3) Insert a midrule after row 2 to separate the MAC-based rows from the SCC (IAM)-based rows
+if (length(row_lines) >= 3) {
+  row_lines <- append(row_lines, "\\midrule", after = 2)
+}
+
+# 4) Assemble a pure tabular (NO table env)
+latex_lines <- c(
+  "\\begin{tabular}{lcccccccc}",   # first column (row labels) left-aligned, remaining columns centered
+  "\\toprule",
+  "\\multicolumn{3}{c}{ } & \\multicolumn{3}{c}{MVPF} & \\multicolumn{3}{c}{Cost per tonne} \\\\",
+  "\\cmidrule(l{3pt}r{3pt}){4-6} \\cmidrule(l{3pt}r{3pt}){7-9}",
+  " & Discount Rate & Marginal & Average & First \\pounds & First \\pounds, w/ LBD & Resource & Government & Social \\\\",
+  "\\midrule",
+  row_lines,
+  "\\bottomrule",
+  "\\end{tabular}"
+)
+
+writeLines(latex_lines, "tables/MVPF.tex")
+cat("Saved LaTeX tabular to tables/MVPF.tex\n")
+
+# ============================================================
+# 10) Waterfall chart — preferred MVPF
+#     (UK SCC = HMG central, r = 3.5%, m = m_default)
+# ============================================================
+
+# --- Preferred scenario discount rate (baseline) ---
+r_pref <- 0.035
+
+# --- Build the underlying streams using already-defined objects ---
+clim_global_stream   <- tonnes_saved * scc_hmg
+clim_consumer_stream <- clim_global_stream * (1 - CLIMATE_FE_SHARE)
+clim_gov_stream      <- clim_global_stream * CLIMATE_FE_SHARE
+
+# --- NPVs (using the npv() helper and r_aq defined above) ---
+NPV_clim_consumer <- npv(clim_consumer_stream, r_pref)
+NPV_clim_gov      <- npv(clim_gov_stream, r_pref)
+NPV_aq            <- npv(aq_benefits, r_aq)
+NPV_vat_energy    <- npv(vat_energy, r_pref)
+
+# ============================================================
+# Subsidy level S such that MVPF = 1 (First-£ algebra)
+# ============================================================
+
+# Reuses NPV_clim_consumer, NPV_aq, NPV_clim_gov, NPV_vat_energy, vat_boiler_oneoff,
+# and LBD_TOTAL computed above.
+
+Discounted_environmental_wtp_heatpump <- NPV_clim_consumer + NPV_aq
+
+# Gov-side “offsets” term consistent with the denominator_avg structure in calc_hp() above:
+# (environmental gov rev) - (VAT change on energy) - (VAT boiler change)
+Discounted_environmental_gov_rev_heatpump <- NPV_clim_gov
+Discounted_vat_elec_gas_change_heatpump   <- NPV_vat_energy
+Vat_boiler_change_heatpump                <- vat_boiler_oneoff
+
+# Solve S where Numerator = Denominator (elasticity/total_cost cancels out)
+S_at_MVPF_1 <- Discounted_environmental_wtp_heatpump -
+  (Discounted_environmental_gov_rev_heatpump -
+     Discounted_vat_elec_gas_change_heatpump -
+     Vat_boiler_change_heatpump)
+
+S_at_MVPF_1_LBD <- (Discounted_environmental_wtp_heatpump + LBD_TOTAL) -
+  (Discounted_environmental_gov_rev_heatpump -
+     Discounted_vat_elec_gas_change_heatpump -
+     Vat_boiler_change_heatpump)
+
+cat("S at MVPF = 1 (base): ", money_gbp(S_at_MVPF_1), "\n")
+cat("S at MVPF = 1 (+LBD): ", money_gbp(S_at_MVPF_1_LBD), "\n")
 
 
-Discounted_environmental_wtp_cosy + Discounted_environmental_wtp_heatpump
-# total wtp 
-Numerator_cosy <- Final_environmental_wtp_cosy + Final_consumer_wtp_heatpump
+# ============================================================
+# Waterfall components per £ of subsidy
+# ============================================================
 
-# most fiscal externalities same as before
-Discounted_environmental_gov_rev_heatpump + Discounted_environmental_gov_wtp_cosy + Discounted_total_vat_change_cosy
-# total fiscal cost
-Demominator_cosy <- Final_gov_transfer - Final_vat_change_heatpump - Final_environmental_gov_rev_cosy
+# ---- BENEFITS (scaled per £ subsidy) ----
+transfer_benefit <- (1 - 0.5 * m_default) * SUBSIDY_HP
+co2_benefit      <- m_default * NPV_clim_consumer
+aq_benefit       <- m_default * NPV_aq
+total_benefit    <- transfer_benefit + co2_benefit + aq_benefit
 
-# MVPF heatpump + cosy
-MVPF_cosy <- Numerator_cosy / Demominator_cosy
+# ---- GOVERNMENT COST COMPONENTS (scaled per £ subsidy) ----
+# Uses the same sign logic as the calc_hp() denominator:
+# denominator_avg = SUBSIDY_HP - m*(NPV_vat_energy + vat_boiler_oneoff) - m*(NPV_clim_gov)
+# For the waterfall "cost" bars, we plot the *positive cost contributions*:
+subsidy_cost     <- SUBSIDY_HP
+lost_vat_boiler  <- m_default * (-vat_boiler_oneoff)     # vat_boiler_oneoff is negative => loss is positive
+extra_vat_energy <- m_default * (-NPV_vat_energy)
+climate_fe_cost  <- m_default * (-NPV_clim_gov)
 
+total_gov_cost <- subsidy_cost + lost_vat_boiler + extra_vat_energy + climate_fe_cost
 
-Numerator_cosy_first_pound <- consumer_transfer + ((Discounted_environmental_wtp_heatpump + Discounted_environmental_wtp_cosy) * elasticity/total_installation_cost_heatpump)
-Denominator_cosy_first_pound <- gov_spending + ((Discounted_environmental_gov_rev_heatpump + Discounted_environmental_gov_wtp_cosy + Discounted_total_vat_change_cosy) * elasticity/total_installation_cost_heatpump)
+# ---- scale everything per £1 of subsidy ----
+scale_denom <- SUBSIDY_HP
 
-MVPF_with_cosy_first_pound <- Numerator_cosy_first_pound/Denominator_cosy_first_pound
+benefits_scaled <- c(
+  transfer_benefit,
+  co2_benefit,
+  aq_benefit,
+  total_benefit
+) / scale_denom
 
-Numerator_cosy_first_pound_with_LBD <- consumer_transfer + ((Discounted_environmental_wtp_heatpump + Discounted_environmental_wtp_cosy  + lbd_environmental_heatpump + lbd_price_heatpump) * elasticity/total_installation_cost_heatpump)
-Denominator_cosy_first_pound_with_LBD <- gov_spending + ((Discounted_environmental_gov_rev_heatpump + Discounted_environmental_gov_wtp_cosy + Discounted_total_vat_change_cosy) * elasticity/total_installation_cost_heatpump)
+costs_scaled <- c(
+  subsidy_cost,
+  lost_vat_boiler,
+  extra_vat_energy,
+  climate_fe_cost,
+  total_gov_cost
+) / scale_denom
 
-MVPF_with_cosy_first_pound_with_LBD <- Numerator_cosy_first_pound_with_LBD / Denominator_cosy_first_pound_with_LBD
+# ---- labels and ordering ----
+categories <- factor(
+  c("Transfers", "CO2 benefits", "Air pollution", "Total benefits",
+    "Subsidy cost", "Lost VAT (Boiler Purchase)",
+    "Extra VAT (Energy)", "Climate change FE", "Total Govt Cost"),
+  levels = c("Transfers", "CO2 benefits", "Air pollution", "Total benefits",
+             "Subsidy cost", "Lost VAT (Boiler Purchase)",
+             "Extra VAT (Energy)", "Climate change FE", "Total Govt Cost")
+)
 
+values <- c(benefits_scaled, costs_scaled)
 
+colors <- c(
+  "#87B6F8", "#87B6F8", "#87B6F8", "#2E354A",
+  "#D5AFF2", "#D5AFF2", "#D5AFF2", "#D5AFF2", "#4B2C6F"
+)
 
-# TABLE 3 - MVPF and Other Measures of Cost Effectiveness
-new_outputs <- 
-  list("Just BUS" = c(MVPF, MVPF_first_pound, MVPF_first_pound_with_LBD,
-                      resource_cost_per_tonne_heatpump, 
-                      government_cost_per_tonne_heatpump, social_cost_per_tonne_heatpump), 
-       "Bus + Cosy" = c(MVPF_cosy, MVPF_with_cosy_first_pound, MVPF_with_cosy_first_pound_with_LBD,
-                     resource_cost_per_tonne_cosy, government_cost_per_tonne_cosy,
-                     social_cost_per_tonne_cosy)) %>%
-  reduce(rbind) %>%
-  as_tibble() %>%
-  bind_cols(type = c("Just BUS", "Bus + Cosy"), .) %>%
-  mutate("Discount Rate" = discount_rate, 
-        "%\nMarginal" = percent_marginal_consumers) %>%
-  #mutate_if(is.numeric, ~round(.x, digits =3)) %>%
-  select(type, "Discount Rate", "%\nMarginal", 
-         "Average" = V1, 
-        "First £" = V2,
-         "First £, w/ LBD" = V3,
-         "Resource" = V4,
-         "Government" = V5,
-         "Social" = V6)  
+# ---- waterfall cumulative bounds ----
+ymin <- c(
+  0,
+  benefits_scaled[1],
+  benefits_scaled[1] + benefits_scaled[2],
+  0,
+  0,
+  costs_scaled[1],
+  costs_scaled[1] + costs_scaled[2],
+  costs_scaled[1] + costs_scaled[2] + costs_scaled[3],
+  0
+)
 
-read_csv(file.path(datapath, "scratch/MVPF.csv")) %>%
-  bind_rows(new_outputs) %>%
-  distinct() %>%
-  write_csv(file.path(datapath, "scratch/MVPF.csv"))
+ymax <- c(
+  benefits_scaled[1],
+  benefits_scaled[1] + benefits_scaled[2],
+  benefits_scaled[1] + benefits_scaled[2] + benefits_scaled[3],
+  benefits_scaled[4],
+  costs_scaled[1],
+  costs_scaled[1] + costs_scaled[2],
+  costs_scaled[1] + costs_scaled[2] + costs_scaled[3],
+  costs_scaled[1] + costs_scaled[2] + costs_scaled[3] + costs_scaled[4],
+  costs_scaled[5]
+)
 
-# output to latex table
-read_csv(file.path(datapath, "scratch/MVPF.csv")) %>%
-  arrange(-`Discount Rate`, desc(type), `%\nMarginal`) %>%
-  mutate("Discount Rate" = scales::percent(`Discount Rate`, accuracy = 0.1), 
-        `%\nMarginal` = scales::percent(`%\nMarginal`), 
-        type = str_replace(type, "Bus", "BUS")) %>%
-  filter(!(type == "BUS + Cosy" & `%\nMarginal` == "25%")) %>%
-  mutate(across(where(is.numeric), ~ signif(.x, 3))) %>%
-  mutate_at(vars(Resource, Government, Social), ~paste0("£", str_remove(.x, "\\.00"))) %>%
-  knitr::kable(format = "latex", booktabs = TRUE, align = "c",
-              col.names = c("", colnames(new_outputs)[-1])) %>%
-  row_spec(3, hline_after = TRUE) %>%
-  add_header_above(c(" " = 3, "MVPF" = 3, "Cost per tonne" = 3)) %>%
-  writeLines(file.path("tables/MVPF.tex"))
+wf_df <- data.frame(categories, values, colors, ymin, ymax)
 
-                     
-################################### plot graph ##########################################
+custom_labels <- c(
+  "Transfers",
+  expression(CO[2]~benefits),
+  "Air pollution",
+  "Total benefits",
+  "Subsidy cost",
+  "Lost VAT\n(Boiler Purchase)",
+  "Extra VAT\n(Energy)",
+  "Climate change FE",
+  "Total Govt Cost"
+)
 
-
-# Data 
-categories <- factor(c('Transfers', 'CO2 benefits', 'Air pollution', 'Total benefits', 
-                       'Subsidy cost', 'Lost VAT (Boiler Purchase)', 'Extra VAT (Energy)', 
-                       'Climate change FE', 'Total Govt Cost'),
-                     levels = c('Transfers', 'CO2 benefits', 'Air pollution', 'Total benefits', 
-                                'Subsidy cost', 'Lost VAT (Boiler Purchase)', 'Extra VAT (Energy)', 
-                                'Climate change FE', 'Total Govt Cost'))
-
-
-
-# standardize all values so it is per 1 of subsidy spending
-consumer_transfer_heatpump_graph <- Final_consumer_wtp_heatpump / gov_subsidy_heatpump
-
-Discounted_carbon_change_uk_heatpump <- sum(whole_df$Discounted_carbon_change_uk_heatpump) * -1
-Final_discounted_carbon_change_uk_heatpump <- Discounted_carbon_change_uk_heatpump * percent_marginal_consumers 
-carbon_benefits_consumers_graph <- Final_discounted_carbon_change_uk_heatpump / gov_subsidy_heatpump
-
-Discounted_airquality_change_heatpump <- sum(whole_df$Discounted_airquality_change_heatpump) * -1
-Final_discounted_airquality_change_heatpump <- Discounted_airquality_change_heatpump * percent_marginal_consumers 
-air_pollution_consumers_graph <- Final_discounted_airquality_change_heatpump / gov_subsidy_heatpump
-
-total_benefits_graph <- consumer_transfer_heatpump_graph + carbon_benefits_consumers_graph + air_pollution_consumers_graph
-
-subsidy_cost_graph <- Final_gov_transfer / gov_subsidy_heatpump 
-
-energy_vat_graph <- Discounted_vat_elec_gas_change_heatpump * percent_marginal_consumers  * -1  / gov_subsidy_heatpump
-
-heatpump_vat_graph <- Vat_boiler_change_heatpump * percent_marginal_consumers * -1 / gov_subsidy_heatpump
-
-carbon_gov_graph <- Final_environmental_gov_rev_heatpump  * -1  / gov_subsidy_heatpump
-
-total_cost_gov_graph <- subsidy_cost_graph + heatpump_vat_graph + energy_vat_graph + carbon_gov_graph
-
-
-# Values for the bars 
-values <- c(consumer_transfer_heatpump_graph, carbon_benefits_consumers_graph, air_pollution_consumers_graph, total_benefits_graph, subsidy_cost_graph, heatpump_vat_graph, energy_vat_graph, carbon_gov_graph, total_cost_gov_graph)
-
-# Colors for each category
-colors <- c('#87B6F8', '#87B6F8', '#87B6F8', '#2E354A', '#D5AFF2', '#D5AFF2', '#D5AFF2', '#D5AFF2', '#4B2C6F')
-
-# Initialize ymin and ymax with updated values 
-ymin <- c(0, consumer_transfer_heatpump_graph, consumer_transfer_heatpump_graph + carbon_benefits_consumers_graph, 0, 0, subsidy_cost_graph, subsidy_cost_graph + heatpump_vat_graph, subsidy_cost_graph + heatpump_vat_graph - energy_vat_graph, 0)
-ymax <- c(consumer_transfer_heatpump_graph, consumer_transfer_heatpump_graph + carbon_benefits_consumers_graph, consumer_transfer_heatpump_graph + carbon_benefits_consumers_graph + air_pollution_consumers_graph, total_benefits_graph, subsidy_cost_graph, subsidy_cost_graph + heatpump_vat_graph, subsidy_cost_graph + heatpump_vat_graph - energy_vat_graph, subsidy_cost_graph + heatpump_vat_graph - energy_vat_graph - carbon_gov_graph, total_cost_gov_graph)
-
-# Create a data frame
-data <- data.frame(categories, values, colors, ymin, ymax)
-
-# Custom labels with CO2 subscript
-custom_labels <- c('Transfers', 
-                   expression(CO[2]~benefits), 
-                   'Air pollution', 
-                   'Total benefits', 
-                   'Subsidy cost', 
-                   'Lost VAT\n(Boiler Purchase)', 
-                   'Extra VAT\n(Energy)', 
-                   'Climate change FE', 
-                   'Total Govt Cost')
-
-# Create the waterfall chart
-p <- ggplot(data) +
-  geom_rect(aes(xmin = as.numeric(categories) - 0.4, xmax = as.numeric(categories) + 0.4, ymin = ymin, ymax = ymax, fill = colors)) +
+# ---- plot ----
+p_wf <- ggplot(wf_df) +
+  geom_rect(aes(
+    xmin = as.numeric(categories) - 0.4,
+    xmax = as.numeric(categories) + 0.4,
+    ymin = ymin,
+    ymax = ymax,
+    fill = colors
+  )) +
   scale_fill_identity() +
-  geom_text(aes(x = categories, y = ymax + 0.02, label = round(values, 3)), vjust = -0.3) +  # Adjust text positioning
-  theme(axis.title.x = element_blank(),
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0), angle = 0, vjust = 0.5),  # Center the £ vertically
-        plot.title = element_blank(),
-        axis.text.x = element_text(angle = 30, hjust = 0.5, vjust = 0.5),
-        panel.background = element_rect(fill = 'transparent', color = NA),
-        plot.background = element_rect(fill = 'transparent', color = NA),
-        legend.background = element_rect(fill = 'transparent', color = NA),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank()) +
-  labs(y = "£") +  # Adding £ as the y-axis title
-  scale_x_discrete(labels = custom_labels) +  # Use custom labels
-  coord_cartesian(ylim = c(0, max(ymax) + 0.02))  # Adjust y-axis limits to provide more space at the top
+  geom_text(aes(x = categories, y = ymax + 0.02, label = round(values, 3)),
+            vjust = -0.3) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0),
+                                angle = 0, vjust = 0.5),
+    plot.title = element_blank(),
+    axis.text.x = element_text(angle = 30, hjust = 0.5, vjust = 0.5),
+    panel.background = element_rect(fill = "transparent", color = NA),
+    plot.background = element_rect(fill = "transparent", color = NA),
+    legend.background = element_rect(fill = "transparent", color = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  labs(y = "£ per £ of subsidy") +
+  scale_x_discrete(labels = custom_labels) +
+  coord_cartesian(ylim = c(0, max(ymax) + 0.08))
 
+p_wf
 
-# Save the plot as a PNG file
-ggsave("MVPF_HP_Cosy_updated.png", plot = p, width = 10, height = 6, bg = 'transparent')
+ggsave("graphs/waterfall_hp_preferred.png", plot = p_wf,
+       width = 10, height = 6, bg = "transparent", dpi = 300)
 
+cat("Saved waterfall to graphs/waterfall_hp_preferred.png\n")
 
+# ============================================================
+# 11) SENSITIVITY ANALYSIS: MVPF over additionality share (m) and SCC
+#     Two judgment calls referees flagged: (i) the marginal/inframarginal
+#     split m (Boomhower & Davis, JPubEc 2014 find ~50% additionality in a
+#     similar program, but note this varies a lot across programs/settings),
+#     and (ii) the SCC, where reasonable analysts pick very different values.
+# ============================================================
 
+m_grid <- seq(0.10, 0.90, by = 0.01)
+# Multiples of the HMG central SCC path; ~0.25x-2.25x roughly spans the
+# Rennert et al. (2022) 5th-95th percentile range around their $185 central estimate
+scc_mult_grid <- seq(0.25, 2.25, by = 0.01)
+r_disc_grid <- c(0.02, 0.035)
 
-# ____________________________________ MVPF by temperature _______________________________________________
+sens_grid <- expand.grid(
+  m = m_grid,
+  scc_mult = scc_mult_grid,
+  r_disc = r_disc_grid
+)
 
-# --------- change in electricity and gas usage by temperature -------------
+sens_grid$Average <- mapply(
+  function(m, scc_mult, r_disc) {
+    calc_hp("sens", r_disc = r_disc, m = m, scc_vec = scc_hmg * scc_mult)$Average
+  },
+  sens_grid$m, sens_grid$scc_mult, sens_grid$r_disc
+)
 
-df_temp = read.csv(file.path(datapath, "scratch/gas_electricity_by_temperature.csv"))
-df_temp <- df_temp %>%
-  select(daily_avg_air_temperature_celsius, lhs, Estimate, Std..Error) %>%
-  pivot_wider(
-    names_from = lhs,
-    values_from = c(Estimate, Std..Error)  )
+sens_grid$r_disc_label <- factor(
+  paste0(sens_grid$r_disc * 100, "% discount rate"),
+  levels = c("2% discount rate", "3.5% discount rate")
+)
 
+# Express the SCC axis in £/tCO2 (matching how SCC is reported elsewhere in
+# this script), not as a bare multiplier: scale by the average HMG central
+# path level over the horizon so 1x reads as an actual £ figure
+mean_scc_hmg <- mean(scc_hmg)
+sens_grid$scc_gbp <- sens_grid$scc_mult * mean_scc_hmg
 
-df_temp <- df_temp %>%
-  filter(daily_avg_air_temperature_celsius >= 0, daily_avg_air_temperature_celsius <= 21) %>%
-  rename(
-    temp = daily_avg_air_temperature_celsius,
-    electricity_change_heatpump = Estimate_elec_consumption,
-    gas_change_heatpump = Estimate_gas_consumption,
-    electricity_change_heatpump_se = Std..Error_elec_consumption,
-    gas_change_heatpump_se = Std..Error_gas_consumption)
+baseline_pts <- data.frame(
+  m = m_default,
+  scc_gbp = mean_scc_hmg,
+  r_disc_label = factor(c("2% discount rate", "3.5% discount rate"),
+                         levels = c("2% discount rate", "3.5% discount rate"))
+)
 
-# Compute 95% confidence intervals for annual changes
-df_temp <- df_temp %>%
-  mutate(
-    gas_change_heatpump_lower_bound = (gas_change_heatpump + 1.96 * gas_change_heatpump_se) * 52,
-    gas_change_heatpump_upper_bound = (gas_change_heatpump - 1.96 * gas_change_heatpump_se) * 52,
-    electricity_change_heatpump_lower_bound = (electricity_change_heatpump + 1.96 * electricity_change_heatpump_se) * 52,
-    electricity_change_heatpump_upper_bound = (electricity_change_heatpump - 1.96 * electricity_change_heatpump_se) * 52,
-    
-    # Also multiply point estimates by 52 to make them annual
-    gas_change_heatpump = gas_change_heatpump * 52,
-    electricity_change_heatpump = electricity_change_heatpump * 52
-  )
+# ---- Diagnostic: is Average MVPF genuinely flat in m? ----
+# Prints Average at low/mid/high m, holding SCC and discount rate fixed, plus
+# the two terms whose near-cancellation would explain flatness: the transfer
+# discount (0.5 * SUBSIDY_HP) vs the environmental NPV (climate + AQ) that
+# gets weighted by m. If these two are close in magnitude, m barely moves
+# Average MVPF because the lost transfer value is offset by gained env WTP.
+diag_check <- expand.grid(
+  m = c(0.1, 0.5, 0.9),
+  scc_mult = c(min(scc_mult_grid), 1, max(scc_mult_grid)),
+  r_disc = r_disc_grid
+)
+diag_check$Average <- mapply(
+  function(m, scc_mult, r_disc) calc_hp("diag", r_disc, m, scc_hmg * scc_mult)$Average,
+  diag_check$m, diag_check$scc_mult, diag_check$r_disc
+)
+cat("\n--- Diagnostic: Average MVPF across m (fixed SCC, discount rate) ---\n")
+print(diag_check[order(diag_check$r_disc, diag_check$scc_mult, diag_check$m), ], row.names = FALSE)
+cat("0.5 * SUBSIDY_HP =", 0.5 * SUBSIDY_HP,
+    "| NPV_clim_consumer + NPV_aq at SCC=central, r=3.5%:",
+    npv(tonnes_saved * scc_hmg * (1 - CLIMATE_FE_SHARE), 0.035) + npv(aq_benefits, r_aq), "\n\n")
 
+avg_range <- range(sens_grid$Average)
+below_vals <- sort(sens_grid$Average[sens_grid$Average < 1])
 
-# gives 1.27
-#df_temp$electricity_change_heatpump <- 3080.0
-#df_temp$gas_change_heatpump <- -9350.7
-whole_df_temp <- merge(whole_df, df_temp, by = NULL)
+n_red_stops <- 6
+below_breaks <- if (length(below_vals) >= n_red_stops) {
+  sort(unique(quantile(below_vals, probs = seq(0, 1, length.out = n_red_stops), na.rm = TRUE)))
+} else {
+  unique(below_vals)
+}
+red_ramp <- colorRampPalette(c("#3D0000", "#FFB3B3"))(length(below_breaks))
 
-# ---------------------- wtp ------------------------------------------
-# __________  using hmg prices ___________________
-whole_df_temp$Gas_price_change_heatpump <- whole_df_temp$Gas_prices * whole_df_temp$gas_change_heatpump
-whole_df_temp$Electricity_price_change_heatpump <- whole_df_temp$Electricity_prices * whole_df_temp$electricity_change_heatpump
-# if they continue having gas at home in some capacity
-whole_df_temp$Change_payments_hmg <- whole_df_temp$Electricity_price_change_heatpump + whole_df_temp$Gas_price_change_heatpump 
-# if they cut off their gas connection entirely
-whole_df_temp$Change_payments_hmg_no_standing <- whole_df_temp$Change_payments_hmg - gas_standing_charge_octopus
-
-whole_df_temp <- whole_df_temp %>%
-  mutate(Change_energy_payments = case_when(
-    energy_prices == "hmg" & gas_connection == "yes" ~ Change_payments_hmg,
-    energy_prices == "hmg" & gas_connection == "no" ~ Change_payments_hmg_no_standing ))
-
-# Apply the discounting formula
-whole_df_temp <- whole_df_temp %>%
-  mutate(Discounted_change_energy_payments = Change_energy_payments / (1 + discount_rate)^(Year - base_year), )
-
-
-# ---------------------- environmental wtp for heat pump -------------------
-
-# ------------ carbon wtp ----------------
-# find the change in co2 due to gas usage using carbon intensity
-whole_df_temp$Gas_carbon_change_heatpump <- whole_df_temp$Carbon_intensity_gas_heatpump * whole_df_temp$gas_change_heatpump
-# find the change in co2 due to electricity usage using carbon intensity
-whole_df_temp$Electricity_carbon_change_heatpump <- whole_df_temp$Carbon_intensity_electricity_heatpump * whole_df_temp$electricity_change_heatpump
-# find overall change in co2 due to heat pumps 
-whole_df_temp$Carbon_quantity_change_heatpump <- whole_df_temp$Gas_carbon_change_heatpump + whole_df_temp$Electricity_carbon_change_heatpump
-# convert to a monetary value using SCC
-whole_df_temp$Carbon_change_usa_heatpump <- whole_df_temp$Carbon_quantity_change_heatpump * whole_df_temp$Social_cost_carbon_usa_gov * (1 - uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp)
-whole_df_temp$Carbon_change_uk_heatpump <- whole_df_temp$Carbon_quantity_change_heatpump * whole_df_temp$Social_cost_carbon_uk_gov * (1 - uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp)
-
-# ------------ air quality wtp ----------------
-# find the change in air quality due to gas usage 
-whole_df_temp$Gas_airquality_change_heatpump <- whole_df_temp$Gas_air_quality * whole_df_temp$gas_change_heatpump
-# find the change in air quality due to electricity usage
-whole_df_temp$Electricity_airquality_change_heatpump <- whole_df_temp$Elec_air_quality * whole_df_temp$electricity_change_heatpump
-# find overall change in air quality due to heat pumps 
-whole_df_temp$Airquality_change_heatpump <- (whole_df_temp$Electricity_airquality_change_heatpump + whole_df_temp$Gas_airquality_change_heatpump)
-
-
-# --------- conditional uk/usa social cost of carbon total ---------
-whole_df_temp <- whole_df_temp %>%
-  mutate(Environmental_wtp_heatpump = case_when(
-    social_cost_of_carbon == "uk"  ~ Airquality_change_heatpump + Carbon_change_uk_heatpump,
-    social_cost_of_carbon == "usa" ~ Airquality_change_heatpump + Carbon_change_usa_heatpump  ))
-
-# Apply the discounting formula
-whole_df_temp <- whole_df_temp %>%
-  mutate(Discounted_environmental_wtp_heatpump = Environmental_wtp_heatpump / (1 + discount_rate)^(Year - base_year), )
-
-whole_df_temp <- whole_df_temp %>%
-  mutate(Discounted_airquality_change_heatpump = Airquality_change_heatpump / (1 + discount_rate)^(Year - base_year), )
-
-whole_df_temp <- whole_df_temp %>%
-  mutate(Discounted_carbon_change_uk_heatpump = Carbon_change_uk_heatpump / (1 + discount_rate)^(Year - base_year), )
-
-
-# -------------------------------------- fiscal externality ---------------------------------------------------
-
-# ------------ co2 externality ------------
-# to get the global fiscal externality of carbon emissions, we multiply uk_gdp_as_proportion_of_global by 
-# uk_tax_as_proportion_of_gdp since the UK government will only bear this cost as part of the social cost of carbon
-whole_df_temp <- whole_df_temp %>%
-  mutate(Environmental_gov_rev_heatpump = case_when(
-    social_cost_of_carbon == "uk"  ~ uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp * Carbon_change_uk_heatpump,
-    social_cost_of_carbon == "usa" ~ uk_gdp_as_proportion_of_global *  uk_tax_as_proportion_of_gdp * Carbon_change_usa_heatpump  ))
-whole_df_temp <- whole_df_temp %>%
-  mutate(Discounted_environmental_gov_rev_heatpump = Environmental_gov_rev_heatpump / (1 + discount_rate)^(Year - base_year), )
-
-# ------------ vat externality ------------
-# 5% * (electricity unit rate * electricity change + gas unit rate * gas change) 
-whole_df_temp$Vat_elec_gas_change_heatpump <- 0.05 * (whole_df_temp$Electricity_prices * whole_df_temp$electricity_change_heatpump + whole_df_temp$Gas_prices * whole_df_temp$gas_change_heatpump)
-whole_df_temp <- whole_df_temp %>%
-  mutate(Discounted_vat_elec_gas_change_heatpump = Vat_elec_gas_change_heatpump / (1 + discount_rate)^(Year - base_year), )
-
-# 20% tax on boilers. 0% tax on heat pumps
-# buy one less boiler and one more heat pump - assume one time loss since the lifetime of these is about 20 years
-Vat_boiler_change_heatpump <- -0.2 * implied_before_tax_cost_boiler
-
-
-sum <- whole_df_temp %>%
-  group_by(temp) %>%
-  summarise(
-    mean_change_elec = mean(Electricity_price_change_heatpump),
-    mean_gas_price_change = mean(Gas_price_change_heatpump)
-  )
-
-
-
-############################ for the bounds ##################################
-# -- PRICE CHANGE using bounds --
-whole_df_temp$Gas_price_change_lower <- whole_df_temp$Gas_prices * whole_df_temp$gas_change_heatpump_lower_bound
-whole_df_temp$Gas_price_change_upper <- whole_df_temp$Gas_prices * whole_df_temp$gas_change_heatpump_upper_bound
-
-whole_df_temp$Elec_price_change_lower <- whole_df_temp$Electricity_prices * whole_df_temp$electricity_change_heatpump_lower_bound
-whole_df_temp$Elec_price_change_upper <- whole_df_temp$Electricity_prices * whole_df_temp$electricity_change_heatpump_upper_bound
-
-# -- COMBINED PAYMENTS --
-whole_df_temp$Change_payments_lower <- whole_df_temp$Gas_price_change_lower + whole_df_temp$Elec_price_change_lower
-whole_df_temp$Change_payments_upper <- whole_df_temp$Gas_price_change_upper + whole_df_temp$Elec_price_change_upper
-
-whole_df_temp$Change_payments_lower_no_standing <- whole_df_temp$Change_payments_lower - gas_standing_charge_octopus
-whole_df_temp$Change_payments_upper_no_standing <- whole_df_temp$Change_payments_upper - gas_standing_charge_octopus
-
-# -- CHOOSE ACCORDING TO GAS CONNECTION --
-whole_df_temp <- whole_df_temp %>%
-  mutate(
-    Change_energy_payments_lower = case_when(
-      energy_prices == "hmg" & gas_connection == "yes" ~ Change_payments_lower,
-      energy_prices == "hmg" & gas_connection == "no" ~ Change_payments_lower_no_standing
-    ),
-    Change_energy_payments_upper = case_when(
-      energy_prices == "hmg" & gas_connection == "yes" ~ Change_payments_upper,
-      energy_prices == "hmg" & gas_connection == "no" ~ Change_payments_upper_no_standing
-    ),
-    Discounted_change_energy_payments_lower = Change_energy_payments_lower / (1 + discount_rate)^(Year - base_year),
-    Discounted_change_energy_payments_upper = Change_energy_payments_upper / (1 + discount_rate)^(Year - base_year)
-  )
-# -- CARBON CHANGE using bounds --
-whole_df_temp$Carbon_gas_lower <- whole_df_temp$Carbon_intensity_gas_heatpump * whole_df_temp$gas_change_heatpump_lower_bound
-whole_df_temp$Carbon_gas_upper <- whole_df_temp$Carbon_intensity_gas_heatpump * whole_df_temp$gas_change_heatpump_upper_bound
-
-whole_df_temp$Carbon_elec_lower <- whole_df_temp$Carbon_intensity_electricity_heatpump * whole_df_temp$electricity_change_heatpump_lower_bound
-whole_df_temp$Carbon_elec_upper <- whole_df_temp$Carbon_intensity_electricity_heatpump * whole_df_temp$electricity_change_heatpump_upper_bound
-
-whole_df_temp$Carbon_total_lower <- whole_df_temp$Carbon_gas_lower + whole_df_temp$Carbon_elec_lower
-whole_df_temp$Carbon_total_upper <- whole_df_temp$Carbon_gas_upper + whole_df_temp$Carbon_elec_upper
-
-# -- CARBON MONETARY VALUE --
-whole_df_temp$Carbon_change_uk_lower <- whole_df_temp$Carbon_total_lower * whole_df_temp$Social_cost_carbon_uk_gov * (1 - uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp)
-whole_df_temp$Carbon_change_uk_upper <- whole_df_temp$Carbon_total_upper * whole_df_temp$Social_cost_carbon_uk_gov * (1 - uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp)
-
-whole_df_temp$Carbon_change_usa_lower <- whole_df_temp$Carbon_total_lower * whole_df_temp$Social_cost_carbon_usa_gov * (1 - uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp)
-whole_df_temp$Carbon_change_usa_upper <- whole_df_temp$Carbon_total_upper * whole_df_temp$Social_cost_carbon_usa_gov * (1 - uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp)
-
-# -- AIR QUALITY using bounds --
-whole_df_temp$Airquality_gas_lower <- whole_df_temp$Gas_air_quality * whole_df_temp$gas_change_heatpump_lower_bound
-whole_df_temp$Airquality_gas_upper <- whole_df_temp$Gas_air_quality * whole_df_temp$gas_change_heatpump_upper_bound
-
-whole_df_temp$Airquality_elec_lower <- whole_df_temp$Elec_air_quality * whole_df_temp$electricity_change_heatpump_lower_bound
-whole_df_temp$Airquality_elec_upper <- whole_df_temp$Elec_air_quality * whole_df_temp$electricity_change_heatpump_upper_bound
-
-whole_df_temp$Airquality_total_lower <- whole_df_temp$Airquality_gas_lower + whole_df_temp$Airquality_elec_lower
-whole_df_temp$Airquality_total_upper <- whole_df_temp$Airquality_gas_upper + whole_df_temp$Airquality_elec_upper
-
-# -- TOTAL ENVIRONMENTAL WTP --
-whole_df_temp <- whole_df_temp %>%
-  mutate(
-    Environmental_wtp_lower = case_when(
-      social_cost_of_carbon == "uk" ~ Airquality_total_lower + Carbon_change_uk_lower,
-      social_cost_of_carbon == "usa" ~ Airquality_total_lower + Carbon_change_usa_lower
-    ),
-    Environmental_wtp_upper = case_when(
-      social_cost_of_carbon == "uk" ~ Airquality_total_upper + Carbon_change_uk_upper,
-      social_cost_of_carbon == "usa" ~ Airquality_total_upper + Carbon_change_usa_upper
-    ),
-    Discounted_environmental_wtp_lower = Environmental_wtp_lower / (1 + discount_rate)^(Year - base_year),
-    Discounted_environmental_wtp_upper = Environmental_wtp_upper / (1 + discount_rate)^(Year - base_year),
-    
-    Discounted_airquality_change_lower = Airquality_total_lower / (1 + discount_rate)^(Year - base_year), 
-   Discounted_airquality_change_upper = Airquality_total_upper / (1 + discount_rate)^(Year - base_year) )
-   
-
-
-
-# -- GOV REVENUE from CO2 --
-whole_df_temp <- whole_df_temp %>%
-  mutate(
-    Environmental_gov_rev_lower = case_when(
-      social_cost_of_carbon == "uk" ~ uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp * Carbon_change_uk_lower,
-      social_cost_of_carbon == "usa" ~ uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp * Carbon_change_usa_lower
-    ),
-    Environmental_gov_rev_upper = case_when(
-      social_cost_of_carbon == "uk" ~ uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp * Carbon_change_uk_upper,
-      social_cost_of_carbon == "usa" ~ uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp * Carbon_change_usa_upper
-    ),
-    Discounted_environmental_gov_rev_lower = Environmental_gov_rev_lower / (1 + discount_rate)^(Year - base_year),
-    Discounted_environmental_gov_rev_upper = Environmental_gov_rev_upper / (1 + discount_rate)^(Year - base_year)
-  )
-
-# -- VAT change --
-whole_df_temp$Vat_change_lower <- 0.05 * (whole_df_temp$Electricity_prices * whole_df_temp$electricity_change_heatpump_lower_bound + whole_df_temp$Gas_prices * whole_df_temp$gas_change_heatpump_lower_bound)
-whole_df_temp$Vat_change_upper <- 0.05 * (whole_df_temp$Electricity_prices * whole_df_temp$electricity_change_heatpump_upper_bound + whole_df_temp$Gas_prices * whole_df_temp$gas_change_heatpump_upper_bound)
-
-whole_df_temp <- whole_df_temp %>%
-  mutate(
-    Discounted_vat_lower = Vat_change_lower / (1 + discount_rate)^(Year - base_year),
-    Discounted_vat_upper = Vat_change_upper / (1 + discount_rate)^(Year - base_year)
-  )
-
-
-# ------------------------ heatpump ----------------------------
-
-# ---- Summarise by temperature ----
-MVPF_by_temp <- whole_df_temp %>%
-  group_by(temp) %>%
-  summarise(
-    Discounted_environmental_wtp_heatpump = sum(Discounted_environmental_wtp_heatpump) * -1 * percent_marginal_consumers,
-    Final_consumer_wtp_heatpump = marginal_wtp_heatpump + inframarginal_wtp_heatpump,
-    Numerator = Discounted_environmental_wtp_heatpump + Final_consumer_wtp_heatpump,
-    Discounted_vat_elec_gas_change_heatpump = sum(Discounted_vat_elec_gas_change_heatpump),
-    Final_vat_change_heatpump = (Discounted_vat_elec_gas_change_heatpump + Vat_boiler_change_heatpump) * percent_marginal_consumers,
-    Discounted_environmental_gov_rev_heatpump = sum(Discounted_environmental_gov_rev_heatpump) * -1 * percent_marginal_consumers,
-    Final_gov_transfer = gov_subsidy_heatpump,
-    Denominator = Final_gov_transfer - Final_vat_change_heatpump - Discounted_environmental_gov_rev_heatpump,
-    MVPF = Numerator / Denominator,
-
-    Discounted_change_energy_payments = sum(Discounted_change_energy_payments),
-    private_cost_heatpump_not_boiler = private_cost_heatpump - private_cost_gas_boiler + Discounted_change_energy_payments,
-    Discounted_airquality_change_heatpump = sum(Discounted_airquality_change_heatpump) * -1,
-    Final_airquality_change_heatpump = Discounted_airquality_change_heatpump * percent_marginal_consumers,
-    social_cost_heatpump = private_cost_heatpump_not_boiler - Final_airquality_change_heatpump - Final_vat_change_heatpump - Final_environmental_gov_rev_heatpump,
-    Carbon_tonnes_abated = sum(Carbon_quantity_change_heatpump) * -1 ,
-    social_cost_per_tonne_heatpump =  social_cost_heatpump / Carbon_tonnes_abated,
-    government_cost_heatpump = Final_gov_transfer - Final_vat_change_heatpump - Final_environmental_gov_rev_heatpump,
-    government_cost_per_tonne_heatpump = government_cost_heatpump / (Carbon_tonnes_abated * percent_marginal_consumers),
-    resource_cost_heatpump = private_cost_heatpump_not_boiler,
-    resource_cost_per_tonne_heatpump = resource_cost_heatpump / Carbon_tonnes_abated
-  )
-
-
-MVPF_by_temp <- whole_df_temp %>%
-  group_by(temp) %>%
-  summarise(
-    Discounted_environmental_wtp_heatpump = sum(Discounted_environmental_wtp_heatpump) * -1 * percent_marginal_consumers,
-    Final_consumer_wtp_heatpump = marginal_wtp_heatpump + inframarginal_wtp_heatpump,
-    Numerator = Discounted_environmental_wtp_heatpump + Final_consumer_wtp_heatpump,
-    Discounted_vat_elec_gas_change_heatpump = sum(Discounted_vat_elec_gas_change_heatpump),
-    Final_vat_change_heatpump = (Discounted_vat_elec_gas_change_heatpump + Vat_boiler_change_heatpump) * percent_marginal_consumers,
-    Discounted_environmental_gov_rev_heatpump = sum(Discounted_environmental_gov_rev_heatpump) * -1 * percent_marginal_consumers,
-    Final_gov_transfer = gov_subsidy_heatpump,
-    Denominator = Final_gov_transfer - Final_vat_change_heatpump - Discounted_environmental_gov_rev_heatpump,
-    MVPF = Numerator / Denominator,
-    
-    Discounted_change_energy_payments = sum(Discounted_change_energy_payments),
-    private_cost_heatpump_not_boiler = private_cost_heatpump - private_cost_gas_boiler + Discounted_change_energy_payments,
-    Discounted_airquality_change_heatpump = sum(Discounted_airquality_change_heatpump) * -1,
-    Final_airquality_change_heatpump = Discounted_airquality_change_heatpump * percent_marginal_consumers,
-    social_cost_heatpump = private_cost_heatpump_not_boiler - Final_airquality_change_heatpump - Final_vat_change_heatpump - Discounted_environmental_gov_rev_heatpump,
-    Carbon_tonnes_abated = sum(Carbon_quantity_change_heatpump) * -1,
-    social_cost_per_tonne_heatpump = social_cost_heatpump / Carbon_tonnes_abated,
-    government_cost_heatpump = Final_gov_transfer - Final_vat_change_heatpump - Discounted_environmental_gov_rev_heatpump,
-    government_cost_per_tonne_heatpump = government_cost_heatpump / (Carbon_tonnes_abated * percent_marginal_consumers),
-    resource_cost_heatpump = private_cost_heatpump_not_boiler,
-    resource_cost_per_tonne_heatpump = resource_cost_heatpump / Carbon_tonnes_abated,
-    
-    # -------- Lower Bound --------
-    Discounted_env_wtp_lower = sum(Discounted_environmental_wtp_lower) * -1 * percent_marginal_consumers,
-    Final_consumer_wtp = marginal_wtp_heatpump + inframarginal_wtp_heatpump,
-    Numerator_lower = Discounted_env_wtp_lower + Final_consumer_wtp,
-    Discounted_vat_lower = sum(Discounted_vat_lower),
-    Final_vat_lower = (Discounted_vat_lower + Vat_boiler_change_heatpump) * percent_marginal_consumers,
-    Discounted_gov_rev_lower = sum(Discounted_environmental_gov_rev_lower) * -1 * percent_marginal_consumers,
-    Denominator_lower = Final_gov_transfer - Final_vat_lower - Discounted_gov_rev_lower,
-    MVPF_lower = Numerator_lower / Denominator_lower,
-    
-    Discounted_change_energy_payments_lower = sum(Discounted_change_energy_payments_lower),
-    Discounted_airquality_change_lower = sum(Discounted_airquality_change_lower) * -1,
-    Final_airquality_change_lower = Discounted_airquality_change_lower * percent_marginal_consumers,
-    social_cost_lower = (private_cost_heatpump - private_cost_gas_boiler + Discounted_change_energy_payments_lower) - Final_airquality_change_lower - Final_vat_lower - Discounted_gov_rev_lower,
-    social_cost_per_tonne_lower = social_cost_lower / (sum(Carbon_total_lower) * -1),
-    government_cost_lower = Final_gov_transfer - Final_vat_lower - Discounted_gov_rev_lower,
-    government_cost_per_tonne_lower = government_cost_lower / (sum(Carbon_total_lower) * -1 * percent_marginal_consumers),
-    resource_cost_lower = private_cost_heatpump - private_cost_gas_boiler + Discounted_change_energy_payments_lower,
-    resource_cost_per_tonne_lower = resource_cost_lower / (sum(Carbon_total_lower) * -1),
-    
-    # -------- Upper Bound --------
-    Discounted_env_wtp_upper = sum(Discounted_environmental_wtp_upper) * -1 * percent_marginal_consumers,
-    Numerator_upper = Discounted_env_wtp_upper + Final_consumer_wtp,
-    Discounted_vat_upper = sum(Discounted_vat_upper),
-    Final_vat_upper = (Discounted_vat_upper + Vat_boiler_change_heatpump) * percent_marginal_consumers,
-    Discounted_gov_rev_upper = sum(Discounted_environmental_gov_rev_upper) * -1 * percent_marginal_consumers,
-    Denominator_upper = Final_gov_transfer - Final_vat_upper - Discounted_gov_rev_upper,
-    MVPF_upper = Numerator_upper / Denominator_upper,
-    
-    Discounted_change_energy_payments_upper = sum(Discounted_change_energy_payments_upper),
-    Discounted_airquality_change_upper = sum(Discounted_airquality_change_upper) * -1,
-    Final_airquality_change_upper = Discounted_airquality_change_upper * percent_marginal_consumers,
-    social_cost_upper = (private_cost_heatpump - private_cost_gas_boiler + Discounted_change_energy_payments_upper) - Final_airquality_change_upper - Final_vat_upper - Discounted_gov_rev_upper,
-    social_cost_per_tonne_upper = social_cost_upper / (sum(Carbon_total_upper) * -1),
-    government_cost_upper = Final_gov_transfer - Final_vat_upper - Discounted_gov_rev_upper,
-    government_cost_per_tonne_upper = government_cost_upper / (sum(Carbon_total_upper) * -1 * percent_marginal_consumers),
-    resource_cost_upper = private_cost_heatpump - private_cost_gas_boiler + Discounted_change_energy_payments_upper,
-    resource_cost_per_tonne_upper = resource_cost_upper / (sum(Carbon_total_upper) * -1)
-  )
-
-
-
-ggplot(MVPF_by_temp, aes(x = temp, y = MVPF)) +
-  geom_line(color = "#8B5FBF", size = 2) +
-  geom_point(color = "#8B5FBF") +
+p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
+  geom_tile(aes(fill = Average)) +
+  geom_point(data = baseline_pts, shape = 21, fill = "white", color = not_hp_color,
+             stroke = 1.2, size = 2.5) +
+  scale_fill_gradientn(
+    colours = c(red_ramp, "white", cosy_color),
+    values = scales::rescale(c(below_breaks, 1, avg_range[2]), from = avg_range),
+    limits = avg_range,
+    name = "MVPF"
+  ) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  facet_wrap(~ r_disc_label) +
   labs(
-    x = "Outdoor Temperature (Celcius)",
-    y = "MVPF"
+    x = "Marginal (subsidy-induced) share",
+    y = "Social cost of carbon (£/tCO2, real 2023 prices)"
   ) +
-  theme_minimal() +
   theme(
-    axis.text = element_text(size = 18),
-    axis.title = element_text(size = 18),
-    plot.background = element_rect(fill = "white", color = NA),
-    axis.title.y = element_text(
-      angle = 0,
-      vjust = 1,
-      hjust = 1,
-      margin = margin(r = 10), # positive right margin adds spacing
-      size = 18
-    ) )
-
-ggplot(MVPF_by_temp, aes(x = temp, y = MVPF)) +
-  geom_ribbon(aes(ymin = MVPF_lower, ymax = MVPF_upper), fill = "#8B5FBF", alpha = 0.2) +
-  geom_smooth(se = FALSE, color = "#8B5FBF", size = 2, method = "loess") +
-  geom_point(color = "#8B5FBF") +
-  labs(
-    x = "Outdoor Temperature (Celsius)",
-    y = "MVPF"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text = element_text(size = 18),
-    axis.title = element_text(size = 18),
-    plot.background = element_rect(fill = "white", color = NA),
-    axis.title.y = element_text(
-      angle = 0,
-      vjust = 1,
-      hjust = 1,
-      margin = margin(r = 10),
-      size = 18
-    )
+    plot.title = element_blank(),
+    plot.subtitle = element_blank(),
+    panel.background = element_rect(fill = "transparent", color = NA),
+    plot.background = element_rect(fill = "transparent", color = NA),
+    legend.background = element_rect(fill = "transparent", color = NA)
   )
 
+p_sens
 
-scale_factor <- max(
-  MVPF_by_temp$government_cost_per_tonne_heatpump, 
-  MVPF_by_temp$resource_cost_per_tonne_heatpump, 
-  na.rm = TRUE
-) / max(MVPF_by_temp$MVPF, na.rm = TRUE)
+ggsave("graphs/MVPF_sensitivity_heatmap.png", plot = p_sens,
+       width = 10, height = 6, bg = "transparent", dpi = 300)
 
-p_MVPF_temp <- 
-  ggplot(MVPF_by_temp, aes(x = temp)) +
-  # MVPF layer
-  geom_ribbon(aes(ymin = MVPF_lower, ymax = MVPF_upper), fill = "#8B5FBF", alpha = 0.2) +
-  geom_smooth(aes(y = MVPF), se = FALSE, color = "#8B5FBF", size = 1, method = "loess") +
-  geom_point(aes(y = MVPF), color = "#8B5FBF") +
-  
-  # resource cost layer (scaled down)
-  geom_ribbon(aes(
-    ymin = government_cost_per_tonne_lower / scale_factor,
-    ymax = government_cost_per_tonne_upper / scale_factor
-  ), fill = "#87B6F8", alpha = 0.2) +
-  geom_smooth(aes(y = government_cost_per_tonne_heatpump / scale_factor), se = FALSE, color = "#87B6F8", size = 1, method = "loess") +
-  geom_point(aes(y = government_cost_per_tonne_heatpump / scale_factor), color = "#87B6F8") +
-  
-  # gov cost layer (scaled down)
-  geom_ribbon(aes(
-    ymin = resource_cost_per_tonne_lower / scale_factor,
-    ymax = resource_cost_per_tonne_upper / scale_factor
-  ), fill = "#D5AFF2", alpha = 0.2) +
-  geom_smooth(aes(y = resource_cost_per_tonne_heatpump / scale_factor), se = FALSE, color = "#D5AFF2", size = 1, method = "loess") +
-  geom_point(aes(y = resource_cost_per_tonne_heatpump / scale_factor), color = "#D5AFF2") +
-  
-  scale_y_continuous(
-    name = "MVPF",
-    sec.axis = sec_axis(~ . * scale_factor, name = "Cost per tonne", labels = scales::dollar_format(prefix = "£"))
-  )  +
-  labs(x = "Average Weekly Temperature in Degrees (°C)") +
-  theme_minimal() +
-  theme(
-    plot.background = element_rect(fill = "white", color = NA),
-    axis.title.y = element_text(angle = 0, vjust = 0.95, hjust = 1, margin = margin(r = 10)),
-    axis.title.y.right = element_text(angle = 0, vjust = 0.95, margin = margin(l = -50))
-  ) +
-  geom_text(x = 2, y = 2, label = "MVPF", color = "#8B5FBF", vjust = -1, alpha = 1) +
-  geom_text(x = 5, y = 0.5, label = "Government Cost per tonne", color = "#87B6F8", vjust = -1, alpha = 1) +
-  geom_text(x = 14, y = -0.1, label = "Resource Cost per tonne", color = "#D5AFF2", vjust = -1, alpha = 1) 
+cat("Saved MVPF sensitivity heatmap to graphs/MVPF_sensitivity_heatmap.png\n")
 
-ggsave("graphs/MVPF_temp.png",
-       width = 16, height = 8, units = "cm")
-                     
-                     
-p_MVPF_temp + 
-  labs(x = "Average Weekly Temperature in Degrees (°C)",
-      title = "How welfare impacts of the BUS change with temperature") 
 
-ggsave("graphs/MVPF_temp_blog_version.png",
-       width = 18, height = 7, units = "cm")
-
-                     

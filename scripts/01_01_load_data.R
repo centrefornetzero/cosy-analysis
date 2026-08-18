@@ -1,6 +1,6 @@
 #  Create the main dataset for Cosy adoption analysis
 
-# This script is very long to run so I create a conditional close checking if the file has already been created
+# This script can take a long time to run, so it is wrapped in a conditional that checks whether the output file has already been created.
 
 # Delete file to rerun everything
 # file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
@@ -12,7 +12,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
 
   # Load smart meter consumption data at the day - rate period level
   # queries/cosy - cosy electricity readings
-  # queries/cosy - cosy electricity reading part 2 which I ran for different years seperately
+  # queries/cosy - cosy electricity reading part 2, run separately for different years
   aggregated_data <- 
     rbind(fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26.csv")),
           fread(file.path(datapath, "input/cosy_-_cosy_electricity_reading_part_2_2024_07_26 (1).csv")),
@@ -88,7 +88,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     start <- Sys.time()
     
   # ------------------------- Add in covariates ----------------------------
-  # let's add in covariates 
+  # Add covariates
     # add customers characteristics
   # from queries/cosy - cosy details
   cosy_cosy_details_2024_06_25 <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_06_25.csv"))  %>%

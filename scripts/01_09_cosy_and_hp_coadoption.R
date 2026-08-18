@@ -194,7 +194,7 @@ etable(m_with_control, m_without_control, tex=TRUE,
 # Read the generated LaTeX file
 file_content <- readLines("tables/did_hp_install_overall.tex")
 
-# F# Find the lines with the pre-treatment average and remove them
+# Find the lines with the pre-treatment average and remove them
 pre_avg_line_index <- grep("Half Hourly Consumption Pre-Heatpump", file_content)
 pre_avg_line_index2 <- grep("Half Hourly Consumption Pre-Tariff-Adoption", file_content)
 pre_avg_lines <- file_content[pre_avg_line_index]

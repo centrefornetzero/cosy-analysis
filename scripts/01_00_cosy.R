@@ -92,7 +92,7 @@ fitstat_register("pre_avg", function(x) {
   # Ensure the outcome variable is treated as a column name
   outcome_values <- data_used[[outcome_variable]]
   
-  # Create pre-avg for non-HP installed group
+  # Create pre-avg for the not-yet-on-Cosy-contract group
   pre_avg <- mean(outcome_values[data_used$cosy_contract_active == 0], na.rm = TRUE)
   
   # Format the pre-avg
@@ -153,7 +153,7 @@ CleanPreAverage <- function(file_path) {
   writeLines(file_content, file_path)
 }
 
-# fix dates import
+# Override as.Date so a numeric input is parsed with an explicit epoch origin
 base_as_date <- base::as.Date  # save original function
 
 as.Date <- function(x, ...) {

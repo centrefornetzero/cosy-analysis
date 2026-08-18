@@ -50,7 +50,7 @@ account_ids  <- str_replace(basename(account_dirs), "^account_id=", "")
 # read HH flag file
 hh_flag <- fread(hh_flag_path)
 
-# IMPORTANT: user wants NON half-hourly accounts
+# This analysis is restricted to non-half-hourly accounts
 non_hh_accounts <- hh_flag[is_charged_half_hourly == FALSE, unique(account_id)]
 non_hh_accounts <- as.character(non_hh_accounts)
 
@@ -96,8 +96,8 @@ message("Unique accounts loaded: ", dplyr::n_distinct(hp$account_id))
 ## Construct variables used in regressions
 ################################################################################
 
-# NOTE: your original code expects interval_start to exist in hp
-# If your parquet uses a different timestamp column, rename it here.
+# The code below expects interval_start to exist in hp.
+# If the parquet source uses a different timestamp column, rename it here.
 # e.g. hp <- hp %>% rename(interval_start = adjusted_interval_start)
 
 hp <- hp %>%
@@ -308,13 +308,13 @@ ggplot(coefs, aes(x = settlement_period, y = Estimate, group = treatment, color 
   geom_line() +
   geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6) +
   scale_color_manual(
-    name = "Treatment", 
-    labels = c("hp" = "Heat Pump", "cosy" = "Heat Pump Tariff"),  # Italicizing Cosy using markdown
+    name = "Treatment",
+    labels = c("hp" = "Heat Pump", "cosy" = "Heat Pump Tariff"),
     values = c("hp" = hp_color, "cosy" = cosy_color)
   ) +
   scale_fill_manual(
-    name = "Rate Period",  # Correct the fill legend
-    values = c("Morning and Afternoon Off-peak" = "red", "Peak Rate" = "lightblue"),  # Assign the correct colors
+    name = "Rate Period",
+    values = c("Morning and Afternoon Off-peak" = "red", "Peak Rate" = "lightblue"),
     labels = c("Morning and Afternoon Off-peak" = "Morning and Afternoon Off-peak", "Peak Rate" = "Peak Rate")
   ) +
   labs(
@@ -330,8 +330,8 @@ ggplot(coefs, aes(x = settlement_period, y = Estimate, group = treatment, color 
     legend.text = element_markdown()  # Enable markdown-style formatting for the legend
   ) +
   scale_x_continuous(
-    breaks = selected_periods,  # Ensure you define 'selected_periods' correctly
-    labels = display_labels,    # Ensure 'display_labels' are defined or generated from 'settlement_period'
+    breaks = selected_periods,  # x-axis tick positions (selected settlement periods)
+    labels = display_labels,    # x-axis tick labels (time of day for each selected period)
     expand = expansion(mult = c(0.05, 0.15))
   ) + 
   geom_hline(yintercept = 0, linetype = "dashed", color = "black")   # Add horizontal line at y = 0

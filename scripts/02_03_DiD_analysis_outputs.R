@@ -1,17 +1,21 @@
 # ============================================================
 # HP installation: TWFE + Callaway–Sant’Anna (CS) tables + plots
-# Cleaned-up, single script.
 #
-# Key fixes:
-#  - One definition per helper function (no duplicates).
-#  - Robust CS pre-treatment averages (and no dplyr-on-duplicate-names issues).
-#  - Robust LaTeX post-processing: correct column counts for 4-model tables
-#    (label | TWFE Elec | TWFE Gas | CS Elec | CS Gas) = 5 cols total.
-#  - Safer grep patterns (avoid matching the wrong line).
-#  - Checkpoints printed throughout.
+# Produces the LaTeX tables and figures summarizing heat pump
+# installation effects on electricity and gas consumption, combining
+# two-way fixed effects (TWFE) and Callaway-Sant'Anna (CS) estimates:
+#   - CS-only summary tables (full sample, gas-only subsample, and
+#     anticipation-period robustness checks)
+#   - combined TWFE/CS tables built with fixest::etable and then
+#     patched with CS estimates in the right-hand columns
+#     (label | TWFE Elec | TWFE Gas | CS Elec | CS Gas), including a
+#     never-treated robustness version
+#   - dynamic (event-study) and calendar-time plots, rolling
+#     12-month sums with quarterly callouts, and an implied
+#     "empirical efficiency" (COP) panel
 # ============================================================
 
-# Define your colors (assumes hp_color/not_hp_color exist in your environment)
+# Colors for electricity/gas series (hp_color/not_hp_color are set in main.R)
 elec_color <- hp_color
 gas_color  <- not_hp_color
 
@@ -90,7 +94,7 @@ create_latex_table_cs <- function(models, headers, title, file, label,
       m$DIDparams$anticipation
   }) %>% unique() 
     
-  # --- Fit stats (use the fields that actually exist in your objects) ---
+  # --- Fit statistics (field names differ across did package versions) ---
     get_did_stat <- function(m, stat) {
       dp <- m$DIDparams
 
@@ -217,7 +221,7 @@ patch_etable_twfe_cs <- function(file_path,
     paste(parts, collapse = " & ")
   }
 
-  # Construct coefficient/se strings (assumes stars always *** here; adapt if needed)
+  # Construct coefficient/SE strings; CS estimates are always rendered with *** (significance is not re-derived here)
   new_estimates <- c(paste0(cs_estimates[["Electricity"]], "$^{***}$"),
                      paste0(cs_estimates[["Gas"]],        "$^{***}$"))
   new_se <- c(paste0("(", cs_se[["Electricity"]], ")"),
@@ -681,7 +685,7 @@ checkpoint("Saved tables/hp_did_overall_cs.tex")
 
 checkpoint("CS simple: loop over anticipation periods")
 
-anticipation_periods <- 0:10  # or whatever set you want
+anticipation_periods <- 0:10  # range of anticipation periods considered
 
 for (a in anticipation_periods) {
 
@@ -693,7 +697,7 @@ for (a in anticipation_periods) {
     Gas         = file.path(datapath, paste0("scratch/est_cs_gas_weekly_anticipation_", a, ".RDS"))
   )
 
-  # Optional: fail fast if something is missing
+  # Fail fast if a required CS estimation file is missing
   if (!file.exists(cs_files_a$Electricity)) {
     stop("Electricity CS file not found for anticipation = ", a, ": ", cs_files_a$Electricity)
   }
@@ -722,7 +726,7 @@ for (a in anticipation_periods) {
     min_e=-80, max_e=80
   )
 
-  # ---- Pre-treatment means (using your helper) ----
+  # ---- Pre-treatment means (via pre_avg_from_aggte) ----
   pre_elec <- pre_avg_from_aggte(aggte_simple_elec_ant, "elec_consumption")
   pre_gas  <- pre_avg_from_aggte(aggte_simple_gas_ant,  "gas_consumption")
 
@@ -733,7 +737,7 @@ for (a in anticipation_periods) {
 
   headers_cs <- c("Electricity", "Gas")
 
-  # You can choose whether to reflect anticipation in the title or just the note/label
+  # Anticipation period is reflected in both the table title and the note below
   title_cs_full <- paste0(
     "Heat Pump Installation Effects on Energy Consumption (kWh), Anticipation = ",
     a
@@ -932,7 +936,7 @@ annual_sums <- annual_sums %>%
   left_join(pre_win, by = c("type", "window")) %>%
   mutate(pct_of_pre = 100 * annual_kwh / pre_52w_kwhyr)
 
-# Efficiency per window using annual sums (your definition)
+# Empirical efficiency per window, computed from the annual sums above
 eff_df <- annual_sums %>%
   select(window, type, annual_kwh) %>%
   pivot_wider(names_from = type, values_from = annual_kwh) %>%
@@ -948,7 +952,7 @@ shade_df <- tibble(
   window = c("Prev 12 months", "Last 12 months")
 )
 
-# Label x positions (shift left a bit if you want)
+# Label x positions, shifted left of the window midpoint for readability
 mid_df <- tibble(
   window = c("Prev 12 months", "Last 12 months"),
   x = as.Date(c(
@@ -1126,7 +1130,7 @@ med_gas <- plot_data_12m %>%
 
 med_cop <- (0.9 * (-as.numeric(med_gas$med_att))) / as.numeric(med_elec$med_att)
 
-# label position (right side, similar to your prior approach)
+# Label position (right side of the plot)
 x_max <- max(plot_data_12m$week_date, na.rm = TRUE)
 x_lab <- x_max - weeks(16)
 
@@ -1297,7 +1301,7 @@ etable(
   style.tex = style.tex(tpt = TRUE)
 )
 
-# (Optional) your re-positioning helper
+# Reposition the pre-treatment average row in the LaTeX table
 CleanPreAverage("tables/hp_did_overall_detailed.tex")
 
 # Patch CS values into the right-hand two columns (cols 4 and 5)
@@ -1354,7 +1358,7 @@ did_data_never <- overall_weekly %>%
   filter(week <= firstweek - 4 | week >= firstweek)
 
 
-# TWFE models (your original date cut)
+# TWFE models, using the same date-window cutoff as the main specification
 m1_never <- feols(
   elec_consumption ~ i(is_hp_installed) | account_id  + settlement_week,
   data = did_data_never %>% filter(id %in% unique(aggte_simple_elec_never$DIDparams$data$id)),
@@ -1369,7 +1373,7 @@ m2_never <- feols(
 
 checkpoint("NEVER-TREATED: load CS results")
 
-# Stats used to patch CS columns (store formatted strings for LaTeX)
+# Statistics used for patching the CS columns (stored as formatted strings for LaTeX)
 cs_estimates_never <- list(
   Electricity = format_decimal(aggte_simple_elec_never$overall.att, 1),
   Gas         = format_decimal(aggte_simple_gas_never$overall.att, 1)
@@ -1411,7 +1415,7 @@ etable(
   style.tex = style.tex(tpt = TRUE)
 )
 
-# Optional: reposition pre-treatment average (your existing helper)
+# Reposition the pre-treatment average row in the LaTeX table
 CleanPreAverage("tables/hp_did_never_treated_detailed.tex")
 
 # Patch CS columns (cols 4 & 5) + add cohorts row etc.
@@ -1505,14 +1509,14 @@ checkpoint("Anticipation graph saved: graphs/HP_anticipation.png")
 
 checkpoint("Dynamic CS plots by anticipation (electricity + gas)")
 
-# ---- user settings ----
-datapath <- datapath  # assumes already defined
+# ---- Uses colors and datapath already set earlier in the pipeline ----
+datapath <- datapath  # already defined
 elec_color <- elec_color
 gas_color  <- gas_color
 
 anticipation_periods <- 0:10
 
-# Where your CS objects live (same naming convention as earlier)
+# Location of the CS estimation objects (same naming convention as earlier)
 cs_base_dir <- file.path(datapath, "scratch")
 graphs_dir  <- file.path("graphs")
 if (!dir.exists(graphs_dir)) dir.create(graphs_dir, recursive = TRUE)
@@ -1563,7 +1567,7 @@ for (a in anticipation_periods) {
     max_e = 80
   )
 
-  # Create combined plot (assumes your function exists)
+  # Create combined plot using create_dynamic_plot()
   p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color) +
     labs(
       title = paste0("Dynamic ATT (CS) by anticipation = ", a),

@@ -135,7 +135,6 @@ hp_installed_weekly <-
 
 
 # ------------------- Load gas consumption data ----------------
-# previous 2024_06_13.csv
 cosy_hp_install_gas_consumption <- fread(file.path(datapath, "input/cosy_-_hp_users_gas_2024_06_13.csv")) %>%
   group_by(account_id) %>%
   distinct(account_id, settlement_week, .keep_all = TRUE) %>%

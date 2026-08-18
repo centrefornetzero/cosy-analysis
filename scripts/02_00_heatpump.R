@@ -136,7 +136,7 @@ fitstat_register("t_obs", function(x) {
   return(format_number(t_obs))
 }, "Number of Time Periods")
 
-# Define your colors (assumes hp_color/not_hp_color exist in your environment)
+# elec_color/gas_color are derived from hp_color/not_hp_color, which must already be defined in the global environment (set in scripts/main.R)
 elec_color <- hp_color
 gas_color  <- not_hp_color
 

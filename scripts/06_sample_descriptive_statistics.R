@@ -27,7 +27,7 @@ summarise_outcome <- function(df, y, id = "id", scale = 1) {
     )
 }
 
-# 2) Wrapper for CS objects, now split pre/post -------------------------------
+# 2) Wrapper for CS objects, split by pre/post period -------------------------
 cs_summary_prepost <- function(obj, y,
                                id = "id",
                                label = NA_character_,
@@ -39,7 +39,7 @@ cs_summary_prepost <- function(obj, y,
   names(df) <- make.unique(names(df))
   anticipation <- obj$DIDparams$anticipation
   
-  # define pre/post using your exact rule
+  # Define pre/post periods, excluding weeks within the anticipation window from "pre"
   df_pre  <- df %>% filter(.data[[week_var]]  +anticipation < .data[[firstweek_var]])
   df_post <- df %>% filter(.data[[week_var]]  >= .data[[firstweek_var]]) 
   
@@ -52,7 +52,7 @@ cs_summary_prepost <- function(obj, y,
   )
 }
 
-# 3) Apply to all your estimates ---------------------------------------------
+# 3) Apply to all estimates ---------------------------------------------------
 
 # Row labels are deliberately self-explanatory: the panel header (group_rows)
 # already says whether the row is electricity/gas use (Panel A) or which tariff

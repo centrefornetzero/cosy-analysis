@@ -11,8 +11,8 @@
 # ----------------------------
 # User inputs / paths / colors
 # ----------------------------
-# datapath must exist in your environment
-# flexible_color / cosy_color must exist in your environment
+# datapath and flexible_color/cosy_color must already be defined in the
+# global environment (set in scripts/main.R) before running this script
 
 cat("\n>>> Script start <<<\n")
 
@@ -166,7 +166,7 @@ inject_cs_into_did_tex <- function(file_path,
   cs_estimates_fmt <- lapply(cs_estimates, function(x) sprintf("%.4f", x))
   cs_se_fmt        <- lapply(cs_se, function(x) sprintf("%.4f", x))
 
-  # Column order expected by your table
+  # Column order matches the CS columns (6-10) in tables/did.tex
   new_estimates <- c(
     paste0(cs_estimates_fmt[["Morning Off-peak"]], "***"),
     paste0(cs_estimates_fmt[["Afternoon Off-peak"]], "***"),
@@ -221,7 +221,8 @@ inject_cs_into_did_tex <- function(file_path,
 }
 
 # ----------------------------
-# Helper: CleanPreAverage (kept from your code)
+# Helper: create_latex_table -- builds a standalone LaTeX table of CS
+# results (coefficients, pre-treatment averages, fit statistics)
 # ----------------------------
 create_latex_table <- function(models, headers, title, file, label,
                                note = "") {
@@ -286,7 +287,7 @@ create_latex_table <- function(models, headers, title, file, label,
   latex <- "\\begin{table}[htbp]\n"
   latex <- paste0(latex, "   \\caption{\\label{", label, "} ", title, "}\n")
 
-  # Add floatfoot note (like your original CS table)
+  # Add floatfoot note, if provided
   if (note != "") {
     latex <- paste0(
       latex,
@@ -319,7 +320,7 @@ create_latex_table <- function(models, headers, title, file, label,
   latex <- paste0(latex, "      Number of Cohorts              & ", paste(nG, collapse = "              & "), "\\\\  \n")
   latex <- paste0(latex, "      Number of Time Periods         & ", paste(nT, collapse = "             & "), "\\\\  \n")
 
-  # Add the extra “CS footer” rows you wanted back
+  # Add the CS footer rows (clustering, estimation method, control group, significance codes)
   latex <- paste0(latex, "      \\midrule \\midrule\n")
   latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Clustered (Household) standard-errors in parentheses}\\\\\n")
   latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Estimation Method: Doubly Robust}\\\\\n")
@@ -332,7 +333,8 @@ create_latex_table <- function(models, headers, title, file, label,
   writeLines(latex, file)
 }
 # ----------------------------
-# Helper: CleanPreAverage (kept from your code)
+# Helper: CleanPreAverage -- moves the pre-treatment average row into
+# place in the fixest-generated table and relabels the sample-size row
 # ----------------------------
 CleanPreAverage <- function(file_path) {
   file_content <- readLines(file_path)
@@ -594,7 +596,7 @@ for (period in periods) {
 
   est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, "_universal.RDS")))
 
-  # calendar aggregation (REMOVE alp/min_e/max_e)
+  # Calendar-time aggregation of the ATT(t) path
   period_data <- aggte(
     est_cs,
     type        = "calendar",
@@ -605,7 +607,7 @@ for (period in periods) {
   )
 
   # ------------------------------------------------------------------
-  # 1) Weekly calendar ATT (add se column, keep your structure)
+  # 1) Weekly calendar ATT, with an added se column
   # ------------------------------------------------------------------
   plot_data <- create_calendar_data(period_data, period, start_date) %>%
     mutate(
@@ -619,7 +621,7 @@ for (period in periods) {
   # 2) Last 12 months window (up to last observed week)
   # ------------------------------------------------------------------
   n_weeks <- nrow(plot_data)
-  win_n   <- min(52, n_weeks)   # if fewer than 52 weeks, use what you have
+  win_n   <- min(52, n_weeks)   # use all available weeks if fewer than 52
 
   last_win <- plot_data %>%
     slice_tail(n = win_n)
@@ -964,7 +966,7 @@ etable(
                
 CleanPreAverage("tables/did.tex")
 
-# Optional: tweak tabular preamble (kept from your later block)
+# Tighten column spacing in the tabular preamble
 file_content <- readLines("tables/did.tex")
 file_content[5] <- gsub(
   "\\\\begin\\{tabular\\}\\{lcccccccccc\\}",

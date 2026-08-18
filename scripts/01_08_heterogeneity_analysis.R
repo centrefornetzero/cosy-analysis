@@ -1,8 +1,8 @@
-# Specify the objects you want to keep
+# Objects to retain when the environment is cleared below
 all_objects <- ls()
 keep_objects <- c("aggregated_data", "m1", "m1_share", "cosy_color", "flexible_color", "CleanPreAverage", "format_decimal", "format_number")
 
-# Remove all objects except the ones you want to keep
+# Clear all objects except those specified above
 #rm(list = setdiff(ls(), list_env))
 gc()   
 
@@ -161,9 +161,9 @@ for (i in 1:length(tempreg)) {
   
   # Create the ggplot
   ggplot(coefs, aes(x = daily_avg_air_temperature_celsius, y = Estimate)) +
-    geom_point(color = cosy_color) +  # Use your desired color
-    geom_line(color = cosy_color) +   # Use your desired color
-    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6, color = cosy_color) +  # Use your desired color
+    geom_point(color = cosy_color) +  # Points in the Cosy palette color
+    geom_line(color = cosy_color) +   # Line in the Cosy palette color
+    geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6, color = cosy_color) +  # Error bars in the Cosy palette color
     geom_hline(yintercept = m1[[j]]$coefficients, linetype = "dashed", alpha = 0.6, color = cosy_color) +  # Add horizontal line at 100% ATE
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
     scale_y_continuous(
@@ -203,9 +203,9 @@ all_coefs <- coeftable(tempreg) %>%
 
 # Create the ggplot
 ggplot(all_coefs, aes(x = daily_avg_air_temperature_celsius, y = Estimate)) +
-  geom_point(color = cosy_color) +  # Use your desired color
-  geom_line(color = cosy_color) +   # Use your desired color
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6, color = cosy_color) +  # Use your desired color
+  geom_point(color = cosy_color) +  # Points in the Cosy palette color
+  geom_line(color = cosy_color) +   # Line in the Cosy palette color
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, alpha = 0.6, color = cosy_color) +  # Error bars in the Cosy palette color
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add horizontal line at y = 0
   geom_hline(aes(yintercept = average), linetype = "dashed", alpha = 0.6, color = cosy_color) +  # Add horizontal line for the average
   scale_y_continuous(
@@ -233,7 +233,7 @@ df <- aggregated_data %>%
                      )
                    )) %>%
                   filter(rate_period != "overall") %>%        # drop overall
-                  mutate(date = as.Date(date)) %>%             # adjust if your date column differs
+                  mutate(date = as.Date(date)) %>%             # Ensure date is stored as a Date object
                   group_by(account_id, date) %>%
                   mutate(
                     daily_total = sum(consumption_hh, na.rm = TRUE),
@@ -257,7 +257,7 @@ all_coefs <- coeftable(tempreg) %>%
   data.frame() %>%
   # keep only the i() terms (avoid intercept/other terms if any)
   filter(str_detect(coefficient, "^cosy_contract_active::")) %>%
-  # if an Overall sample exists for some reason, drop it
+  # Drop the Overall sample if present in the data
   filter(!tolower(sample) %in% "overall") %>%
   # Extract the temp bin from the coefficient name:
   # expected like: "cosy_contract_active::1:temp_degree::5" (exact pattern depends on fixest)
@@ -288,7 +288,7 @@ all_coefs <- coeftable(tempreg) %>%
     ))
   )
 
-# Plot (levels in kWh-share log model won't be "kWh" anymore, so adjust label if needed)
+# Plot of the share-of-consumption estimates, labeled in percentage points rather than kWh
 p <- ggplot(all_coefs, aes(x = temp_degree, y = Estimate)) +
   geom_point(color = cosy_color) +
   geom_line(color = cosy_color) +
@@ -684,10 +684,10 @@ for (i in 1:5) {
     mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
            upper_ci = Estimate + 1.96 * `Std..Error`
     )
-  # Assuming coefs is your data frame and rating_colors is your color vector
+  # coefs holds the extracted coefficients used in the plot below; rating_colors (defined above) supplies the EPC letter fill colors
   coefs <- coefs %>%
     mutate(EPC_label_position = max(Estimate) * 0.1)  # Position for EPC labels on the right
-  
+
   # Create the ggplot
   ggplot(coefs, aes(y = rev(factor(`EPC letter`)), x = Estimate, fill = factor(`EPC letter`))) +
     geom_bar(stat = "identity", show.legend = FALSE) +
@@ -715,7 +715,7 @@ for (i in 1:5) {
          width = 16, height = 8, units = "cm")
 }
 
-# Assuming m2a is your model list, m1 contains the ATE values, and rating_colors is your color vector
+# m2a holds the per-period EPC models, m1 supplies the corresponding ATE values, and rating_colors (defined above) supplies the EPC letter fill colors
 all_coefs <- data.frame()
 
 for (i in 1:5) {
@@ -742,7 +742,7 @@ for (i in 1:5) {
   all_coefs <- bind_rows(all_coefs, coefs)
 }
 
-# Assuming coefs is your data frame and rating_colors is your color vector
+# all_coefs holds the combined coefficient table used in the plot below; rating_colors (defined above) supplies the EPC letter fill colors
 all_coefs <- all_coefs %>%
   mutate(EPC_label_position = max(`Estimate`) * 0.1)  # Position for EPC labels on the right
 

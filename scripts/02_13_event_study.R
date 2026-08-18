@@ -4,7 +4,7 @@
 # What this script does:
 #  1) Builds an event-study panel at account-day level
 #  2) Constructs event time in weeks since installation (binned to [-52, 52])
-#  3) Weeklyised half-hourly consumption to "kWh/year" for interpretability
+#  3) Weeklyised half-hourly consumption to "kWh/week" for interpretability
 #  4) Estimates TWFE event-study regressions with a common anticipation window
 #  5) Produces consistent plots (anticipation shading + thousand separators)
 # ==============================================================================
@@ -46,7 +46,7 @@ event_study_df <- hp_installed %>%
     week  = week(date),
     month = month(date),
 
-    # Annualise half-hourly kWh to kWh/year:
+    # Weeklyise half-hourly kWh to kWh/week:
     # 48 half-hours/day * 7 days
     elec_consumption_weekly_kwh = 7 * 48 * consumption_hh
   ) %>%

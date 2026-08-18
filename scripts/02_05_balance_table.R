@@ -82,8 +82,8 @@ postcode_msoa <- fread(file.path(datapath, "input/PCD_OA21_LSOA21_MSOA21_LAD_AUG
   group_by(msoa21cd) %>%
   summarise(treated = sum(n))
 
-# Income is now on 2021 MSOA boundaries natively (ONS FYE2023 release), matching
-# postcode_msoa and the Census-derived tables below -- no crosswalk needed here.
+# Income is on 2021 MSOA boundaries natively (ONS FYE2023 release), matching
+# postcode_msoa and the Census-derived tables below, so no crosswalk is needed here.
 income <- readxl::read_excel(file.path(datapath, "input/small_area_income_estimates_fye2023.xlsx"), sheet = "Total annual income", skip = 3) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct()
@@ -96,8 +96,8 @@ net_housing_income <- readxl::read_excel(file.path(datapath, "input/small_area_i
   select(`MSOA code`, `Disposable (net) annual income after housing costs (£)`) %>%
   distinct()
 
-# Load and preprocess the property_prices data (still 2011-vintage MSOA; ONS has not
-# rebased HPSSA Dataset 3 to 2021 boundaries as of this writing). Kept as "MSOA code" here.
+# Load and preprocess the property_prices data (2011-vintage MSOA; ONS has not
+# rebased HPSSA Dataset 3 to 2021 boundaries). Kept as "MSOA code" here.
 property_prices <- read_excel(file.path(datapath, "/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls"),
                               sheet = "1a", skip = 4) %>%
   select(`MSOA code`, `Year ending Mar 2023`) %>%
@@ -213,7 +213,7 @@ header_row <- " & \\multicolumn{2}{c}{Weighted Mean} \\\\"
 position <- grep("\\\\begin\\{tabular\\}", latex_table) + 1
 latex_table <- append(latex_table, header_row, after = position)
 
-# Replace the first and last instances of \hline \\[-1.8ex] with \hline \hline \\[-1.8ex]
+# Turn the first and last \hline lines into \hline\hline (double rule)
 hline_ex_lines <- grep("\\hline" , latex_table)
 if (length(hline_ex_lines) >= 2) {
   latex_table[hline_ex_lines[1]] <- gsub("\\hline", "\\hline\\hline", latex_table[hline_ex_lines[1]], fixed = TRUE)

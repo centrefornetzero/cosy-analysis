@@ -117,9 +117,9 @@ etable(m_charging1, m_charging2, m_charging3, m_charging4,
 file_path <- "tables/ev_charging.tex"
 x <- readLines(file_path)
 
-# --- what you want it to say ---
+# --- target labels for the table ---
 baseline_name <- "Baseline charging"   # rename "Half Hourly Consumption" row to this
-dv_name       <- "Charging EV"         # set to NULL if you DON'T want to touch the Dependent Variable header
+dv_name       <- "Charging EV"         # set to NULL to leave the Dependent Variable header unchanged
 
 # 1) (optional) rename dependent variable header
 if (!is.null(dv_name)) {
@@ -139,14 +139,14 @@ x <- x[-base_idx[1]]
 # 3) rename that row label
 baseline_row <- sub("Half Hourly Consumption", baseline_name, baseline_row)
 
-# 4) insert it where you want:
+# 4) insert it at the target position:
 # Here: immediately BEFORE the Fixed-effects block (i.e., right after the coefficient section)
 fe_idx <- grep("^\\s*\\\\emph\\{Fixed-effects\\}", x)
 if (length(fe_idx) == 0) stop("Couldn't find the Fixed-effects block.")
 
 insert_after <- fe_idx[1] - 1
 
-# add a little label line + row + midrule (optional; remove label line if you don't want it)
+# add a label line + row + midrule (the label line is optional and can be removed)
 x <- append(x, "\\emph{Baseline}\\\\", after = insert_after)
 x <- append(x, baseline_row,          after = insert_after + 1)
 x <- append(x, "\\midrule",           after = insert_after + 2)
@@ -270,7 +270,7 @@ leavers_did <- aggregated_data %>%
   mutate(
     # Calculate the difference in weeks from the start_date
     week = as.numeric(difftime(date, start_date, units = "weeks")) %/% 1 + 1,
-    # Assuming you have a way to determine 'firstweek', adjust similarly if needed
+    # firstweek is computed the same way, anchored on leave_date instead of date
     firstweek = as.numeric(difftime(leave_date, start_date, units = "weeks")) %/% 1 + 1) %>%
   group_by(hashed_mpan, firstweek, week, rate_period) %>%
   summarise(consumption_hh = mean(consumption_hh)) %>%

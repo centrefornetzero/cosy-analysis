@@ -1,6 +1,8 @@
 # ============================================================
 # Matching + Balance + TWFE (Cosy tariff & HP adopters)
-# Cleaned script: preserves your file paths + variable names
+# Builds covariate-matched samples, produces balance tables,
+# and estimates matching-weighted TWFE models for the Cosy
+# tariff and heat pump adopter analyses.
 # ============================================================
 
 # The MatchIt, lmtest and sandwich libraries are used.
@@ -90,7 +92,7 @@ CleanPreAverage <- function(file_path, pre_avg_label, coeff_anchor_pattern = "Fi
   idx <- grep(pre_avg_label, file_content)
   if (length(idx) == 0) return(invisible(NULL))
 
-  # choose the 2nd occurrence if it exists (your original logic)
+  # choose the 2nd occurrence if it exists
   pre_avg_line_index <- if (length(idx) == 1) idx else idx[2]
 
   pre_avg_lines <- file_content[pre_avg_line_index]
@@ -197,7 +199,7 @@ CleanBalanceSections <- function(file_path) {
   x <- readLines(file_path)
 
   # Replace NA cells on the section header rows with blanks
-  # Stargazer prints "NA" for those cells; we blank them out on those lines.
+  # Stargazer prints "NA" for those cells; those lines are blanked out.
   x <- gsub("(\\\\textbf\\{Pre-matching\\}).*",
             "\\\\[-0.8ex]\\\\textbf{Pre-matching} &  &  &  \\\\",
             x)
@@ -307,7 +309,7 @@ plot(summary(match_obj), abs = FALSE)
 pre  <- as.data.frame(match_summary$sum.all)
 post <- as.data.frame(match_summary$sum.matched)
 
-# Keep only what you want + enforce consistent column names
+# Keep the relevant columns and enforce consistent column names
 keep_cols <- c("Means Heat Pump Tariff", "Means Random Sample", "Std. Mean Diff.")
 
 pre_tbl <- pre[, keep_cols, drop = FALSE]
@@ -332,7 +334,7 @@ section_row <- data.frame(
   check.names = FALSE
 )
 
-# Also add a header for the first block (optional, but matches your request)
+# Also add a header for the first block, for a consistent pre/post layout
 section_row_pre <- data.frame(
   Variable = "\\\\[-0.8ex]\\textbf{Pre-matching}",
   `Mean (Treated)` = NA,
@@ -446,7 +448,7 @@ plot(summary(match_obj2), abs = FALSE)
 pre  <- as.data.frame(match_summary$sum.all)
 post <- as.data.frame(match_summary$sum.matched)
 
-# Keep only what you want + enforce consistent column names
+# Keep the relevant columns and enforce consistent column names
 keep_cols <- c("Means Heat Pump", "Means Random Sample", "Std. Mean Diff.")
 
 pre_tbl <- pre[, keep_cols, drop = FALSE]
@@ -471,7 +473,7 @@ section_row <- data.frame(
   check.names = FALSE
 )
 
-# Also add a header for the first block (optional, but matches your request)
+# Also add a header for the first block, for a consistent pre/post layout
 section_row_pre <- data.frame(
   Variable = "\\\\[-0.8ex]\\textbf{Pre-matching}",
   `Mean (Treated)` = NA,
@@ -498,7 +500,8 @@ stargazer(
 
 CleanBalanceSections("tables/balance_hp_matching.tex")
 
-# NN table  [keeps your original output path (typo preserved): tables/balance_hpy_nn.tex]
+# NN table. Output path intentionally keeps the "hpy" typo, since that is
+# the filename the paper's LaTeX source includes.
 stargazer(
   match_summary$nn,
   title = "Sample Size (Heatpump)",
@@ -542,7 +545,8 @@ etable(
   depvar = FALSE
 )
 
-# Use a dedicated cleaner for this file consistent with your old intent
+# Move the pre-treatment average line into the main body of this table,
+# anchoring on the "Is HP Installed" coefficient row
 CleanPreAverage("tables/matching_hp.tex", pre_avg_label = "Yearly Consumption", coeff_anchor_pattern = "Is HP Installed")
 
 # ----------------------------
@@ -672,8 +676,9 @@ n_frame <- nrow(survey_selection)
 # is the same identifier as account_number in cosy_survey_ids.csv. Cached by
 # 01_11_cosy_survey_figures.R from the raw questionnaire export -- see that
 # script for the dedup logic (3 households submitted the survey twice; the
-# later submission is kept). Replaces the older, stale survey_ids.csv (384
-# rows), which did not match the raw export's 390 deduplicated respondents.
+# later submission is kept). A separate file, survey_ids.csv (384 rows), also
+# exists but does not match the raw export's 390 deduplicated respondents, so
+# it is not used here.
 respondent_account_numbers <- readRDS(file.path(datapath, "scratch/cosy_survey_respondent_kids.RDS"))
 n_resp_raw <- length(respondent_account_numbers)
 unmatched <- setdiff(respondent_account_numbers, survey_selection$account_number)
@@ -935,7 +940,8 @@ final_table_with_sd <- final_table %>%
     !!paste0("Late (N = ", n_late, ")") := Late
   )
 
-# Keep your original label (even though it duplicates cosy adoption label)
+# Title closely mirrors the Cosy early/late adopters table above; the two
+# are distinct outputs (heat pump adopters vs Cosy tariff adopters).
 stargazer(
   final_table_with_sd, type = "latex", summary = FALSE,
   title = "Balance Table for Heat Pump Early and Late Adopters",

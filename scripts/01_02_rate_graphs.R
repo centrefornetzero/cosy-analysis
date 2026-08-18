@@ -79,7 +79,7 @@ shaded_times <- data.frame(
   fill = c("red", "red", "lightblue")
 )
 
-# Calculate the typical Price per kWh (you can adjust this based on your data)
+# Calculate the typical Price per kWh as the mean rate for the reference group
 typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Price per kWh") %>% pull(rate), na.rm = TRUE)
 
 # Add a new column for the share of the typical Price per kWh
@@ -87,7 +87,7 @@ combined_rates <- combined_rates %>%
   mutate(share_of_typical = rate / typical_marginal_price * 100) 
 
 # Plot the line chart with Flexible Octopus in dashed line and specific y-axis breaks
-# Assuming unique_valid_from is the date used in your 'time' sequence
+# Assumes unique_valid_from is the date used to construct the 'time' sequence
 ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group)) +
   geom_rect(data = shaded_times, aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = fill),
             inherit.aes = FALSE, alpha = 0.2) +
@@ -194,7 +194,7 @@ shaded_times <- data.frame(
   fill = c("lightblue", "lightblue", "red")
 )
 
-# Calculate the typical Price per kWh (you can adjust this based on your data)
+# Calculate the typical Price per kWh as the mean rate for the reference group
 typical_marginal_price <- mean(combined_rates %>% filter(group == "Typical Price per kWh") %>% pull(rate), na.rm = TRUE)
 
 # Add a new column for the share of the typical Price per kWh

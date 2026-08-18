@@ -84,8 +84,8 @@ all_coefs <- coeftable(m_property_value) %>%
                                                  "Overall")))
 
 # summarise half hourly consumption at the property value, gsp and rate period
-# i only use the latest rates for calculations so not to have cohort/ time effect 
-# impact the results
+# Only the latest rates are used in these calculations, so that cohort or time
+# effects do not impact the results
 
 # get the average saving for the sample
 cosy_avg_saving <- aggregated_data %>%

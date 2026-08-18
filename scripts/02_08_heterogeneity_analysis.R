@@ -9,7 +9,7 @@
 # Load IDs
 ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 
-# Update hp_installed with the new ev_charging values using case_when
+# Load the heat pump panel, restrict to the electricity comparison sample and estimation window, and derive weekly/yearly consumption plus temperature bins
 hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
   filter(account_id %in% ids_cs_elec)  %>%
   filter(week <= 129, firstweek <= 129)  %>%
@@ -154,7 +154,7 @@ for (i in 1:5) {
            upper_ci_ATE = upper_ci / m1[[j]]$coefficients * 100) 
 
   
-  # Assuming coefs is your data frame and rating_colors is your color vector
+  # coefs holds the extracted coefficients used in the plot below; rating_colors (defined in main.R) supplies the EPC letter fill colors
   coefs <- coefs %>%
     mutate(EPC_label_position = max(`% ATE`) * 0.1)  # Position for EPC labels on the right
   
@@ -238,7 +238,7 @@ for (i in 1:5) {
   # Define the shades of reds
   red_palette <- c("#FF9999", "#FF8080", "#FF6666", "#FF4D4D", "#FF3333", "#FF1A1A", "#FF0000", "#E60000", "#CC0000", "#B20000")
   
-  # Assuming m_sources[[i]] is a model object that has already been defined
+  # Extract coefficients and clean up heat source labels for this rate period's model
   coefs <- coeftable(m_sources[[i]]) %>%
     data.frame() %>%
     tibble::rownames_to_column("term") %>%
@@ -311,8 +311,8 @@ postcode_matched <- cosy_hp_details %>%
   select(msoa21cd, postcode) %>%
   distinct(postcode, .keep_all = TRUE)
 
-# Income is now on 2021 MSOA boundaries natively (ONS FYE2023 release), matching
-# postcode_matched/postcode_msoa directly -- no postcode-to-2011-MSOA crosswalk needed.
+# Income data uses 2021 MSOA boundaries (ONS FYE2023 release) directly, matching
+# postcode_matched/postcode_msoa without a postcode-to-2011-MSOA crosswalk.
 income <- readxl::read_excel(file.path(datapath, "input/small_area_income_estimates_fye2023.xlsx"), sheet = "Total annual income", skip = 3) %>%
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct(`MSOA code`, .keep_all = TRUE)

@@ -97,8 +97,8 @@ make_did_data <- function(df,
     dplyr::select(dplyr::all_of(keep_vars)) %>%
     dplyr::filter(week <= max_week)
   
-  # In your original main spec you also required firstweek <= 129
-  # (i.e., drop units treated after the window rather than reclassify).
+  # The main spec also requires firstweek <= 129
+  # (i.e., units treated after the window are dropped rather than reclassified).
   if (cap_firstweek && !set_never_treated_to_0) {
     out <- out %>% dplyr::filter(firstweek <= max_week)
   }
