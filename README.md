@@ -76,21 +76,39 @@ No separate IRB approval or formal Data Protection Impact Assessment was conduct
 
 ## Computational Requirements
 
-⚠️ **TODO — to be filled in from the Vertex AI Workbench instance.** Run `scripts/utils_session_info.R` on the server (see instructions below) and paste the output in below. Structure follows the Social Science Data Editors template:
+Captured from the production Vertex AI Workbench instance via `scripts/utils_session_info.R` (2026-08-18). ⚠️ **TODO** — the Runtime section below still needs a genuine cold-start timed run (see instructions in that script).
 
 ### Software
-- R version: *TBD*
-- Key R packages and versions used (from `scripts/main.R`): `knitr`, `kableExtra`, `did`, `fixest`, `data.table`, `lubridate`, `dplyr`, `ggplot2`, `RColorBrewer`, `tidyr`, `scales`, `readr`, `forcats`, `viridis`, `stringr`, `stargazer`, `panelView`, `readxl`, `purrr`, `progress`, `lfe`, `tibble`, `didimputation`, `ggtext`, `MatchIt`, `zoo`, `patchwork` — exact version numbers *TBD*
-- Operating system: *TBD* (production environment is a GCP Vertex AI Workbench instance with a GCS bucket mounted via `gcsfuse`; see "Accessing the Development Environment" below)
+- R version: 4.5.1 (2025-06-13), platform `x86_64-pc-linux-gnu`
+- Key R packages and versions used (from `scripts/main.R`):
+
+  | Package | Version | | Package | Version |
+  |---|---|---|---|---|
+  | knitr | 1.51 | | readxl | 1.5.0 |
+  | kableExtra | 1.4.0 | | purrr | 1.2.0 |
+  | did | 2.1.2 | | progress | 1.2.3 |
+  | fixest | 0.14.2 | | lfe | 3.1.1 |
+  | data.table | 1.18.0 | | tibble | 3.3.0 |
+  | lubridate | 1.9.5 | | didimputation | 0.5.0 |
+  | dplyr | 1.1.4 | | ggtext | 0.1.2 |
+  | ggplot2 | 4.0.3 | | MatchIt | 4.7.2 |
+  | RColorBrewer | 1.1.3 | | zoo | 1.8.15 |
+  | tidyr | 1.3.2 | | patchwork | 1.3.2 |
+  | scales | 1.4.0 | | stringr | 1.6.0 |
+  | readr | 2.1.6 | | stargazer | 5.2.3 |
+  | forcats | 1.0.1 | | panelView | 1.1.18 |
+  | viridis | 0.6.5 | | | |
+
+- Operating system: Debian GNU/Linux 11 (bullseye), kernel `5.10.0-45-cloud-amd64`
 
 ### Hardware
-- OS: *TBD*
-- CPU: *TBD* (generation and core count)
-- Memory: *TBD*
-- Disk space required: *TBD* (raw data + scratch + output)
+- OS: Debian GNU/Linux 11 (bullseye)
+- CPU: Intel(R) Xeon(R) @ 2.20GHz, 1 socket, 32 cores, 2 threads/core (64 logical CPUs)
+- Memory: 235 GiB total
+- Disk space: `/home/jupyter` local disk 492 GiB (149 GiB used, 343 GiB available at time of capture); GCS-mounted data bucket (`/home/jupyter/gcs`) reports 1.0 PiB available (shared, not dedicated)
 
 ### Runtime
-- Full pipeline (`source("scripts/main.R")`): *TBD wall-clock time*
+- Full pipeline (`source("scripts/main.R")`): *TBD — needs a cold-start timed run; see `scripts/utils_session_info.R`'s Runtime guidance, which deletes the two cached intermediate files first so the timing isn't artificially fast*
 - Per-stage breakdown: *TBD* (optional — only needed if runtime is heterogeneous across stages)
 
 ## Description of Programs

@@ -1,19 +1,35 @@
 # Run this on the server (Vertex AI Workbench) to gather the facts needed for
 # the README's "Computational Requirements" section (per the Social Science
-# Data Editors template / DCAS #13). Not part of the analysis pipeline itself.
+# Data Editors template / DCAS #13), including a genuine cold-start timed run
+# of the full pipeline. Not part of the analysis pipeline itself.
 #
-# Usage: source("scripts/utils_session_info.R") on its own -- this is a
-# self-contained one-shot, it does NOT need scripts/main.R sourced first (that
-# would also run the full six-stage analysis pipeline, which this script has
-# no need for; it only reuses main.R's cheap working-directory/datapath logic
-# below). Output is written to data/output/session_info.txt (and also echoed
-# to the console) -- paste the relevant parts back into the README's
-# Computational Requirements section.
+# Usage: source("scripts/utils_session_info.R") on its own -- self-contained,
+# does not need scripts/main.R sourced first (it only reuses main.R's cheap
+# working-directory/datapath logic below, not the six analysis stages).
 #
-# Each run fully overwrites session_info.txt from scratch: the file
-# connection below is opened in "wt" mode, which truncates any existing file
-# before writing, so a re-run can never leave stale content from a previous
-# run mixed in with the new output.
+# NOTE: this now runs the *entire* pipeline (source("scripts/main.R")) as
+# part of gathering the Runtime figure, so it is NOT quick -- expect this to
+# take as long as a full pipeline run does. If you only want the OS/CPU/R
+# version/package info without the long wait, comment out the "RUNTIME" block
+# at the bottom before sourcing.
+#
+# Outputs:
+#   data/output/session_info.txt -- OS/CPU/memory/disk/R/package info, plus
+#     console echo as it runs. Fully overwritten each run (opened in "wt"
+#     mode, which truncates first), so re-runs never mix stale content with
+#     fresh content.
+#   data/output/runtime_log.txt -- one line per timed run, APPENDED (not
+#     overwritten) so repeated attempts build a history. Written the instant
+#     the timed run finishes -- success or error -- so the measurement
+#     survives even if the interactive session disconnects right after.
+#
+# Belt-and-suspenders note: on most Jupyter/Workbench setups the kernel keeps
+# running server-side even if your browser tab disconnects, so the above
+# should be enough on its own. If you want to be independent of the
+# interactive session from the start too (e.g. protect against a kernel
+# restart), run this via Rscript in the background instead, from a terminal:
+#   nohup Rscript -e 'source("scripts/utils_session_info.R")' &
+# and check the two output files whenever you next check in.
 
 if (!exists("datapath")) {
   # Same working-directory/datapath logic as scripts/main.R, duplicated here
@@ -68,29 +84,63 @@ local({
     v <- tryCatch(as.character(packageVersion(p)), error = function(e) "NOT INSTALLED")
     cat(sprintf("%-15s %s\n", p, v))
   }
-
-  cat("\n==== RUNTIME ====\n")
-  cat("Only two files in the pipeline are cached (skip-if-exists): data/scratch/aggregated_data.RDS\n")
-  cat("(01_01_load_data.R) and data/scratch/cop_boot_no_boxing.csv (02_09_cop_analysis.R). If either\n")
-  cat("exists, source(\"scripts/main.R\") will skip rebuilding it and any timing would UNDERSTATE a\n")
-  cat("true cold-start run, so both are deleted below to force a full rebuild on the next run.\n")
-
-  cache_files <- file.path(datapath, c("scratch/aggregated_data.RDS", "scratch/cop_boot_no_boxing.csv"))
-  for (f in cache_files) {
-    if (file.exists(f)) {
-      file.remove(f)
-      cat("Deleted:", f, "\n")
-    } else {
-      cat("Not present (nothing to delete):", f, "\n")
-    }
-  }
-
-  cat("\nNow time the full pipeline separately (this will take a while). Use system.time(), not a\n")
-  cat("bare start <- Sys.time() variable -- 01_01_load_data.R and 02_09_cop_analysis.R both reassign\n")
-  cat("a variable literally named 'start' for their own internal checkpoint logging (everything is\n")
-  cat("source()'d into the same global environment), which would silently clobber yours and make the\n")
-  cat("measured duration meaningless. system.time() is immune to this since it measures internally:\n")
-  cat('  system.time(source("scripts/main.R"))\n')
 })
 
 cat("\nSaved to:", file.path(datapath, "output", "session_info.txt"), "\n")
+
+# ==== RUNTIME (comment out this whole block if you only want the info above) ====
+#
+# Only two files in the pipeline are cached (skip-if-exists): scratch/aggregated_data.RDS
+# (01_01_load_data.R) and scratch/cop_boot_no_boxing.csv (02_09_cop_analysis.R). If either
+# exists, source("scripts/main.R") would skip rebuilding it and understate a true cold-start
+# run, so both are deleted below to force a full rebuild.
+#
+# Timed via system.time(), not a bare `start <- Sys.time()` variable -- 01_01_load_data.R and
+# 02_09_cop_analysis.R both reassign a variable literally named `start` for their own internal
+# checkpoint logging (everything is source()'d into the same global environment), which would
+# silently clobber a bare variable and make the measured duration meaningless. system.time() is
+# immune to this since it measures internally.
+
+cache_files <- file.path(datapath, c("scratch/aggregated_data.RDS", "scratch/cop_boot_no_boxing.csv"))
+for (f in cache_files) {
+  if (file.exists(f)) {
+    file.remove(f)
+    cat("Deleted:", f, "\n")
+  } else {
+    cat("Not present (nothing to delete):", f, "\n")
+  }
+}
+
+runtime_log_path <- file.path(datapath, "output", "runtime_log.txt")
+start_ts <- Sys.time()
+cat(sprintf("\n[%s] Starting full pipeline run (source(\"scripts/main.R\"))...\n", format(start_ts)))
+
+result <- tryCatch(
+  list(status = "SUCCESS", timing = system.time(source("scripts/main.R")), error = NA_character_),
+  error = function(e) list(status = "ERROR", timing = NULL, error = conditionMessage(e))
+)
+
+end_ts <- Sys.time()
+
+# Written immediately after the pipeline call returns (success or via the error handler above),
+# before anything else can happen, so the result is durable even if the session disconnects a
+# moment later.
+log_line <- if (result$status == "SUCCESS") {
+  sprintf(
+    "[%s] SUCCESS started=%s ended=%s elapsed=%.1fs (user=%.1fs sys=%.1fs)",
+    format(Sys.time()), format(start_ts), format(end_ts),
+    result$timing[["elapsed"]], result$timing[["user.self"]], result$timing[["sys.self"]]
+  )
+} else {
+  sprintf(
+    "[%s] ERROR started=%s ended=%s elapsed=%.1fs error=%s",
+    format(Sys.time()), format(start_ts), format(end_ts),
+    as.numeric(difftime(end_ts, start_ts, units = "secs")), result$error
+  )
+}
+
+cat(log_line, file = runtime_log_path, sep = "\n", append = TRUE)
+cat("\n", log_line, "\n", sep = "")
+cat("Logged to:", runtime_log_path, "\n")
+
+if (identical(result$status, "ERROR")) stop(result$error)
