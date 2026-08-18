@@ -85,8 +85,12 @@ local({
     }
   }
 
-  cat("\nNow time the full pipeline separately (this will take a while):\n")
-  cat('  start <- Sys.time(); source("scripts/main.R"); Sys.time() - start\n')
+  cat("\nNow time the full pipeline separately (this will take a while). Use system.time(), not a\n")
+  cat("bare start <- Sys.time() variable -- 01_01_load_data.R and 02_09_cop_analysis.R both reassign\n")
+  cat("a variable literally named 'start' for their own internal checkpoint logging (everything is\n")
+  cat("source()'d into the same global environment), which would silently clobber yours and make the\n")
+  cat("measured duration meaningless. system.time() is immune to this since it measures internally:\n")
+  cat('  system.time(source("scripts/main.R"))\n')
 })
 
 cat("\nSaved to:", file.path(datapath, "output", "session_info.txt"), "\n")
