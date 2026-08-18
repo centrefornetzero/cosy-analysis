@@ -2,15 +2,29 @@
 # the README's "Computational Requirements" section (per the Social Science
 # Data Editors template / DCAS #13). Not part of the analysis pipeline itself.
 #
-# Usage: source("scripts/main.R") first to install the analysis packages,
-# then source("scripts/utils_session_info.R"). Output is written to
-# data/output/session_info.txt (and also echoed to the console) -- paste the
-# relevant parts back into the README's Computational Requirements section.
+# Usage: source("scripts/utils_session_info.R") on its own -- this is a
+# self-contained one-shot, it does NOT need scripts/main.R sourced first (that
+# would also run the full six-stage analysis pipeline, which this script has
+# no need for; it only reuses main.R's cheap working-directory/datapath logic
+# below). Output is written to data/output/session_info.txt (and also echoed
+# to the console) -- paste the relevant parts back into the README's
+# Computational Requirements section.
 #
 # Each run fully overwrites session_info.txt from scratch: the file
 # connection below is opened in "wt" mode, which truncates any existing file
 # before writing, so a re-run can never leave stale content from a previous
 # run mixed in with the new output.
+
+if (!exists("datapath")) {
+  # Same working-directory/datapath logic as scripts/main.R, duplicated here
+  # so this script doesn't depend on main.R having been sourced first.
+  if (getwd() != "/Users/louise/Documents/GitHub/cosy-analysis") {
+    setwd("/home/jupyter/cosy-analysis")
+    datapath <- "../gcs/cosy2"
+  } else {
+    datapath <- "data"
+  }
+}
 
 local({
   output_path <- file.path(datapath, "output", "session_info.txt")
