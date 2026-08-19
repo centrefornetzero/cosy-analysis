@@ -506,7 +506,7 @@ for (period in periods) {
   cat(">>> Dynamic plot for:", period, "<<<\n")
 
   est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, "_universal.RDS")))
-  period_data <- aggte(est_cs, type = "dynamic", alp = 0.05, min_e = -52, max_e = 52)
+  period_data <- aggte(est_cs, type = "dynamic", na.rm = TRUE, alp = 0.05, min_e = -52, max_e = 52)
 
   plot_data <- create_dynamic_data(period_data, period) %>%
     mutate(cosy_status = factor(cosy_status, levels = c("Yes", "No")))
