@@ -389,7 +389,7 @@ for (period in periods) {
     file_suffix <- ifelse(base_period == "universal", "_universal", "")
     filename <- file.path(datapath, paste0("scratch/did_cosy_", period, file_suffix, ".RDS"))
 
-    #if (!file.exists(filename)) {
+    if (!file.exists(filename)) {
 
       cat(">>> Estimating & saving:", basename(filename), "<<<\n")
 
@@ -428,9 +428,9 @@ for (period in periods) {
       saveRDS(est_cs, filename)
       cat(">>> Saved:", basename(filename), "<<<\n")
 
-    #} else {
-    #  cat(">>> Skipping (exists):", basename(filename), "<<<\n")
-    #}
+    } else {
+      cat(">>> Skipping (exists):", basename(filename), "<<<\n")
+    }
   }
 }
 
@@ -447,7 +447,7 @@ for (period in periods) {
 
   cat(">>> Calendar-time plot for:", period, "<<<\n")
 
-  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, ".RDS")))
+  est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, "_universal.RDS")))
 
   est_cs$first_week <- (weeks(est_cs$group - 1) + floor_date(start_date, "week"))
   est_cs$week       <- (floor_date(start_date, "week") + weeks(est_cs$t - 1))
