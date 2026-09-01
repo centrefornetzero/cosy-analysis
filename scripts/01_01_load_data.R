@@ -8,7 +8,7 @@
 ## Merging consumption and customers info datasets
 if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
   start <- Sys.time()
-    print('hello')
+  print('hello')
 
   # Load smart meter consumption data at the day - rate period level
   # queries/cosy - cosy electricity readings
@@ -47,12 +47,58 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     print('checkpoint 2')
     
   # merge panel of active cosy dates to consumption data
-  aggregated_data <- 
+  #
+  # NOTE: first_adoption must be joined separately, by hashed_mpan ALONE, not
+  # by (hashed_mpan, date) like cosy_contract_active. agreements_active only
+  # has rows for dates *inside* each household's active Cosy window, so a
+  # join keyed on date as well would leave first_adoption NA for every
+  # pre-adoption row -- silently orphaning all pre-treatment observations
+  # under a missing cohort label rather than attaching them to their owner's
+  # real adoption date. (Discovered 2026-08-25: ~6,485 households' pre-
+  # adoption rows had first_adoption = NA in 01_06_DiD_analysis.R's did_data,
+  # which is what this fixes.)
+  first_adoption_lookup <- distinct(agreements_active, hashed_mpan, first_adoption)
+
+  aggregated_data <-
     aggregated_data %>%
-    left_join(agreements_active) %>%
+    left_join(select(agreements_active, hashed_mpan, date, cosy_contract_active)) %>%
     mutate(cosy_contract_active = replace_na(cosy_contract_active, 0)) %>%
+    left_join(first_adoption_lookup, by = "hashed_mpan") %>%
     inner_join(distinct(agreements_active, hashed_mpan))
-    
+
+  # ------------ Checkpoint: first_adoption data-integrity check --------------
+  # first_adoption must (a) never be NA here -- every hashed_mpan at this
+  # point came from an inner_join against agreements_active, so all of them
+  # have a real adoption date -- and (b) be a single constant value per
+  # hashed_mpan, not vary across a household's own rows. Catches exactly the
+  # join-key bug fixed above (and anything similar in the future) immediately
+  # on the next rebuild, rather than silently propagating into did_data.
+  integrity_check <- aggregated_data %>%
+    group_by(hashed_mpan) %>%
+    summarise(
+      n_rows = n(),
+      n_na_first_adoption = sum(is.na(first_adoption)),
+      n_distinct_first_adoption = n_distinct(first_adoption, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  n_households_with_na <- sum(integrity_check$n_na_first_adoption > 0)
+  n_households_inconsistent <- sum(integrity_check$n_distinct_first_adoption > 1)
+
+  cat(sprintf(
+    ">>> first_adoption integrity check: %d/%d households have >=1 NA row, %d/%d households have >1 distinct value <<<\n",
+    n_households_with_na, nrow(integrity_check),
+    n_households_inconsistent, nrow(integrity_check)
+  ))
+
+  if (n_households_with_na > 0 || n_households_inconsistent > 0) {
+    stop(sprintf(
+      "first_adoption integrity check FAILED: %d households with NA rows, %d with inconsistent values. Fix before proceeding -- see note above the aggregated_data join.",
+      n_households_with_na, n_households_inconsistent
+    ))
+  }
+  rm(integrity_check, n_households_with_na, n_households_inconsistent)
+
   # -------------------- Caculate overall daily consumption --------------------
   aggregate_daily <- 
     aggregated_data %>% 

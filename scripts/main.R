@@ -30,7 +30,7 @@ if (getwd() != "/Users/louise/Documents/GitHub/cosy-analysis") {
   # establish the home directory
   datapath <- "../gcs/cosy2"
 } else {
-  datapath <- "data"
+  datapath <-  "~/gcs/cnz-oe-extract-57d7be9d0a/cosy2"
 }
 
 checkpoint <- function(msg) cat(paste0(">>> ", msg, " <<<\n"))
