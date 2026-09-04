@@ -389,27 +389,30 @@ for (period in periods) {
     file_suffix <- ifelse(base_period == "universal", "_universal", "")
     filename <- file.path(datapath, paste0("scratch/did_cosy_", period, file_suffix, ".RDS"))
 
+    # did_data is rebuilt every iteration (cheap) regardless of caching, since
+    # section 7 below needs the last period's did_data to recover hashed_mpan
+    # for the households att_gt() used - only att_gt() itself (heavy) is cached.
+    did_data <- aggregated_data %>%
+      ungroup() %>%
+      filter(rate_period == period, !hashed_mpan == "1185945433") %>%
+      mutate(
+        settlement_week = floor_date(date, "week"),
+        week      = difftime(settlement_week, start_date, units = "weeks"),
+        firstweek  = difftime(floor_date(first_adoption, "week"), start_date, units = "weeks")
+      ) %>%
+      group_by(hashed_mpan, firstweek, week) %>%
+      summarise(consumption_hh = mean(consumption_hh), .groups = "drop") %>%
+      mutate(
+        firstweek = as.numeric(firstweek),
+        week      = as.numeric(week)
+      ) %>%
+      group_by(hashed_mpan) %>%
+      mutate(id = cur_group_id()) %>%
+      ungroup()
+
     if (!file.exists(filename)) {
 
       cat(">>> Estimating & saving:", basename(filename), "<<<\n")
-
-      did_data <- aggregated_data %>%
-        ungroup() %>%
-        filter(rate_period == period, !hashed_mpan == "1185945433") %>%
-        mutate(
-          settlement_week = floor_date(date, "week"),
-          week      = difftime(settlement_week, start_date, units = "weeks"),
-          firstweek  = difftime(floor_date(first_adoption, "week"), start_date, units = "weeks")
-        ) %>%
-        group_by(hashed_mpan, firstweek, week) %>%
-        summarise(consumption_hh = mean(consumption_hh), .groups = "drop") %>%
-        mutate(
-          firstweek = as.numeric(firstweek),
-          week      = as.numeric(week)
-        ) %>%
-        group_by(hashed_mpan) %>%
-        mutate(id = cur_group_id()) %>%
-        ungroup()
 
       est_cs <- att_gt(
         yname = "consumption_hh",
