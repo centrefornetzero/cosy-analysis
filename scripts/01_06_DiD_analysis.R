@@ -156,7 +156,7 @@ inject_cs_into_did_tex <- function(file_path,
   obs_line     <- grep("Observations", file_content)
   sample_line  <- grep("Number of Households", file_content)
   periods_line <- grep("Number of Time Periods", file_content)
-  hdd_line     <- grep("HDD", file_content)
+  hdd_line     <- grep("Temp. Bin", file_content)
   mpan_line    <- grep("Household", file_content)[1]
   day_line     <- grep("Day", file_content)
   pre_avgs     <- grep("Half Hourly Consumption", file_content)[2]
