@@ -892,6 +892,13 @@ for (period in main_periods) {
           
 cat("\n>>> Writing cosy_did_cs table <<<\n")
 
+shortstack_period <- function(x) {
+  dplyr::case_when(
+    x == "Morning Off-peak"   ~ "\\shortstack{Morning\\\\Off-peak}",
+    x == "Afternoon Off-peak" ~ "\\shortstack{Afternoon\\\\Off-peak}",
+    TRUE ~ x
+  )
+}
 
 models <- lapply(main_periods, function(period) {
   est_cs <- readRDS(file.path(datapath, paste0("scratch/did_cosy_", period, "_universal.RDS")))
@@ -940,13 +947,6 @@ m1 <- feols(
   split = ~ rate_period
 )
 
-shortstack_period <- function(x) {
-  dplyr::case_when(
-    x == "Morning Off-peak"   ~ "\\shortstack{Morning\\\\Off-peak}",
-    x == "Afternoon Off-peak" ~ "\\shortstack{Afternoon\\\\Off-peak}",
-    TRUE ~ x
-  )
-}
 period_headers <- shortstack_period(sort(main_periods))
 
 etable(
