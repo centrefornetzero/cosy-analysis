@@ -1270,16 +1270,16 @@ cs_se <- list(
   Gas         = format_decimal(aggte_simple_gas$overall.se, 1)
 )
 cs_n <- list(
-  Electricity = format_number(aggte_simple_elec$DIDparams$n),
-  Gas         = format_number(aggte_simple_gas$DIDparams$n)
+  Electricity = format_number(aggte_simple_elec$DIDparams$id_count),
+  Gas         = format_number(aggte_simple_gas$DIDparams$id_count)
 )
 cs_nG <- list(
-  Electricity = format_number(aggte_simple_elec$DIDparams$nG),
-  Gas         = format_number(aggte_simple_gas$DIDparams$nG)
+  Electricity = format_number(aggte_simple_elec$DIDparams$treated_groups_count),
+  Gas         = format_number(aggte_simple_gas$DIDparams$treated_groups_count)
 )
 cs_nT <- list(
-  Electricity = format_number(aggte_simple_elec$DIDparams$nT),
-  Gas         = format_number(aggte_simple_gas$DIDparams$nT)
+  Electricity = format_number(aggte_simple_elec$DIDparams$time_periods_count),
+  Gas         = format_number(aggte_simple_gas$DIDparams$time_periods_count)
 )
 
 # Create the initial 4-model table: (TWFE Elec, TWFE Gas, placeholder, placeholder)
@@ -1383,16 +1383,16 @@ cs_se_never <- list(
   Gas         = format_decimal(aggte_simple_gas_never$overall.se, 1)
 )
 cs_n_never <- list(
-  Electricity = format_number(aggte_simple_elec_never$DIDparams$n),
-  Gas         = format_number(aggte_simple_gas_never$DIDparams$n)
+  Electricity = format_number(aggte_simple_elec_never$DIDparams$id_count),
+  Gas         = format_number(aggte_simple_gas_never$DIDparams$id_count)
 )
 cs_nG_never <- list(
-  Electricity = format_number(aggte_simple_elec_never$DIDparams$nG),
-  Gas         = format_number(aggte_simple_gas_never$DIDparams$nG)
+  Electricity = format_number(aggte_simple_elec_never$DIDparams$treated_groups_count),
+  Gas         = format_number(aggte_simple_gas_never$DIDparams$treated_groups_count)
 )
 cs_nT_never <- list(
-  Electricity = format_number(aggte_simple_elec_never$DIDparams$nT),
-  Gas         = format_number(aggte_simple_gas_never$DIDparams$nT)
+  Electricity = format_number(aggte_simple_elec_never$DIDparams$time_periods_count),
+  Gas         = format_number(aggte_simple_gas_never$DIDparams$time_periods_count)
 )
 
 checkpoint("NEVER-TREATED: create etable + patch")

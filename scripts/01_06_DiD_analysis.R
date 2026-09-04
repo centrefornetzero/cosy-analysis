@@ -884,9 +884,9 @@ for (period in main_periods) {
 
   cs_estimates[[period]] <- aggte_simple$overall.att
   cs_se[[period]]        <- aggte_simple$overall.se
-  cs_n[[period]]         <- format_number(aggte_simple$DIDparams$n)
-  cs_nG[[period]]        <- format_number(aggte_simple$DIDparams$nG)
-  cs_nT[[period]]        <- format_number(aggte_simple$DIDparams$nT)
+  cs_n[[period]]         <- format_number(aggte_simple$DIDparams$id_count)
+  cs_nG[[period]]        <- format_number(aggte_simple$DIDparams$treated_groups_count)
+  cs_nT[[period]]        <- format_number(aggte_simple$DIDparams$time_periods_count)
   cs_pre_avg[[period]]   <- format_decimal(pre_avg, 4)
 }
           
