@@ -187,10 +187,6 @@ rm(list = setdiff(ls(), list_env))
 source("scripts/01_05_balance_table.R")
 rm(list = setdiff(ls(), list_env))
 
-# Runs before 01_07/01_08 because it caches scratch/cosy_mpans_universe.RDS
-# (the 6,631-household CS-estimable sample used in did.tex/cosy_did_cs.tex),
-# which those two scripts read so did_leavers.tex/did_prevar.tex use the
-# same sample. Once the cache exists, 01_07/01_08 can still be re-run standalone.
 source("scripts/01_06_DiD_analysis.R")
 rm(list = setdiff(ls(), list_env))
 gc()
