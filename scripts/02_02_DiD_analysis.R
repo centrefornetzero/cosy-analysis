@@ -215,7 +215,7 @@ run_cs_models(
   y_vars     = yname_vars,
   file_names = never_files,
   anticipation = 4,
-  control_group = c("notyettreated", "nevertreated"),
+  control_group = "nevertreated",
   base_period = "universal",
   xformla = NULL
 )
