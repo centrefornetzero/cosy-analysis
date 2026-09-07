@@ -113,7 +113,7 @@ pre_avg_lines2 <- file_content[pre_avg_line_index2]
 file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index2)]
 
 # Find the position just after the coefficients
-coeff_end_index <- grep("Cosy Contract Active", file_content) + 2
+coeff_end_index <- grep("Contract Active", file_content) + 2
 if (length(coeff_end_index) > 1) {
   coeff_end_index <- coeff_end_index[-1]
 }
@@ -203,7 +203,7 @@ pre_avg_lines2 <- file_content[pre_avg_line_index2]
 file_content <- file_content[-c(pre_avg_line_index, pre_avg_line_index2)]
 
 # Find the position just after the coefficients
-coeff_end_index <- grep("Cosy Contract Active", file_content) + 2
+coeff_end_index <- grep("Contract Active", file_content) + 2
 if (length(coeff_end_index) > 1) {
   coeff_end_index <- coeff_end_index[-1]
 }
