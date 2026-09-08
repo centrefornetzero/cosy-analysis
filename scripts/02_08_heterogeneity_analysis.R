@@ -416,10 +416,10 @@ for (i in 1:5) {
       upper_ci_ATE = upper_ci / abs(m1[[j]]$coefficients) * 100,
       outcome = "Total Consumption",
       `Floor_Area` = factor(`Income Category`, levels = income_labels),
-      period = factor(val, levels = c("Morning Cosy",
-                                      "Afternoon Cosy",
+      period = factor(val, levels = c("Morning Off-peak",
+                                      "Afternoon Off-peak",
                                       "Peak Rate",
-                                      "Other", 
+                                      "Other",
                                       "Overall")))
   
   all_coefs <- bind_rows(all_coefs, coefs_total)
@@ -637,12 +637,12 @@ coefs_total <- coeftable(m_region) %>%
 # Select a color palette from RColorBrewer
 region_colors <- brewer.pal(n = length(unique(coefs_total$Region)), name = "Set3")
 
-# Order regions by their estimate size for period == "Morning Cosy"
+# Order regions by their estimate size (m_region is fit on rate_period == "Overall" only)
 hp_order <- coefs_total %>%
   arrange(desc(Estimate)) %>%
   pull(Region)
 
-# Reorder the Region factor based on the estimate size in "Morning Cosy"
+# Reorder the Region factor based on that estimate-size ordering
 coefs_total <- coefs_total %>%
   mutate(Region = factor(Region, levels = hp_order))
 

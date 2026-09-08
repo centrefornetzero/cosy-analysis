@@ -324,7 +324,7 @@ create_latex_table <- function(models, headers, title, file, label,
   latex <- paste0(latex, "      \\midrule \\midrule\n")
   latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Clustered (Household) standard-errors in parentheses}\\\\\n")
   latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Estimation Method: Doubly Robust}\\\\\n")
-  latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Control Group: Not Yet Treated, Anticipation Periods: 0}\\\\\n")
+  latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Control Group: Not Yet Treated, Anticipation Periods: 1}\\\\\n")
   latex <- paste0(latex, "      \\multicolumn{", length(headers) + 1, "}{l}{Signif. Codes: *** ", conf_level, "\\% confidence band does not cover 0}\\\\\n")
 
   latex <- paste0(latex, "   \\end{tabular}\n")

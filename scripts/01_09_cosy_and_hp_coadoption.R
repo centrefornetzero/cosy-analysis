@@ -160,10 +160,10 @@ coefs_total <- rbind(coeftable(m_without_control)  %>%
                        mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
                               upper_ci = Estimate + 1.96 * `Std..Error`,
                               model = "With HP Installation Date")) %>%
-  mutate(rate_period = factor(sample, levels = c("Morning Cosy",
-                                                 "Afternoon Cosy",
+  mutate(rate_period = factor(sample, levels = c("Morning Off-peak",
+                                                 "Afternoon Off-peak",
                                                  "Peak Rate",
-                                                 "Other", 
+                                                 "Other",
                                                  "Overall")))
 
 # Define custom colors

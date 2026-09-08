@@ -232,7 +232,7 @@ df <- aggregated_data %>%
                        TRUE ~ 25
                      )
                    )) %>%
-                  filter(rate_period != "overall") %>%        # drop overall
+                  filter(rate_period != "Overall") %>%        # drop overall
                   mutate(date = as.Date(date)) %>%             # Ensure date is stored as a Date object
                   group_by(account_id, date) %>%
                   mutate(
