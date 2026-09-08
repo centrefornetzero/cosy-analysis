@@ -42,13 +42,6 @@ event_study_df <- hp_installed %>%
       TRUE ~ weeks_since_hp
     ),
 
-    # Time controls / FE keys
-    # Named week_of_year (not "week") to avoid colliding with the sequential
-    # DiD time index used elsewhere in the pipeline (e.g. 02_02/02_03/02_09),
-    # which counts weeks since start_date rather than calendar week-of-year.
-    week_of_year = week(date),
-    month = month(date),
-
     # Weeklyise half-hourly kWh to kWh/week:
     # 48 half-hours/day * 7 days
     elec_consumption_weekly_kwh = 7 * 48 * consumption_hh
@@ -56,7 +49,7 @@ event_study_df <- hp_installed %>%
   select(
     account_id, weeks_since_hp,
     consumption_hh, elec_consumption_weekly_kwh,
-    hdd, date, rate_period, month, week_of_year, tariff_gsp_group_id
+    hdd, date, rate_period
   )
 
 gc()
@@ -181,47 +174,3 @@ plot_event_study(
 )
 
 rm(m_peak); gc()
-
-# ==============================================================================
-# (3) Overall + account-month fixed effects (absorbs account-specific seasonality)
-# ==============================================================================
-m_overall_month_fe <- run_event_study(
-  data    = event_study_df %>% filter(rate_period == "Overall"),
-  outcome = "elec_consumption_weekly_kwh",
-  fe_rhs  = "account_id + hdd + date + account_id:month"
-)
-
-etable(m_overall_month_fe)
-
-plot_event_study(
-  model    = m_overall_month_fe,
-  filename = "graphs/hp_event_study_overall_with_monthly_trends.png",
-  ylab     = "Heat Pump Install on Weekly\nElec Consumption (kWh)",
-  legend_pos = "bottom",
-  add_anticipation = TRUE,
-  comma_y = TRUE
-)
-
-rm(m_overall_month_fe); gc()
-
-# ==============================================================================
-# (4) Overall + (GSP × week-of-year) fixed effects (flexible grid-time shocks)
-# ==============================================================================
-m_overall_gsp_week_fe <- run_event_study(
-  data    = event_study_df %>% filter(rate_period == "Overall"),
-  outcome = "elec_consumption_weekly_kwh",
-  fe_rhs  = "account_id + hdd + date + week_of_year^tariff_gsp_group_id"
-)
-
-etable(m_overall_gsp_week_fe)
-
-plot_event_study(
-  model    = m_overall_gsp_week_fe,
-  filename = "graphs/hp_event_study_overall_with_weekly_trends.png",
-  ylab     = "Heat Pump Install on Weekly\nElec Consumption (kWh)",
-  legend_pos = "bottom",
-  add_anticipation = TRUE,
-  comma_y = TRUE
-)
-
-rm(m_overall_gsp_week_fe); gc()
