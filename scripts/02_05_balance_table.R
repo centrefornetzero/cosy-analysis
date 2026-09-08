@@ -88,17 +88,9 @@ income <- readxl::read_excel(file.path(datapath, "input/small_area_income_estima
   select(`MSOA code`, `Total annual income (£)`) %>%
   distinct()
 
-net_income <- readxl::read_excel(file.path(datapath, "input/small_area_income_estimates_fye2023.xlsx"), sheet = "Net annual income", skip = 3) %>%
-  select(`MSOA code`, `Disposable (net) annual income (£)`) %>%
-  distinct()
-
-net_housing_income <- readxl::read_excel(file.path(datapath, "input/small_area_income_estimates_fye2023.xlsx"), sheet = "Net income after housing costs", skip = 3) %>%
-  select(`MSOA code`, `Disposable (net) annual income after housing costs (£)`) %>%
-  distinct()
-
 # Load and preprocess the property_prices data (2011-vintage MSOA; ONS has not
 # rebased HPSSA Dataset 3 to 2021 boundaries). Kept as "MSOA code" here.
-property_prices <- read_excel(file.path(datapath, "/input/HPSSA Dataset 3 - Mean price paid by MSOA.xls"),
+property_prices <- read_excel(file.path(datapath, "input/HPSSA Dataset 3 - Mean price paid by MSOA.xls"),
                               sheet = "1a", skip = 4) %>%
   select(`MSOA code`, `Year ending Mar 2023`) %>%
   rename(`Property price (£)` = `Year ending Mar 2023`)

@@ -195,7 +195,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
   
   saveRDS(aggregated_data, file.path(datapath, "scratch/aggregated_data.RDS"))
   
-  rm(weather, adoption, consumption_with_indicator, agreements)
+  rm(weather)
 } else {
   aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
 }

@@ -1441,7 +1441,7 @@ checkpoint("Plotting anticipation graph")
                          
                          
 # Define paths and base filenames for each anticipation period
-output_base_path <- file.path(datapath, "/scratch/")
+output_base_path <- file.path(datapath, "scratch")
 output_filenames <- c("est_cs_elec_weekly", "est_cs_gas_weekly")
 anticipation_periods <- 0:10  # The range of anticipation periods
 
@@ -1510,10 +1510,6 @@ checkpoint("Anticipation graph saved: graphs/HP_anticipation.png")
 checkpoint("Dynamic CS plots by anticipation (electricity + gas)")
 
 # ---- Uses colors and datapath already set earlier in the pipeline ----
-datapath <- datapath  # already defined
-elec_color <- elec_color
-gas_color  <- gas_color
-
 anticipation_periods <- 0:10
 
 # Location of the CS estimation objects (same naming convention as earlier)

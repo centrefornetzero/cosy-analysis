@@ -35,27 +35,6 @@ first_adoption <- aggregated_data %>%
 m_adopters <- feols(adoption_week ~ i(urban, ref=0) + log(floor_area) + log(property_value) + log(energy_efficiency) + log(estimated_annual_consumption) + previous_is_charged_half_hourly, data = first_adoption, se = "hetero")
 etable(m_adopters)
 
-# Extract coefficients and standard errors
-coefs <- coeftable(m_adopters) %>%
-  data.frame() %>%
-  tibble::rownames_to_column("term") %>%
-  filter(term != "(Intercept)") %>%
-  mutate(term = case_when(term == "i(factor_var = urban, ref = 0)" ~ "Urban",
-                          term == "log(floor_area)" ~ "Log Floor Area",
-                          term == "log(property_value)" ~ "Log Property Value",
-                          term == "log(energy_efficiency)" ~ "Log Energy Efficiency",
-                          term == "log(estimated_annual_consumption)" ~ "Log Estimated Consumption",
-                          term == "previous_is_touTRUE" ~ "Previous Contract Is ToU",
-                          TRUE ~ term),
-         lower_ci = Estimate - 1.96 * `Std..Error`,
-         upper_ci = Estimate + 1.96 * `Std..Error`
-  ) %>%
-  arrange(Estimate)
-
-
-# Add a note below the graph
-note <- "Note: The dependent variable is adoption week (0 for the first week adopters up to 65 for the later). \n Early adopters are more urban, have higher electricity consumption and more energy efficient homes. \n Data: Domus dataset and OE energy."
-
 # Function to calculate weighted standard deviation
 # NB: filters (x, w) to jointly non-missing pairs first. Some MSOAs are missing
 # income/property price (2011-vintage ONS releases) after the 2021 MSOA boundary

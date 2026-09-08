@@ -15,7 +15,7 @@ hp_installed <- readRDS(file.path(datapath, "output/hp_installed.rds")) %>%
 
 
 # Installer FE
-installers <- fread(file.path(datapath, "/input/cosy_-_hp_engineers_2025_03_17.csv")) %>%
+installers <- fread(file.path(datapath, "input/cosy_-_hp_engineers_2025_03_17.csv")) %>%
   inner_join(distinct(filter(hp_installed, treated == 1), account_id, deal_created_at)) %>%
   filter(hp_engineer != "") %>%
   group_by(hp_engineer) %>%
@@ -264,7 +264,7 @@ rm(results)
 # Yearly effect of HP installation by installing engineer, relative to the average treatment effect
 # ====================================================================
 # Installer FE
-installers <- fread(file.path(datapath, "/input/cosy_-_hp_engineers_2025_03_17.csv")) 
+installers <- fread(file.path(datapath, "input/cosy_-_hp_engineers_2025_03_17.csv")) 
 
 # Unique periods 
 periods <- unique(hp_installed$rate_period)
