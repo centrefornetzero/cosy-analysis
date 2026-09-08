@@ -1,10 +1,12 @@
 ## Heterogeneity analysis
 
+cat("\n>>> HP heterogeneity analysis: script start <<<\n")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-### Figure 6: Impact of Heat Pump Installation by Outside 
+### Figure 6: Impact of Heat Pump Installation by Outside
 # Temperature (and Figure A.2 to A.5)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cat(">>> Figure 6: outside temperature <<<\n")
 
 # Load IDs
 ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
@@ -296,7 +298,8 @@ rm(m_sources)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Figure 7: Impact of Heat Pump Installation by MSOA Income
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cat(">>> Figure 7: MSOA income <<<\n")
 # Load and preprocess the cosy_hp_details data
 cosy_hp_details <- fread(file.path(datapath,  "input/cosy_-_hp_details_2024_07_03.csv")) %>%
   inner_join(hp_installed %>% filter(treated == 1) %>% select(account_id) %>% distinct()) %>%
@@ -537,7 +540,8 @@ for (i in 1:5) {
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Figure A.8: Impact of Heat Pump Installation by Heat Loss Decile
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cat(">>> Figure A.8: heat loss decile <<<\n")
 
 # survey
 hl <- fread(file.path(datapath, "input/cosy_-_hp_details_2024_07_03.csv")) %>%
@@ -613,10 +617,11 @@ for (i in 1:5) {
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-### Figure A.9: Impact of Heat Pump Installation on Half-Hourly 
+### Figure A.9: Impact of Heat Pump Installation on Half-Hourly
 # Electricity Consumption by region
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-m_region <- feols(consumption_yearly ~ i(is_hp_installed, region, ref =0) | 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cat(">>> Figure A.9: by region <<<\n")
+m_region <- feols(consumption_yearly ~ i(is_hp_installed, region, ref =0) |
                     account_id + hdd + date,
                   data = hp_installed %>% filter(!is.na(region), !region=="", rate_period == "Overall"),
                   cluster = ~account_id)
@@ -668,8 +673,9 @@ ggsave("graphs/hp_region_combined.png", device = "png", width = 16, height = 12,
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### Figure A.7: Impact of Heat Pump Installation by Floor Area
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-                    
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cat(">>> Figure A.7: floor area <<<\n")
+
 ##
 breaks <- hp_installed %>%
   filter(!is.na(total_floor_area)) %>%
@@ -808,3 +814,5 @@ for (i in 1:4) {
   ggsave(paste0("graphs/hp_share_floor_area_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
 }
+
+cat("\n>>> HP heterogeneity analysis: done <<<\n")

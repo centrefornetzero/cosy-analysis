@@ -227,6 +227,7 @@ aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
 # ----------------------------
 # 3) Build samples (Cosy, HP, Random)
 # ----------------------------
+cat(">>> Building samples (Cosy, HP, Random) <<<\n")
 
 # cosy sample
 cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_24.csv")) %>%
@@ -376,6 +377,7 @@ matched_data <- match.data(match_obj)
 # ----------------------------
 # 5) TWFE: Cosy sample (matched-weighted)
 # ----------------------------
+cat(">>> TWFE: Cosy sample (matched-weighted) <<<\n")
 m1_matched <- feols(
   consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
   weights = ~weights,
@@ -508,6 +510,7 @@ matched_data2 <- match.data(match_obj2)
 # ----------------------------
 # 7) TWFE: HP sample with matching weights
 # ----------------------------
+cat(">>> TWFE: HP sample (matched-weighted) <<<\n")
 register_fitstats_hp()
 
 ids_elec <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
@@ -860,6 +863,7 @@ stargazer(
 # ----------------------------
 # 11) HP early vs late adopters
 # ----------------------------
+cat(">>> HP early vs late adopters <<<\n")
 hp_details <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_18.csv")) %>%
   mutate(date = as.Date(settlement_date)) %>%
   inner_join(

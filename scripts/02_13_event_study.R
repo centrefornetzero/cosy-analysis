@@ -12,6 +12,7 @@
 # ------------------------------------------------------------------------------
 # Paths / inputs
 # ------------------------------------------------------------------------------
+cat("\n>>> Event study: loading hp_installed <<<\n")
 hp_installed <- read_rds(file.path(datapath, "output/hp_installed.rds"))
 
 # ------------------------------------------------------------------------------
@@ -134,6 +135,7 @@ plot_event_study <- function(model, filename, ylab,
 # ==============================================================================
 # (1) Overall rate — baseline TWFE event study (weeklyised kWh)
 # ==============================================================================
+cat("\n>>> Event study (1): Overall rate <<<\n")
 m_overall <- run_event_study(
   data    = event_study_df %>% filter(rate_period == "Overall"),
   outcome = "elec_consumption_weekly_kwh",
@@ -156,6 +158,7 @@ rm(m_overall); gc()
 # ==============================================================================
 # (2) Peak Rate — same spec, weeklyised kWh (for consistency across figures)
 # ==============================================================================
+cat("\n>>> Event study (2): Peak Rate <<<\n")
 m_peak <- run_event_study(
   data    = event_study_df %>% filter(rate_period == "Peak Rate"),
   outcome = "elec_consumption_weekly_kwh",
@@ -172,5 +175,7 @@ plot_event_study(
   add_anticipation = TRUE,
   comma_y = TRUE
 )
+
+cat("\n>>> Event study: done <<<\n")
 
 rm(m_peak); gc()
