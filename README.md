@@ -132,7 +132,7 @@ See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for the full variable-level metadat
 
 ## Instructions for Data Preparation and Analysis
 
-**Data preparation:** Each `0X_01_load_data.R` script guards its heavy merge with `if (!file.exists(...))`, building and caching to `data/scratch/*.RDS` on first run, and reading the cache thereafter. To force a rebuild, delete the relevant cached `.RDS` file (commented `file.remove(...)` lines at the top of each loader show which file to remove).
+**Data preparation:** Each `0X_01_load_data.R` script guards its heavy merge with `if (!file.exists(...))`, building and caching to `<datapath>/scratch/*.RDS` on first run, and reading the cache thereafter (`datapath` is set by `main.R`; see Environment below — it is not a `data/` folder relative to the repo root). To force a rebuild, delete the relevant cached `.RDS` file (commented `file.remove(...)` lines at the top of each loader show which file to remove).
 
 **Analysis:** From an R session with working directory set to the repository root:
 
@@ -142,7 +142,7 @@ source("scripts/main.R")
 
 This runs the full pipeline end-to-end with no manual intervention required, producing all figures (`graphs/`) and tables (`tables/`) referenced in the paper. To run a single stage instead, first run the package-loading and parameter block at the top of `main.R` (this defines `hp_color`, `cosy_color`, etc., and the `datapath` variable that later scripts depend on), then `source()` the relevant `0X_00_*.R` file directly.
 
-**Environment:** `main.R` auto-detects the working directory to set `datapath`. On the production environment (GCP Vertex AI Workbench), the GCS bucket must be mounted before starting R:
+**Environment:** `main.R` checks `getwd()` against one author's hardcoded local path to choose between two `datapath` values — it is not a generic "does a `data/` folder exist" auto-detection, so on any machine other than that one it falls through to the production branch below. ⚠️ **TODO** — this is a real portability gap for an outside replicator; on the production environment (GCP Vertex AI Workbench), the GCS bucket must be mounted before starting R:
 
 ```bash
 gcsfuse --implicit-dirs --rename-dir-limit=100 --max-conns-per-host=100 cnz-oe-extract-57d7be9d0a /home/jupyter/gcs
