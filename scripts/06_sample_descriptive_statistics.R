@@ -4,11 +4,11 @@ est_cs_elec_weekly <- readRDS(file.path(datapath, "scratch/est_cs_elec_weekly.RD
 est_cs_gas_weekly  <- readRDS(file.path(datapath, "scratch/est_cs_gas_weekly.RDS"))
 
 # Load the CS estimates for Cosy Tariff Adoption (Elec for different rate periods)
-est_cs_overall <- readRDS(file.path(datapath, "scratch/did_cosy_Overall.RDS"))
-est_cs_morning <- readRDS(file.path(datapath, "scratch/did_cosy_Morning Cosy.RDS"))
-est_cs_afternoon <- readRDS(file.path(datapath, "scratch/did_cosy_Afternoon Cosy.RDS"))
-est_cs_peak <- readRDS(file.path(datapath, "scratch/did_cosy_Peak Rate.RDS"))
-est_cs_other <- readRDS(file.path(datapath, "scratch/did_cosy_Other.RDS"))
+est_cs_overall <- readRDS(file.path(datapath, "scratch/did_cosy_Overall_universal.RDS"))
+est_cs_morning <- readRDS(file.path(datapath, "scratch/did_cosy_Morning Off-peak_universal.RDS"))
+est_cs_afternoon <- readRDS(file.path(datapath, "scratch/did_cosy_Afternoon Off-peak_universal.RDS"))
+est_cs_peak <- readRDS(file.path(datapath, "scratch/did_cosy_Peak Rate_universal.RDS"))
+est_cs_other <- readRDS(file.path(datapath, "scratch/did_cosy_Other_universal.RDS"))
 
 # 1) Generic summary-stat helper ----------------------------------------------
 
