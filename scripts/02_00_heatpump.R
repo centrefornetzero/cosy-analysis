@@ -138,12 +138,11 @@ source("scripts/02_01_load_data.R")
 # List objects in the environment
 list_env <- c(ls(), "list_env")
 
-#source("scripts/02_02_DiD_analysis.R")
-#rm(list = setdiff(ls(), list_env))
+source("scripts/02_02_DiD_analysis.R")
+rm(list = setdiff(ls(), list_env))
 
 source("scripts/02_03_DiD_analysis_outputs.R")
 rm(list = setdiff(ls(), list_env))
-
 
 # Summary statistics 
 source("scripts/02_04_summary_graphs.R")
@@ -160,7 +159,6 @@ rm(list = setdiff(ls(), list_env))
 
 source("scripts/02_07_switch_to_smart_tariff.R")
 rm(list = setdiff(ls(), list_env))
-
 
 ## Heterogeneity analysis
 source("scripts/02_08_heterogeneity_analysis.R")
