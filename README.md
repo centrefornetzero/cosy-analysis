@@ -142,13 +142,13 @@ source("scripts/main.R")
 
 This runs the full pipeline end-to-end with no manual intervention required, producing all figures (`graphs/`) and tables (`tables/`) referenced in the paper. To run a single stage instead, first run the package-loading and parameter block at the top of `main.R` (this defines `hp_color`, `cosy_color`, etc., and the `datapath` variable that later scripts depend on), then `source()` the relevant `0X_00_*.R` file directly.
 
-**Environment:** `main.R` checks `getwd()` against one author's hardcoded local path to choose between two `datapath` values — it is not a generic "does a `data/` folder exist" auto-detection, so on any machine other than that one it falls through to the production branch below. ⚠️ **TODO** — this is a real portability gap for an outside replicator; on the production environment (GCP Vertex AI Workbench), the GCS bucket must be mounted before starting R:
+**Environment:** `main.R` checks `getwd()` against one author's hardcoded local path to choose between two `datapath` values, both of which resolve to a mounted GCS bucket -- there is no local `data/` folder anywhere in this pipeline by design; all restricted input/scratch/output data lives on GCS. On the production environment (GCP Vertex AI Workbench), the bucket must be mounted before starting R:
 
 ```bash
 gcsfuse --implicit-dirs --rename-dir-limit=100 --max-conns-per-host=100 cnz-oe-extract-57d7be9d0a /home/jupyter/gcs
 ```
 
-`data/`, `graphs/`, and `tables/` are not version-controlled; they are populated by running the pipeline against the (restricted) input data.
+`graphs/` and `tables/` (repo-relative) and the entire GCS-mounted `datapath` tree are not version-controlled; they are populated by running the pipeline against the (restricted) input data.
 
 ## List of Tables and Programs
 

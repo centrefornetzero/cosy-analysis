@@ -11,8 +11,8 @@ library(fixest)
 ## Paths
 ################################################################################
 
-parquet_base_path <- "../gcs/cosy/hp_adopters_elec/"
-parquet_base_path_cosy <- "../gcs/cosy/cosy_elec/"
+parquet_base_path <- file.path(datapath, "input/parquet/hp_adopters_elec")
+parquet_base_path_cosy <- file.path(datapath, "input/parquet/cosy_elec")
 
 hh_flag_path   <- file.path(datapath, "input/cosy_-_is_charged_half_hourly_hp_accounts_2025_06_11.csv")
 hp_details_path <- file.path(datapath, "input/cosy_-_hp_details_2024_06_25.csv")
@@ -150,7 +150,7 @@ gc()
 ################################################################################
 
 
-parquet_base_path_cosy <- "../gcs/cosy/cosy_elec/"
+# (parquet_base_path_cosy already set above)
 
 # 1) list + sample
 account_dirs <- list.files(parquet_base_path_cosy, pattern = "^account_id=", full.names = TRUE)

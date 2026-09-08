@@ -1355,7 +1355,7 @@ did_data_never <- overall_weekly %>%
   ungroup() %>%
   filter(week <= 129) %>%
   mutate(firstweek = ifelse(firstweek > 129, 0, firstweek)) %>%
-  filter(week <= firstweek - 4 | week >= firstweek)
+  filter(week < firstweek - 4 | week >= firstweek)
 
 
 # TWFE models, using the same date-window cutoff as the main specification
