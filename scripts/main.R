@@ -56,7 +56,7 @@ rating_colors <- c(
 red_palette <- c("#FF9999", "#FF8080", "#FF6666", "#FF4D4D", "#FF3333", "#FF1A1A", "#FF0000", "#E60000", "#CC0000", "#B20000")
 
 # Cosy reproduction
-source("scripts/01_00_cosy.R")
+#source("scripts/01_00_cosy.R")
 
 source("scripts/02_00_heatpump.R")
 
