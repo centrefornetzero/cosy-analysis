@@ -1,8 +1,7 @@
 
-# Load the CS estimates for the Heat Pump Adoption (Elec, Gas, Total)
+# Load the CS estimates for the Heat Pump Adoption (Elec, Gas)
 est_cs_elec_weekly <- readRDS(file.path(datapath, "scratch/est_cs_elec_weekly.RDS"))
 est_cs_gas_weekly  <- readRDS(file.path(datapath, "scratch/est_cs_gas_weekly.RDS"))
-est_cs_total_weekly <- readRDS(file.path(datapath, "scratch/est_cs_total_weekly.RDS"))
 
 # Load the CS estimates for Cosy Tariff Adoption (Elec for different rate periods)
 est_cs_overall <- readRDS(file.path(datapath, "scratch/did_cosy_Overall.RDS"))
