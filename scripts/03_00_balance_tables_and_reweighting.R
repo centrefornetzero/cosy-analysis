@@ -374,15 +374,8 @@ stargazer(
 matched_data <- match.data(match_obj)
 
 # ----------------------------
-# 5) TWFE: Cosy sample (unweighted vs matched-weighted)
+# 5) TWFE: Cosy sample (matched-weighted)
 # ----------------------------
-m1 <- feols(
-  consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
-  data = aggregated_data,
-  cluster = ~account_id,
-  split = ~rate_period
-)
-
 m1_matched <- feols(
   consumption_hh ~ i(cosy_contract_active) | hdd + account_id + date,
   weights = ~weights,

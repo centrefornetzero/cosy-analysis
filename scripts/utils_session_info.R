@@ -90,10 +90,12 @@ cat("\nSaved to:", file.path(datapath, "output", "session_info.txt"), "\n")
 
 # ==== RUNTIME (comment out this whole block if you only want the info above) ====
 #
-# Only two files in the pipeline are cached (skip-if-exists): scratch/aggregated_data.RDS
-# (01_01_load_data.R) and scratch/cop_boot_no_boxing.csv (02_09_cop_analysis.R). If either
-# exists, source("scripts/main.R") would skip rebuilding it and understate a true cold-start
-# run, so both are deleted below to force a full rebuild.
+# Four cache locations exist in the pipeline (skip-if-exists): scratch/aggregated_data.RDS
+# (01_01_load_data.R), scratch/did_cosy_<period>_universal.RDS, one per rate_period
+# (01_06_DiD_analysis.R), scratch/cop_boot_no_boxing.csv (02_09_cop_analysis.R), and
+# scratch/cop_boot_gas_only.csv (02_14_gas_only_sample_robustness_check.R). If any exist,
+# source("scripts/main.R") would skip rebuilding them and understate a true cold-start run,
+# so all are deleted below to force a full rebuild.
 #
 # Timed via system.time(), not a bare `start <- Sys.time()` variable -- 01_01_load_data.R and
 # 02_09_cop_analysis.R both reassign a variable literally named `start` for their own internal
@@ -101,7 +103,13 @@ cat("\nSaved to:", file.path(datapath, "output", "session_info.txt"), "\n")
 # silently clobber a bare variable and make the measured duration meaningless. system.time() is
 # immune to this since it measures internally.
 
-cache_files <- file.path(datapath, c("scratch/aggregated_data.RDS", "scratch/cop_boot_no_boxing.csv"))
+did_cosy_periods <- c("Morning Off-peak", "Afternoon Off-peak", "Peak Rate", "Other", "Overall")
+cache_files <- file.path(datapath, c(
+  "scratch/aggregated_data.RDS",
+  paste0("scratch/did_cosy_", did_cosy_periods, "_universal.RDS"),
+  "scratch/cop_boot_no_boxing.csv",
+  "scratch/cop_boot_gas_only.csv"
+))
 for (f in cache_files) {
   if (file.exists(f)) {
     file.remove(f)

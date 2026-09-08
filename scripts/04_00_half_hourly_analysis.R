@@ -212,7 +212,11 @@ summary(first_adoption)
 # Create Treatment dummy and Settlement Categorical
 cosy <- cosy %>%
   #filter(account_id %in% sample_selection) %>%
-  inner_join(first_adoption) %>%
+  # first_adoption is keyed on (hashed_mpan, tariff_gsp_group_id), but `cosy`
+  # only carries hashed_mpan at this point, so the join can only match on
+  # hashed_mpan -- made explicit here since `first_adoption`'s extra grouping
+  # key is otherwise silently dropped by the implicit natural join.
+  inner_join(first_adoption, by = "hashed_mpan") %>%
   mutate(settlement_date = as.Date(interval_start),
          first_adoption = as.Date(first_adoption),
          settlement_time = format(as.POSIXct(interval_start, tz = "UTC"),
