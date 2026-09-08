@@ -210,7 +210,7 @@ rm(m_overall_month_fe); gc()
 m_overall_gsp_week_fe <- run_event_study(
   data    = event_study_df %>% filter(rate_period == "Overall"),
   outcome = "elec_consumption_weekly_kwh",
-  fe_rhs  = "account_id + hdd + date + week_of_year:tariff_gsp_group_id"
+  fe_rhs  = "account_id + hdd + date + week_of_year^tariff_gsp_group_id"
 )
 
 etable(m_overall_gsp_week_fe)
