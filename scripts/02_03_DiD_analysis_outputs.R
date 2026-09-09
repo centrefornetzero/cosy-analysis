@@ -1235,7 +1235,7 @@ fitstat_register("t_obs", function(x) {
   format_number(x$fixef_sizes[t_var])
 }, "Number of Time Periods")
 
-# Build week / firstweek and the anticipation=5 treatment indicator
+# Build week / firstweek and the anticipation=4 treatment indicator
 overall_weekly_fe <-  overall_weekly %>%
   ungroup() %>%
   mutate(

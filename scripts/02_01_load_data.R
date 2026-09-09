@@ -161,6 +161,9 @@ merged_data <- all_combinations %>%
 overall_weekly <- 
   hp_installed_weekly %>%
   left_join(merged_data, by = c("account_id", "settlement_week")) %>%
+  # Annualize: each row's weekly consumption is scaled by 52.25 (weeks/year)
+  # to an annual run-rate, so elec_consumption/gas_consumption/total_consumption
+  # are annual figures observed at weekly frequency, not weekly totals.
   mutate(gas_consumption = 52.25 * gas_consumption,
          elec_consumption = 52.25 * elec_consumption,
          total_consumption = gas_consumption + elec_consumption,

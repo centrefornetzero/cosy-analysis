@@ -20,7 +20,7 @@ Variables that live in the panel/account-level/area-level data used throughout t
 | `eac_mwh` | EAC in MWh | `01_01_load_data.R:183` | `estimated_annual_consumption/1000`, matching the downstream bin labels. |
 | `eac_mwh_category` | — | `01_08_heterogeneity_analysis.R:441-452` | Decile bins of `eac_mwh`. |
 | `previous_contract` / `previous_is_variable` / `previous_is_charged_half_hourly` | Prev Is Variable | `01_01_load_data.R:156-158` | Attributes (`lag()`) of the contract immediately preceding the household's first Cosy Octopus contract. `previous_is_variable` itself isn't used in any regression or published table; `previous_is_charged_half_hourly` (used as "Prev is ToU" in `01_08`) is the one that feeds results. |
-| `hdd` | Temp. Bin (°C) | `01_01_load_data.R:189-195` | Categorical: `round(daily_avg_air_temperature_celsius)` clipped to `[0,15]`. A capped ambient-temperature bin used as a fixed effect — not a heating-degree-days measure. The 15°C cap keeps the quasi-COP/empirical-efficiency ratio stable (see [MODEL_PARAMETERS_AND_ASSUMPTIONS.md](MODEL_PARAMETERS_AND_ASSUMPTIONS.md)). |
+| `hdd` | Temp. Bin (°C) | `01_01_load_data.R:189-195` | Categorical: `round(daily_avg_air_temperature_celsius)` clipped to `[0,15]`. A capped ambient-temperature bin used as a fixed effect — not a heating-degree-days measure. The 15°C cap keeps the quasi-COP/empirical-efficiency ratio stable. |
 | `total_floor_area` | Floor Area (m sq) | raw covariate; used `01_08_heterogeneity_analysis.R:1005-1015` | Decile-binned into `total_floor_area_category`. Same underlying EPC field as `floor_area`, referenced under a different name in `01_05`. |
 | `floor_area` | Floor area | raw covariate; used `01_05_balance_table.R:25,35` | `log(floor_area)` in `m_adopters`. |
 | `property_value` (household-level) | Property value | raw covariate | `log(property_value)` in `m_adopters`; decile-binned into `property_value_category` for heterogeneity/savings figures. |
@@ -63,9 +63,9 @@ Variables that live in the panel/account-level/area-level data used throughout t
 | `is_hp_installed` | Heat Pump Installed / Is HP Installed [dict] | `02_01_load_data.R:68` (daily: `installed_at <= date`) and `:176` (weekly: `installed_at < settlement_week`) | Treatment indicator. The weekly construction (`<`) governs the headline DiD results; the daily version (`<=`) is used only where a daily panel is genuinely needed. |
 | `treated` | — | `02_01_load_data.R:86` | `max(is_hp_installed)` by `account_id` — ever-treated flag. |
 | `consumption_hh` | Consumption in kWh per half hour [dict] | `02_01_load_data.R:5-6,20` | Divisors reflect period length: named periods span 6 half-hours (3h), "Other" spans 30 (15h), "Overall" spans 48 (24h). |
-| `total_consumption` | Weekly Energy Consumption in kWh [dict] | `02_01_load_data.R:3,12` | |
-| `elec_consumption` | Weekly Electricity Consumption (kWh) [dict] | `02_01_load_data.R:133` | Main electricity outcome for CS/TWFE models; weekly construction is the basis for the headline results. |
-| `gas_consumption` | Weekly Gas Consumption (kWh) [dict] | `02_01_load_data.R:139-166` | Raw `weekly_consumption` renamed; weeks after a household's first gas reading with no match filled with 0 (not NA). |
+| `total_consumption` | Annual Energy Consumption in kWh [dict] | `02_01_load_data.R:3,12` | `elec_consumption + gas_consumption`; annualized (see below). |
+| `elec_consumption` | Annual Electricity Consumption (kWh) [dict] | `02_01_load_data.R:133,164-165` | Main electricity outcome for CS/TWFE models. Weekly panel construction, but the value itself is annualized (`x 52.25` weeks/year) at load time. |
+| `gas_consumption` | Annual Gas Consumption (kWh) [dict] | `02_01_load_data.R:139-166` | Raw `weekly_consumption` renamed then annualized (`x 52.25`); weeks after a household's first gas reading with no match filled with 0 (not NA). |
 | `weekly_consumption` | Weekly Gas Consumption in kWh [dict] | `02_01_load_data.R:139,151,160` | Raw column from `cosy_-_hp_users_gas` CSV. |
 | `min_settlement_week` | — | `02_01_load_data.R:142,161` | Earliest gas-reading week per account; weeks before it are dropped, not zero-filled. |
 | `share_consumption` | Share of daily consumption [dict] | `02_07_heterogeneity_analysis.R:758,767` | `total_consumption / sum(total_consumption)` within account-date, across non-"Overall" rate periods. |
@@ -99,7 +99,7 @@ Variables that live in the panel/account-level/area-level data used throughout t
 
 ## Section 3: Balance tables, half-hourly, sample descriptives (`03_00`, `04_00`, `06_...`)
 
-Excludes `05_MVPF.R` — its variables are almost entirely calibration constants and intermediate calculation objects rather than dataset columns; see [MODEL_PARAMETERS_AND_ASSUMPTIONS.md](MODEL_PARAMETERS_AND_ASSUMPTIONS.md).
+Excludes `05_MVPF.R` — its variables are almost entirely calibration constants and intermediate calculation objects rather than dataset columns.
 
 | Variable | Label | Introduced in | Construction notes |
 |---|---|---|---|

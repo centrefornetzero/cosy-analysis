@@ -18,7 +18,7 @@ overall_weekly <-
 # Create CS main results 
 start_date <- min(overall_weekly$settlement_week)
 
-# Build week / firstweek and the anticipation=5 treatment indicator
+# Build week / firstweek and the anticipation=4 treatment indicator
 overall_weekly <-  overall_weekly %>%
   ungroup() %>%
   mutate(

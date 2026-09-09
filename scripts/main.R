@@ -9,7 +9,7 @@ packages <- c(
   "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", "readr",
   "forcats", "viridis",  "stringr", "stargazer", "panelView", "readxl","purrr",
   "progress", "lfe", "tibble", "stringr", "didimputation", "ggtext", "MatchIt", "zoo", "ggplot2",
-  "patchwork"
+  "patchwork", "arrow"
 )
 
 

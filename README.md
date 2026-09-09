@@ -97,7 +97,7 @@ Captured from the production Vertex AI Workbench instance via `scripts/utils_ses
   | scales | 1.4.0 | | stringr | 1.6.0 |
   | readr | 2.1.6 | | stargazer | 5.2.3 |
   | forcats | 1.0.1 | | panelView | 1.1.18 |
-  | viridis | 0.6.5 | | | |
+  | viridis | 0.6.5 | | arrow | ⚠️ TODO — capture via `scripts/utils_session_info.R` |
 
 - Operating system: Debian GNU/Linux 11 (bullseye), kernel `5.10.0-45-cloud-amd64`
 

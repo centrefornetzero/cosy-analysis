@@ -394,6 +394,8 @@ for (period in periods) {
     # for the households att_gt() used - only att_gt() itself (heavy) is cached.
     did_data <- aggregated_data %>%
       ungroup() %>%
+      # hashed_mpan "1185945433" is excluded: its panel causes att_gt() to
+      # crash (household-specific data issue, not a modelling choice).
       filter(rate_period == period, !hashed_mpan == "1185945433") %>%
       mutate(
         settlement_week = floor_date(date, "week"),
@@ -421,6 +423,9 @@ for (period in periods) {
         gname = "firstweek",
         data = did_data,
         clustervars = "id",
+        # anticipation = 1 week here vs. 4 in the 02_* (heat pump) scripts:
+        # this is a different treatment/programme — a tariff switch, not a
+        # heat pump installation.
         anticipation = 1,
         control_group = "notyettreated",
         allow_unbalanced_panel = TRUE,

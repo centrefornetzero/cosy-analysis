@@ -105,6 +105,9 @@ hp <- hp %>%
   mutate(
     settlement_date = as.Date(interval_start),
     installed_at    = as.Date(installed_at),
+    # interval_start is stored in UTC; converting to Europe/London before
+    # deriving settlement_time is what puts half-hours into the correct
+    # peak/off-peak clock-time band across the UK's BST/GMT transitions.
     settlement_time = format(as.POSIXct(interval_start, tz = "UTC"),
                          tz = "Europe/London", "%H:%M"),
     is_hp_installed = as.numeric(installed_at <= settlement_date)
@@ -219,6 +222,9 @@ cosy <- cosy %>%
   inner_join(first_adoption, by = "hashed_mpan") %>%
   mutate(settlement_date = as.Date(interval_start),
          first_adoption = as.Date(first_adoption),
+         # interval_start is stored in UTC; converting to Europe/London before
+         # deriving settlement_time is what puts half-hours into the correct
+         # peak/off-peak clock-time band across the UK's BST/GMT transitions.
          settlement_time = format(as.POSIXct(interval_start, tz = "UTC"),
                          tz = "Europe/London", "%H:%M"),
          is_cosy = as.numeric(first_adoption<=settlement_date)) %>%

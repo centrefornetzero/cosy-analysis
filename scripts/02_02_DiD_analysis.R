@@ -110,6 +110,10 @@ make_did_data <- function(df,
 run_cs_models <- function(did_data,
                           y_vars,
                           file_names,
+                          # anticipation = 4 weeks here vs. 1 in
+                          # 01_06_DiD_analysis.R (Cosy): this is a different
+                          # treatment/programme — a heat pump installation,
+                          # not a tariff switch.
                           anticipation = 4,
                           control_group = "notyettreated",
                           base_period = "universal",
