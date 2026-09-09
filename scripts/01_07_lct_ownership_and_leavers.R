@@ -1,5 +1,5 @@
 # =================================================================
-### Table A.9: Adoption on Electricity Consumption Controlling for EV Charging
+### Adoption on Electricity Consumption Controlling for EV Charging
 # =================================================================
 # ev half hours 
 # Read the CSV file
@@ -70,7 +70,7 @@ etable(m1c, tex = TRUE, title = "Adoption on Electricity Consumption Controlling
 CleanPreAverage("tables/did_ev.tex")
 
 
-###  Table 3: Adoption on Probability of Charging EV by Period
+###  Adoption on Probability of Charging EV by Period
 
 # Identify the period with the highest EV charging for each mpan and date
 ev_charging_max <- ev_charging %>%
@@ -167,7 +167,7 @@ writeLines(x, file_path)
 
 
 # =================================================================
-### Table A.10: Impact of Cosy for Leavers
+### Impact of Cosy for Leavers
 # =================================================================
 # Function to create the ggplot for each period
 create_ggplot <- function(period_data, period_name) {
@@ -324,7 +324,7 @@ writeLines(c(
   sprintf("\\newcommand{\\StayersEVPct}{%.0f\\%%}", 100 * leaver_pcts$proportion[leaver_pcts$leavers == FALSE])
 ), "tables/leavers_ev_numbers.tex")
 
-### Table A.11: Impact of Cosy by LCTs Ownership
+### Impact of Cosy by LCTs Ownership
 survey_responses <- fread(file.path(datapath, "input/cosy_-_smart_tariff_survey_2024_09_12.csv"))
 
 # Step 1: Clean and split 'all_lcts' column without modifying original data

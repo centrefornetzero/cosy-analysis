@@ -7,7 +7,7 @@ keep_objects <- c("aggregated_data", "m1", "m1_share", "cosy_color", "flexible_c
 gc()   
 
 # ===========================================================================
-### Figure 11: Impact of Cosy by Outside Temperature
+### Impact of Cosy by Outside Temperature
 # ===========================================================================
 cat("\n>>> Cosy heterogeneity: Figure 11, outside temperature <<<\n")
 # Fit the model
@@ -305,7 +305,7 @@ p <- ggplot(all_coefs, aes(x = temp_degree, y = Estimate)) +
 ggsave("graphs/cosy_temperature_share_all.png", plot = p, width = 16, height = 8, units = "cm")
 
 # ===========================================================================
-### Table A.12: Cosy Adoption by Previous Tariff Type
+### Cosy Adoption by Previous Tariff Type
 # ===========================================================================
 cat("\n>>> Cosy heterogeneity: Table A.12, previous tariff type <<<\n")
 
@@ -433,7 +433,7 @@ writeLines(file_content, "tables/did_prevar.tex")
 
 
 # ===========================================================================
-### Figure A.29: Impact of Cosy Adoption by EAC on Consumption and Figure A.30: Impact of Cosy Adoption by EAC on Share of Consumption
+### Impact of Cosy Adoption by EAC on Consumption and Impact of Cosy Adoption by EAC on Share of Consumption
 # ===========================================================================
 cat("\n>>> Cosy heterogeneity: Figures A.29/A.30, EAC <<<\n")
 rm(tempreg)
@@ -646,7 +646,7 @@ rm(list = ls(pattern = "^m_"))
 gc()
 
 # ===========================================================================
-### Figure A.28: Impact of Cosy Adoption by EPC Score on Consumption
+### Impact of Cosy Adoption by EPC Score on Consumption
 # ===========================================================================
 cat("\n>>> Cosy heterogeneity: Figure A.28, EPC score <<<\n")
 m2a <- feols(consumption_hh ~ i(cosy_contract_active, epc_letter, ref=0)  |
@@ -779,7 +779,7 @@ rm(m2a)
 
 
 # ===========================================================================
-### Figure A.33: Impact of Cosy Adoption by Heat Loss on Consumption and Figure A.34: Impact of Cosy Adoption by Heat Loss on Share of Consumption
+### Impact of Cosy Adoption by Heat Loss on Consumption and Impact of Cosy Adoption by Heat Loss on Share of Consumption
 # ===========================================================================
 cat("\n>>> Cosy heterogeneity: Figures A.33/A.34, heat loss <<<\n")
 # Create unique breaks for predicted_heatloss_watts
@@ -997,7 +997,7 @@ rm(list = ls(pattern = "^m_"))
 gc()
 
 # ===========================================================================
-### Figure A.31: Impact of Cosy Adoption by Floor Area on Consumption and Figure A.32: Impact of Cosy Adoption by Floor Area on Share of Consumption
+### Impact of Cosy Adoption by Floor Area on Consumption and Impact of Cosy Adoption by Floor Area on Share of Consumption
 # ===========================================================================
 cat("\n>>> Cosy heterogeneity: Figures A.31/A.32, floor area <<<\n")
 gc()
@@ -1449,7 +1449,7 @@ ggsave("graphs/property_value_combined.png", device = "png", width = 16, height 
 
 
 
-### Figure A.36: Impact of Cosy by Region
+### Impact of Cosy by Region
 cat("\n>>> Cosy heterogeneity: Figure A.36, region <<<\n")
 m_region <- feols(consumption_hh ~ i(cosy_contract_active, region, ref =0)
                   | hdd + account_id + date,
@@ -1523,7 +1523,7 @@ ggsave("graphs/region_combined.png", device = "png", width = 16, height = 12, un
 rm(list = ls(pattern = "^m_"))
 gc()
 
-### Figure A.35: Impact of Cosy Adoption by MSOA Income on Consumption
+### Impact of Cosy Adoption by MSOA Income on Consumption
 cat("\n>>> Cosy heterogeneity: Figure A.35, MSOA income <<<\n")
 # Load and preprocess the cosy_hp_details data
 cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_24.csv")) %>%

@@ -1,5 +1,5 @@
 # ==============================================================================
-# Figure A.13: Event Study — Heat Pump Installation Effects (weeklyised kWh)
+# Event Study — Heat Pump Installation Effects (weeklyised kWh)
 # ------------------------------------------------------------------------------
 # What this script does:
 #  1) Builds an event-study panel at account-day level

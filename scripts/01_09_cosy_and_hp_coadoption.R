@@ -1,4 +1,4 @@
-### Figure A.21: Main Results Coefficients With and Without Controlling for Heat Pump
+### Main Results Coefficients With and Without Controlling for Heat Pump
 # Register the pre-treatment average fit statistic
 fitstat_register("pre_avg3", function(x) {
   

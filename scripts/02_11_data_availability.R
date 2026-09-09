@@ -8,7 +8,7 @@ overall_weekly <-
             ~.x / 52.25) 
 
 
-## Figure A.1: Smart Meter Data Availability for Heat Pump Customers
+## Smart Meter Data Availability for Heat Pump Customers
 plot_panel <- panelview(elec_consumption ~ is_hp_installed + hdd, 
                         data = overall_weekly, index = c("account_id","settlement_week"), 
                         xlab = "Time", 

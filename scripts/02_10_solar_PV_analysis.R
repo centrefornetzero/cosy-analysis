@@ -1,5 +1,5 @@
 # ====================================================================
-### Table A.5: HP Installation and Solar PV on Electricity Consumption
+### HP Installation and Solar PV on Electricity Consumption
 # ====================================================================
 # Register the pre-treatment average fit statistic
 fitstat_register("pre_avg_solar", function(x) {

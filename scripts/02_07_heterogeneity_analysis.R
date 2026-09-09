@@ -3,10 +3,9 @@
 cat("\n>>> HP heterogeneity analysis: script start <<<\n")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-### Figure 6: Impact of Heat Pump Installation by Outside
-# Temperature (and Figure A.2 to A.5)
+### Impact of Heat Pump Installation by Outside Temperature
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-cat(">>> Figure 6: outside temperature <<<\n")
+cat(">>> outside temperature <<<\n")
 
 # Load IDs
 ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
@@ -108,7 +107,7 @@ for (i in 1:5) {
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Figure A.6: Impact of Heat Pump Installation by EPC Rating 
+## Impact of Heat Pump Installation by EPC Rating 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 rm(tempreg)
@@ -211,8 +210,7 @@ rm(m2a)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Figure A.10: Impact of Heat Pump Installation by Previous 
-# Heat Source
+## Impact of Heat Pump Installation by Previous Heat Source
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -297,7 +295,7 @@ rm(m_sources)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Figure 7: Impact of Heat Pump Installation by MSOA Income
+## Impact of Heat Pump Installation by MSOA Income
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 cat(">>> Figure 7: MSOA income <<<\n")
 # Load and preprocess the cosy_hp_details data
@@ -539,7 +537,7 @@ for (i in 1:5) {
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Figure A.8: Impact of Heat Pump Installation by Heat Loss Decile
+## Impact of Heat Pump Installation by Heat Loss Decile
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 cat(">>> Figure A.8: heat loss decile <<<\n")
 
@@ -617,7 +615,7 @@ for (i in 1:5) {
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-### Figure A.9: Impact of Heat Pump Installation on Half-Hourly
+### Impact of Heat Pump Installation on Half-Hourly
 # Electricity Consumption by region
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 cat(">>> Figure A.9: by region <<<\n")
@@ -672,7 +670,7 @@ ggsave("graphs/hp_region_combined.png", device = "png", width = 16, height = 12,
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-### Figure A.7: Impact of Heat Pump Installation by Floor Area
+### Impact of Heat Pump Installation by Floor Area
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 cat(">>> Figure A.7: floor area <<<\n")
 

@@ -1,4 +1,4 @@
-## Table A.3: HP Installation on Electricity Consumption Controlling for EV Ownership 
+## HP Installation on Electricity Consumption Controlling for EV Ownership 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # --------------------- Data Cleaning --------------------------
@@ -74,7 +74,7 @@ CleanPreAverage("tables/hp_did_ev.tex")
 
 
 
-## Table A.4: HP Installation on Probability of Charging EV by Period
+## HP Installation on Probability of Charging EV by Period
 
 # Identify the period with the highest EV charging for each mpan and date
 ev_charging_max <- ev_charging %>%

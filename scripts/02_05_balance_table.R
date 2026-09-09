@@ -1,4 +1,4 @@
-### Table A.15: External Validity by Area for Heat Pump Installation
+### External Validity by Area for Heat Pump Installation
 
 # Function to calculate weighted standard deviation
 # NB: filters (x, w) to jointly non-missing pairs first. Some MSOAs are missing
