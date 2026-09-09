@@ -132,7 +132,7 @@ Captured from the production Vertex AI Workbench instance via `scripts/utils_ses
 | `05_MVPF.R` | Marginal value of public funds / welfare analysis |
 | `06_sample_descriptive_statistics.R` | Sample descriptive statistics |
 
-`scripts/archive/` holds superseded code kept for reference (an earlier version of `05_MVPF.R`, an earlier version of the loader now in `01_01_load_data.R`, and code split out of `04_00_half_hourly_analysis.R`) — not part of the replication path. `scripts/cosy---reproduction_files/`, `scripts/did-update_files/`, and `scripts/heatpump-installation_files/` are R Markdown knit artifacts, also not part of the replication path.
+Superseded explorations and old R Markdown knit artifacts (an earlier version of `05_MVPF.R`, an earlier version of the loader now in `01_01_load_data.R`, code split out of `04_00_half_hourly_analysis.R`, and rendered knit output) are kept locally for reference but are git-ignored and not part of this package, since some carry stale hardcoded local paths.
 
 ### Key variables
 
@@ -231,7 +231,7 @@ Every table/figure below is `\input{}`/`\includegraphics{}`'d directly into `ove
 | `MVPF_sensitivity_heatmap.png`, `waterfall_hp_preferred.png` | `05_MVPF.R` |
 
 **Notes:**
-- `MVPF.tex` — an earlier version of `05_MVPF.R` (now in `scripts/archive/`) also wrote this filename; `05_MVPF.R` (as sourced by `main.R`) is the authoritative producer.
+- `MVPF.tex` — an earlier, superseded version of `05_MVPF.R` also wrote this filename; `05_MVPF.R` (as sourced by `main.R`) is the authoritative producer.
 - `hp_calendarplot_combined_with_annual_labels.png`, `calendar_att_12m_with_quarter_points_and_cop.png`, and `quasi_cop.png` can also be conditionally overwritten by `02_13_gas_only_sample_robustness_check.R`, gated behind `Sys.getenv("WRITE_MAIN_FILENAMES")` (default off) — under a default run, the scripts named above are the effective producers.
 
 ## License
