@@ -149,43 +149,7 @@ m_with_control <- feols(consumption_hh ~ i(cosy_contract_active) | hdd + account
                         split = ~ rate_period,
                         cluster = ~account_id) 
 
-# Extract coefficients and standard errors for total_consumption
-coefs_total <- rbind(coeftable(m_without_control)  %>%
-                       data.frame() %>%
-                       mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
-                              upper_ci = Estimate + 1.96 * `Std..Error`,
-                              model = "Without HP Installation Date"),
-                     coeftable(m_with_control)  %>%
-                       data.frame() %>%
-                       mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
-                              upper_ci = Estimate + 1.96 * `Std..Error`,
-                              model = "With HP Installation Date")) %>%
-  mutate(rate_period = factor(sample, levels = c("Morning Off-peak",
-                                                 "Afternoon Off-peak",
-                                                 "Peak Rate",
-                                                 "Other",
-                                                 "Overall")))
-
-# Define custom colors
-custom_colors <- c("Without HP Installation Date" = "#E8F5FF", "With HP Installation Date" = cosy_color)
-
-# Create the ggplot
-ggplot(coefs_total, aes(x = factor(rate_period), y = Estimate, fill = model)) +
-  geom_bar(stat = "identity", position = position_dodge(width = 1), show.legend = TRUE) +
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, position = position_dodge(width = 1), alpha=0.6) +
-  scale_fill_manual(values = custom_colors) +
-  labs(x = "Rate Period",
-       y = "Coefficient Estimate",
-       fill = "Model") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
-
-# Print the plot
-ggsave(paste0("graphs/did_controlling_hp_installation.png"),
-       width = 16, height = 8, units = "cm")
-
-
-etable(m_with_control, m_without_control, tex=TRUE, 
+etable(m_with_control, m_without_control, tex=TRUE,
        title = "HP and Cosy Adoption",
        fitstat = ~ N + g  + pre_avg2 + pre_avg3 +t_obs + r2, 
        file = "tables/did_hp_install_overall.tex", replace = TRUE, label="tab:did-hp-install-overall")

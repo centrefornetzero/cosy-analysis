@@ -495,16 +495,6 @@ stargazer(
 
 CleanBalanceSections("tables/balance_hp_matching.tex")
 
-# NN table. Output path intentionally keeps the "hpy" typo, since that is
-# the filename the paper's LaTeX source includes.
-stargazer(
-  match_summary$nn,
-  title = "Sample Size (Heatpump)",
-  rownames = TRUE,
-  label = "tab:balance-hp-nn",
-  out = "tables/balance_hpy_nn.tex"
-)
-
 matched_data2 <- match.data(match_obj2)
 
 # ----------------------------

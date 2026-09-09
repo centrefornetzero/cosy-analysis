@@ -391,46 +391,47 @@ CleanPreAverage("tables/did_lcts.tex")
 survey_responses_filtered <- survey_responses %>%
   filter(account_id %in% unique(aggregated_data$account_id)) 
 
-lct_matrix <-survey_responses_filtered %>%
-  group_by(`Has EV`, `Solar panels or other microgeneration`, `Home battery`) %>%
-  summarise(count = n()) %>%
-  ungroup() %>%
-  mutate(share = count / sum(count))
-
-# Step 3: Create readable labels for combinations
-lct_matrix_wide <- lct_matrix %>%
-  mutate(
-    # Combine only the values that exist, ignoring any empty or missing LCTs
-    Combination = trimws(paste(
-      ifelse(`Has EV` == 1, "EV", ""),
-      ifelse(`Home battery` == 1, "Battery", ""),
-      ifelse(`Solar panels or other microgeneration` == 1, "Solar", "")
-    )),
-    # Remove any trailing/leading spaces and '+' when no tech is present
-    Combination = gsub("\\s+", " + ", Combination),  # Ensures proper spacing
-    Combination = gsub("^\\s*\\+\\s*", "", Combination),  # Removes leading '+'
-    Combination = gsub("\\s*\\+\\s*$", "", Combination),  # Removes trailing '+'
-    # If nothing is in the combination, label it as "No other LCT"
-    Combination = ifelse(Combination == "", "No other LCT", Combination)
-  ) %>%
-  arrange(desc(share))
-
-# Step 4: Create a bar plot with ColorBrewer and no borders
-ggplot(lct_matrix_wide, aes(x = reorder(Combination, -share), y = share, fill = Combination)) +
-  geom_bar(stat = "identity") +  # No border around bars
-  coord_flip() +  # Flip coordinates for easier reading
-  scale_fill_brewer(palette = "Set3") +  # Use ColorBrewer scheme
-  scale_y_continuous(labels = scales::percent_format()) +
-  labs(
-    x = " ",
-    y = paste0("Proportion of Sample (%) [N=", dim(survey_responses_filtered)[1], ']')
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "none")  # Remove legend
-
-ggsave("graphs/lct_combinaison.png",
-       width = 16, height = 8, units = "cm")
+# Unused: graphs/lct_combinaison.png is not referenced anywhere in the paper.
+# lct_matrix <-survey_responses_filtered %>%
+#   group_by(`Has EV`, `Solar panels or other microgeneration`, `Home battery`) %>%
+#   summarise(count = n()) %>%
+#   ungroup() %>%
+#   mutate(share = count / sum(count))
+# 
+# # Step 3: Create readable labels for combinations
+# lct_matrix_wide <- lct_matrix %>%
+#   mutate(
+#     # Combine only the values that exist, ignoring any empty or missing LCTs
+#     Combination = trimws(paste(
+#       ifelse(`Has EV` == 1, "EV", ""),
+#       ifelse(`Home battery` == 1, "Battery", ""),
+#       ifelse(`Solar panels or other microgeneration` == 1, "Solar", "")
+#     )),
+#     # Remove any trailing/leading spaces and '+' when no tech is present
+#     Combination = gsub("\\s+", " + ", Combination),  # Ensures proper spacing
+#     Combination = gsub("^\\s*\\+\\s*", "", Combination),  # Removes leading '+'
+#     Combination = gsub("\\s*\\+\\s*$", "", Combination),  # Removes trailing '+'
+#     # If nothing is in the combination, label it as "No other LCT"
+#     Combination = ifelse(Combination == "", "No other LCT", Combination)
+#   ) %>%
+#   arrange(desc(share))
+# 
+# # Step 4: Create a bar plot with ColorBrewer and no borders
+# ggplot(lct_matrix_wide, aes(x = reorder(Combination, -share), y = share, fill = Combination)) +
+#   geom_bar(stat = "identity") +  # No border around bars
+#   coord_flip() +  # Flip coordinates for easier reading
+#   scale_fill_brewer(palette = "Set3") +  # Use ColorBrewer scheme
+#   scale_y_continuous(labels = scales::percent_format()) +
+#   labs(
+#     x = " ",
+#     y = paste0("Proportion of Sample (%) [N=", dim(survey_responses_filtered)[1], ']')
+#   ) +
+#   theme_minimal() +
+#   theme(
+#     legend.position = "none")  # Remove legend
+# 
+# ggsave("graphs/lct_combinaison.png",
+#        width = 16, height = 8, units = "cm")
 
 
 #  Calculate the share of each LCT

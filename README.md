@@ -173,13 +173,15 @@ Every table/figure below is `\input{}`/`\includegraphics{}`'d directly into `ove
 | `survey_numbers.tex` | `01_11_cosy_survey_figures.R` |
 | `survey_balance_numbers.tex` | `03_00_balance_tables_and_reweighting.R` |
 | `calendar_last12m_summary.tex` | `01_06_DiD_analysis.R` |
+| `did.tex` | `01_06_DiD_analysis.R` |
+| `did_prevar.tex` | `01_08_heterogeneity_analysis.R` |
 | `hp_did_overall_detailed.tex` | `02_03_DiD_analysis_outputs.R` |
 | `hp_did_never_treated_detailed.tex` | `02_03_DiD_analysis_outputs.R` |
 | `hp_did_overall_cs_gas_only.tex` | `02_03_DiD_analysis_outputs.R` |
 | `hp_did_ev.tex` | `02_06_ev_ownership.R` |
 | `hp_ev_charging.tex` | `02_06_ev_ownership.R` |
-| `hp_did_solar.tex` | `02_11_solar_PV_analysis.R` |
-| `variance_decomp.tex` | `02_10_engineer_variance_analysis.R` |
+| `hp_did_solar.tex` | `02_10_solar_PV_analysis.R` |
+| `variance_decomp.tex` | `02_09_engineer_variance_analysis.R` |
 | `MVPF.tex` | `05_MVPF.R` |
 | `summary_prepost.tex` | `06_sample_descriptive_statistics.R` |
 
@@ -194,27 +196,25 @@ Every table/figure below is `\input{}`/`\includegraphics{}`'d directly into `ove
 | `hp_calendarplot_combined_with_annual_labels.png` | `02_03_DiD_analysis_outputs.R` (see note below) |
 | `calendar_att_12m_with_quarter_points_and_cop.png` | `02_03_DiD_analysis_outputs.R` (see note below) |
 | `HP_anticipation.png` | `02_03_DiD_analysis_outputs.R` |
-| `hp_temperature_gas_elec.png` | `02_09_cop_analysis.R` |
-| `quasi_cop.png` | `02_09_cop_analysis.R` (see note below) |
-| `hp_event_study_overall.png` | `02_13_event_study.R` |
-| `hp_data_availability.png` | `02_12_data_availability.R` |
-| `hp_gas_data_availability.png` | `02_12_data_availability.R` |
-| `engineer_vs_household_fe.png` | `02_10_engineer_variance_analysis.R` |
-| `hp_region_combined.png` | `02_08_heterogeneity_analysis.R` |
-| `hp_temperature_morning_off-peak.png`, `hp_temperature_afternoon_off-peak.png`, `hp_temperature_peak_rate.png`, `hp_temperature_other.png` | `02_08_heterogeneity_analysis.R` (looped over `rate_period`) |
-| `hp_epc_overall.png` | `02_08_heterogeneity_analysis.R` (looped over `rate_period`) |
-| `hp_floor_area_overall.png` | `02_08_heterogeneity_analysis.R` (looped over `rate_period`) |
-| `hp_heatloss_overall.png` | `02_08_heterogeneity_analysis.R` (looped over `rate_period`) |
-| `hp_hs_overall.png` | `02_08_heterogeneity_analysis.R` (looped over `rate_period`) |
-| `hp_income_overall.png` | `02_08_heterogeneity_analysis.R` (looped over `rate_period`) |
-| `hp_property_value_overall.png` | `02_08_heterogeneity_analysis.R` (looped over `rate_period`) |
+| `hp_temperature_gas_elec.png` | `02_08_cop_analysis.R` |
+| `quasi_cop.png` | `02_08_cop_analysis.R` (see note below) |
+| `hp_event_study_overall.png` | `02_12_event_study.R` |
+| `hp_data_availability.png` | `02_11_data_availability.R` |
+| `hp_gas_data_availability.png` | `02_11_data_availability.R` |
+| `engineer_vs_household_fe.png` | `02_09_engineer_variance_analysis.R` |
+| `hp_region_combined.png` | `02_07_heterogeneity_analysis.R` |
+| `hp_temperature_morning_off-peak.png`, `hp_temperature_afternoon_off-peak.png`, `hp_temperature_peak_rate.png`, `hp_temperature_other.png` | `02_07_heterogeneity_analysis.R` (looped over `rate_period`) |
+| `hp_epc_overall.png` | `02_07_heterogeneity_analysis.R` (looped over `rate_period`) |
+| `hp_floor_area_overall.png` | `02_07_heterogeneity_analysis.R` (looped over `rate_period`) |
+| `hp_heatloss_overall.png` | `02_07_heterogeneity_analysis.R` (looped over `rate_period`) |
+| `hp_hs_overall.png` | `02_07_heterogeneity_analysis.R` (looped over `rate_period`) |
+| `hp_income_overall.png` | `02_07_heterogeneity_analysis.R` (looped over `rate_period`) |
+| `hp_property_value_overall.png` | `02_07_heterogeneity_analysis.R` (looped over `rate_period`) |
 | `Cosy Tariff.png`, `Rates_by_Rate_Period_and_GSP_Group.png`, `Rate_Changes_by_Period.png` | `01_02_rate_graphs.R` |
 | `weekly_adoptions.png` | `01_03_summary_graphs.R` |
 | `data_availability.png` | `01_04_data_availability.R` |
-| `dynamic_att_combined.png`, `dynamic_att_combined_imputation.png` | `01_06_DiD_analysis.R` |
+| `dynamic_att_combined.png` | `01_06_DiD_analysis.R` |
 | `calendarplot_Morning Off-peak.png`, `calendarplot_Afternoon Off-peak.png`, `calendarplot_Peak Rate.png`, `calendarplot_Other.png` | `01_06_DiD_analysis.R` (looped over `rate_period`) |
-| `did_controlling_hp_installation.png` | `01_09_cosy_and_hp_coadoption.R` |
-| `leavers_ev.png` | `01_07_lct_ownership_and_leavers.R` |
 | `eac_combined.png`, `eac_share_combined.png`, `cosy_epc_combined.png`, `floor_area_combined.png`, `floor_area_share_combined.png`, `heatloss_combined.png`, `heatloss_share_combined.png`, `income_category_combined.png`, `cosy_temperature_all.png`, `cosy_temperature_binned.png` | `01_08_heterogeneity_analysis.R` |
 | `property_value_average_bill_saving.png` | `01_10_structural_winner.R` |
 | `combined_impact_hourly_consumption.png` | `04_00_half_hourly_analysis.R` |
@@ -222,7 +222,7 @@ Every table/figure below is `\input{}`/`\includegraphics{}`'d directly into `ove
 
 **Notes:**
 - `MVPF.tex` — an earlier version of `05_MVPF.R` (now in `scripts/archive/`) also wrote this filename; `05_MVPF.R` (as sourced by `main.R`) is the authoritative producer.
-- `hp_calendarplot_combined_with_annual_labels.png`, `calendar_att_12m_with_quarter_points_and_cop.png`, and `quasi_cop.png` can also be conditionally overwritten by `02_14_gas_only_sample_robustness_check.R`, gated behind `Sys.getenv("WRITE_MAIN_FILENAMES")` (default off) — under a default run, the scripts named above are the effective producers.
+- `hp_calendarplot_combined_with_annual_labels.png`, `calendar_att_12m_with_quarter_points_and_cop.png`, and `quasi_cop.png` can also be conditionally overwritten by `02_13_gas_only_sample_robustness_check.R`, gated behind `Sys.getenv("WRITE_MAIN_FILENAMES")` (default off) — under a default run, the scripts named above are the effective producers.
 
 ## License
 

@@ -38,7 +38,7 @@ if (!exists("datapath")) {
     setwd("/home/jupyter/cosy-analysis")
     datapath <- "../gcs/cosy2"
   } else {
-    datapath <- "data"
+    datapath <- "~/gcs/cnz-oe-extract-57d7be9d0a/cosy2"
   }
 }
 
@@ -92,13 +92,13 @@ cat("\nSaved to:", file.path(datapath, "output", "session_info.txt"), "\n")
 #
 # Four cache locations exist in the pipeline (skip-if-exists): scratch/aggregated_data.RDS
 # (01_01_load_data.R), scratch/did_cosy_<period>_universal.RDS, one per rate_period
-# (01_06_DiD_analysis.R), scratch/cop_boot_no_boxing.csv (02_09_cop_analysis.R), and
-# scratch/cop_boot_gas_only.csv (02_14_gas_only_sample_robustness_check.R). If any exist,
+# (01_06_DiD_analysis.R), scratch/cop_boot_no_boxing.csv (02_08_cop_analysis.R), and
+# scratch/cop_boot_gas_only.csv (02_13_gas_only_sample_robustness_check.R). If any exist,
 # source("scripts/main.R") would skip rebuilding them and understate a true cold-start run,
 # so all are deleted below to force a full rebuild.
 #
 # Timed via system.time(), not a bare `start <- Sys.time()` variable -- 01_01_load_data.R and
-# 02_09_cop_analysis.R both reassign a variable literally named `start` for their own internal
+# 02_08_cop_analysis.R both reassign a variable literally named `start` for their own internal
 # checkpoint logging (everything is source()'d into the same global environment), which would
 # silently clobber a bare variable and make the measured duration meaningless. system.time() is
 # immune to this since it measures internally.

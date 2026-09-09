@@ -259,70 +259,71 @@ rm(list = ls(pattern = "coefs*"))
 rm(results)
 
 
-# =====================================================================
-# Plot engineer specific coefs
-# Yearly effect of HP installation by installing engineer, relative to the average treatment effect
-# ====================================================================
-# Installer FE
-installers <- fread(file.path(datapath, "input/cosy_-_hp_engineers_2025_03_17.csv")) 
-
-# Unique periods 
-periods <- unique(hp_installed$rate_period)
-
-# Run the regression model
-m1 <- feols(consumption_hh ~ i(is_hp_installed, ref=0) |
-              account_id + hdd  + date,
-            data = hp_installed %>% filter(rate_period == "Overall"),
-            cluster = ~account_id) 
-
-# Run the regression model
-tempreg <- feols(consumption_hh ~ i(is_hp_installed, hp_engineer, ref=0) |
-                   account_id + hdd  + date,
-                 data = df,
-                 cluster = ~account_id) 
-
-coefs <- coeftable(tempreg) %>%
-  data.frame() %>%
-  tibble::rownames_to_column("term") %>%
-  as_tibble() %>%
-  separate(term, into = c("is_hp_installed", "remove1", "remove2", "remove3", "remove4" , "hp_engineer"), sep = ":") %>%
-  filter(!is.na(hp_engineer)) %>%
-  mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
-         upper_ci = Estimate + 1.96 * `Std..Error`
-  ) %>%
-  mutate(`/% ATE` = Estimate / m1$coefficients * 100,     
-         lower_ci_ATE = `/% ATE` - 1.96 * (`Std..Error` / m1$coefficients * 100),
-         upper_ci_ATE = `/% ATE` + 1.96 * (`Std..Error` / m1$coefficients * 100)
-  ) %>%
-  arrange(Estimate) %>%
-  mutate(hp_engineer = factor(hp_engineer, levels = unique(hp_engineer)))
-
-# plot the yearly impact
-yearly_factor <- 365.25*48
-ggplot(coefs, aes(x = hp_engineer, y = Estimate * yearly_factor)) +  # Scale Estimate
-  geom_point(color = hp_color) +
-  geom_line(color = hp_color) +
-  geom_errorbar(aes(ymin = lower_ci * yearly_factor, ymax = upper_ci * yearly_factor), 
-                width = 0.2, alpha = 0.6, color = hp_color) +  # Scale CI
-  geom_hline(yintercept = m1$coefficients * yearly_factor, 
-             linetype = "dashed", alpha = 0.6, color = hp_color) +  # Scale ATE line
-  scale_y_continuous(
-    name = "Estimate (kWh per Year)",  # Update Y-axis label
-    labels = label_comma(),  # Format y-axis with comma separator
-    sec.axis = sec_axis(~ ./ (m1$coefficients[1] * yearly_factor), 
-                        name = "% of ATE", 
-                        labels = scales::percent_format())  # Scale % ATE
-  ) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Zero line
-  labs(
-    x = "Is Installed x Engineer"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_blank())
-
-summary(coefs$Estimate)
-quantile(coefs$Estimate, 0.75)/quantile(coefs$Estimate, 0.25)
-
-# Print the plot
-ggsave(paste0("graphs/hp_engineer.png"),
-       width = 16, height = 8, units = "cm")
+# Unused: graphs/hp_engineer.png is not referenced anywhere in the paper.
+# # =====================================================================
+# # Plot engineer specific coefs
+# # Yearly effect of HP installation by installing engineer, relative to the average treatment effect
+# # ====================================================================
+# # Installer FE
+# installers <- fread(file.path(datapath, "input/cosy_-_hp_engineers_2025_03_17.csv")) 
+# 
+# # Unique periods 
+# periods <- unique(hp_installed$rate_period)
+# 
+# # Run the regression model
+# m1 <- feols(consumption_hh ~ i(is_hp_installed, ref=0) |
+#               account_id + hdd  + date,
+#             data = hp_installed %>% filter(rate_period == "Overall"),
+#             cluster = ~account_id) 
+# 
+# # Run the regression model
+# tempreg <- feols(consumption_hh ~ i(is_hp_installed, hp_engineer, ref=0) |
+#                    account_id + hdd  + date,
+#                  data = df,
+#                  cluster = ~account_id) 
+# 
+# coefs <- coeftable(tempreg) %>%
+#   data.frame() %>%
+#   tibble::rownames_to_column("term") %>%
+#   as_tibble() %>%
+#   separate(term, into = c("is_hp_installed", "remove1", "remove2", "remove3", "remove4" , "hp_engineer"), sep = ":") %>%
+#   filter(!is.na(hp_engineer)) %>%
+#   mutate(lower_ci = Estimate - 1.96 * `Std..Error`,
+#          upper_ci = Estimate + 1.96 * `Std..Error`
+#   ) %>%
+#   mutate(`/% ATE` = Estimate / m1$coefficients * 100,     
+#          lower_ci_ATE = `/% ATE` - 1.96 * (`Std..Error` / m1$coefficients * 100),
+#          upper_ci_ATE = `/% ATE` + 1.96 * (`Std..Error` / m1$coefficients * 100)
+#   ) %>%
+#   arrange(Estimate) %>%
+#   mutate(hp_engineer = factor(hp_engineer, levels = unique(hp_engineer)))
+# 
+# # plot the yearly impact
+# yearly_factor <- 365.25*48
+# ggplot(coefs, aes(x = hp_engineer, y = Estimate * yearly_factor)) +  # Scale Estimate
+#   geom_point(color = hp_color) +
+#   geom_line(color = hp_color) +
+#   geom_errorbar(aes(ymin = lower_ci * yearly_factor, ymax = upper_ci * yearly_factor), 
+#                 width = 0.2, alpha = 0.6, color = hp_color) +  # Scale CI
+#   geom_hline(yintercept = m1$coefficients * yearly_factor, 
+#              linetype = "dashed", alpha = 0.6, color = hp_color) +  # Scale ATE line
+#   scale_y_continuous(
+#     name = "Estimate (kWh per Year)",  # Update Y-axis label
+#     labels = label_comma(),  # Format y-axis with comma separator
+#     sec.axis = sec_axis(~ ./ (m1$coefficients[1] * yearly_factor), 
+#                         name = "% of ATE", 
+#                         labels = scales::percent_format())  # Scale % ATE
+#   ) +
+#   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Zero line
+#   labs(
+#     x = "Is Installed x Engineer"
+#   ) +
+#   theme_minimal() +
+#   theme(axis.text.x = element_blank())
+# 
+# summary(coefs$Estimate)
+# quantile(coefs$Estimate, 0.75)/quantile(coefs$Estimate, 0.25)
+# 
+# # Print the plot
+# ggsave(paste0("graphs/hp_engineer.png"),
+#        width = 16, height = 8, units = "cm")

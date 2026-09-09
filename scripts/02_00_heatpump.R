@@ -157,34 +157,31 @@ source("scripts/02_06_ev_ownership.R")
 rm(list = setdiff(ls(), list_env))
 
 
-source("scripts/02_07_switch_to_smart_tariff.R")
-rm(list = setdiff(ls(), list_env))
-
 ## Heterogeneity analysis
-source("scripts/02_08_heterogeneity_analysis.R")
+source("scripts/02_07_heterogeneity_analysis.R")
 rm(list = setdiff(ls(), list_env))
 gc()
 
 
-source("scripts/02_09_cop_analysis.R")
+source("scripts/02_08_cop_analysis.R")
 rm(list = setdiff(ls(), list_env))
 gc()
 
-source("scripts/02_10_engineer_variance_analysis.R")
+source("scripts/02_09_engineer_variance_analysis.R")
 rm(list = setdiff(ls(), list_env))
 
 
-source("scripts/02_11_solar_PV_analysis.R")
+source("scripts/02_10_solar_PV_analysis.R")
 rm(list = setdiff(ls(), list_env))
 
 
-source("scripts/02_12_data_availability.R")
+source("scripts/02_11_data_availability.R")
 rm(list = setdiff(ls(), list_env))
 
-source("scripts/02_13_event_study.R")
+source("scripts/02_12_event_study.R")
 rm(list = setdiff(ls(), list_env))
 
 
-source("scripts/02_14_gas_only_sample_robustness_check.R")
+source("scripts/02_13_gas_only_sample_robustness_check.R")
 
 
