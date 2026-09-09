@@ -238,13 +238,6 @@ Every table/figure below is `\input{}`/`\includegraphics{}`'d directly into `ove
 
 This package will be deposited in the AEA Data and Code Repository (openICPSR); license terms will be set at deposit time using openICPSR's default license (per DCAS #15). ⚠️ TODO — confirm with Octopus Energy Group/Centre for Net Zero whether their IP policy requires any deviation from the default before deposit.
 
-## Accessing the Development Environment
-
-1. Open the Vertex AI Workbench instance (trials instance 2): https://console.cloud.google.com/vertex-ai/workbench/instances?project=cnz-data-warehouse-d66eb552a5
-2. Once the instance is active, click "Open JupyterLab".
-3. Mount the GCS bucket (before starting R): see command above.
-4. `cd cosy-analysis && R`, then `source("scripts/main.R")`.
-
 ---
 
 *This README follows the [Social Science Data Editors' template README](https://social-science-data-editors.github.io/template_README/) and the [Data and Code Availability Standard (DCAS) v1.0](https://datacodestandard.org/). Items marked ⚠️ TODO must be resolved before this package is submitted to the AEA Data Editor.*
