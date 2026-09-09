@@ -1,4 +1,19 @@
-### External Validity by Area for Heat Pump Installation
+# ============================================================
+# External Validity by Area for Heat Pump Installation
+#
+# This script:
+#   1) computes MSOA-level treatment status (any heat pump install)
+#      and merges in area-level income, property price, household
+#      size, deprivation, age, education, and population covariates
+#      (crosswalking 2011- and 2021-vintage MSOA boundaries via
+#      postcode where needed)
+#   2) computes weighted means, weighted standard deviations, and
+#      weighted t-tests comparing MSOAs with and without a heat pump
+#      installation across those covariates
+#   3) writes the comparison as a LaTeX balance table
+#
+# Outputs: tables/balance_table.tex
+# ============================================================
 
 # Function to calculate weighted standard deviation
 # NB: filters (x, w) to jointly non-missing pairs first. Some MSOAs are missing

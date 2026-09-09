@@ -1,4 +1,20 @@
-## External Validity Tables 
+# ============================================================
+# External Validity Tables (Cosy)
+#
+# This script:
+#   1) estimates an "early adopters" model of adoption timing
+#      (adoption_week) on urbanity and household covariates
+#   2) defines weighted-mean, weighted-SD, and weighted-t-test
+#      helper functions
+#   3) builds an MSOA-level dataset merging Cosy adopters' postcodes
+#      with ONS income, property price, household size, deprivation,
+#      age, and education statistics
+#   4) computes weighted balance statistics comparing MSOAs with
+#      Cosy adopters against other MSOAs
+#   5) writes the external-validity balance table to LaTeX
+#
+# Outputs: tables/balance_table_cosy.tex
+# ============================================================
 
 # start date
 start_date <- aggregated_data %>% ungroup() %>% summarise(date=min(first_adoption, na.rm = TRUE))

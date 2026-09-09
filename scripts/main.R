@@ -1,6 +1,23 @@
-# Decarbonizing Heat: The Impact of Heat Pumps and a Time-of-Use Heat Pump Tariff on Energy Demand
-# Author of the files: Louise Bernard
-# Run "main.R" to replicate the full analysis
+# ============================================================
+# Pipeline Entry Point
+#
+# Replicates the full analysis for "Decarbonizing Heat: The Impact
+# of Heat Pumps and a Time-of-Use Heat Pump Tariff on Energy Demand"
+# (Louise Bernard).
+#
+# This script:
+#   1) installs/loads the required packages
+#   2) detects the working directory and sets `datapath` accordingly
+#      (Louise's Mac vs the GCP Vertex AI workbench)
+#   3) sets global plot colors (hp_color, cosy_color, flexible_color,
+#      not_hp_color, rating_colors, red_palette) and the fixest
+#      estimation config used throughout the pipeline
+#   4) sources the six top-level orchestrators in order:
+#      01_00_cosy.R, 02_00_heatpump.R,
+#      03_00_balance_tables_and_reweighting.R,
+#      04_00_half_hourly_analysis.R, 05_MVPF.R,
+#      06_sample_descriptive_statistics.R
+# ============================================================
 
 
 # List packages to load

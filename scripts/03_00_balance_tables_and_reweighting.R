@@ -346,9 +346,9 @@ section_row_pre <- data.frame(
 
 balance_long <- rbind(section_row_pre, pre_tbl, section_row, post_tbl)
 
-# -----------------------------
+# ----------------------------
 # Export with stargazer
-# -----------------------------
+# ----------------------------
 stargazer(
   balance_long,
   type = "latex",
@@ -479,9 +479,9 @@ section_row_pre <- data.frame(
 
 balance_long <- rbind(section_row_pre, pre_tbl, section_row, post_tbl)
 
-# -----------------------------
+# ----------------------------
 # Export with stargazer
-# -----------------------------
+# ----------------------------
 stargazer(
   balance_long,
   type = "latex",

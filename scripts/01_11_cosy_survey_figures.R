@@ -25,7 +25,9 @@ OUT_KIDS  <- file.path(datapath, "scratch/cosy_survey_respondent_kids.RDS")
 N_SENT    <- 1000
 SEND_DATE <- as.Date("2024-07-08")
 
-# --- load ------------------------------------------------------------------
+# ----------------------------
+# Load
+# ----------------------------
 # Five columns are literally named "Other" and two headers carry trailing
 # spaces, so we validate the trimmed names then address columns by POSITION.
 raw <- read_csv(IN_CSV, col_types = cols(.default = col_character()),
@@ -117,13 +119,12 @@ stopifnot(!any(!is.na(dat$lct_none) &
 
 pct <- function(k, n) round(100 * k / n, 1)
 
-# ---------------------------------------------------------------------------
-# DUPLICATE DIAGNOSTIC
-#
+# ----------------------------
+# Duplicate Diagnostic
+# ----------------------------
 # `kid` is the customer/account key; `Network ID` is a network/session
 # identifier and is NOT a household -- three distinct kids share one Network ID
 # with entirely different answers. So deduplicate on kid, never on Network ID.
-# ---------------------------------------------------------------------------
 cat("\n=== DUPLICATE DIAGNOSTIC ===\n")
 
 dup_kids <- dat %>% count(kid) %>% filter(n > 1) %>% pull(kid)
@@ -160,7 +161,9 @@ stopifnot(nrow(ded) == nrow(dat) - length(dup_kids), !any(duplicated(ded$kid)))
 # respondents without re-deriving this dedup logic against the raw export.
 saveRDS(ded$kid, OUT_KIDS)
 
-# --- install dates that cannot be right ------------------------------------
+# ----------------------------
+# Install dates that cannot be right
+# ----------------------------
 bad <- dat %>% filter(!is.na(install_date), install_date > submit_date)
 if (nrow(bad) > 0) {
   cat(sprintf("\nWARNING: %d install date(s) fall after the response was submitted:\n",
@@ -168,9 +171,9 @@ if (nrow(bad) > 0) {
   print(bad %>% select(id, install_date, submit_date) %>% arrange(install_date))
 }
 
-# ---------------------------------------------------------------------------
-# FIGURES
-# ---------------------------------------------------------------------------
+# ----------------------------
+# Figures
+# ----------------------------
 size_levels <- c("2-3 kW", "3-4 kW", "4-5 kW", "5-7 kW",
                  "7-9 kW", "9-12 kW", "12-16 kW", "16 kW or more")
 
@@ -303,7 +306,9 @@ cat(sprintf("\n=== RESPONSE ===\nsent %d | submitted %d (%.1f%%) | unique househ
 r_raw <- survey_figures(dat, "ALL SUBMISSIONS")
 r_ded <- survey_figures(ded, "DEDUPLICATED ON kid (latest submission)")
 
-# --- sensitivity -----------------------------------------------------------
+# ----------------------------
+# Sensitivity
+# ----------------------------
 cat("\n\n##### RAW vs DEDUPLICATED #####\n")
 print(tibble(
   statistic = c("n", "responds Yes", "% Yes", "% automation", "% thermostat",
@@ -314,7 +319,9 @@ print(tibble(
             r_ded$pct_battery, r_ded$pct_solar_own, r_ded$pct_pre2020)
 ) %>% mutate(diff = dedup - raw), n = Inf)
 
-# --- emit LaTeX (deduplicated = preferred) ---------------------------------
+# ----------------------------
+# Emit LaTeX (deduplicated = preferred)
+# ----------------------------
 r  <- r_ded
 p0 <- function(x) sprintf("%.0f\\%%", x)
 p1 <- function(x) sprintf("%.1f\\%%", x)

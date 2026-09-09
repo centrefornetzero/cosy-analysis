@@ -1,3 +1,12 @@
+# ============================================================
+# Cosy Data Availability Plot
+# Builds a panelview treatment-timing plot of household smart-meter
+# data, showing each household's Cosy adoption status (before/after)
+# and any gaps in smart-meter coverage over time.
+#
+# Outputs: graphs/data_availability.png
+# ============================================================
+
 plot_panel <- panelview(
   consumption_hh ~ cosy_contract_active + hdd, 
   data = aggregated_data %>%

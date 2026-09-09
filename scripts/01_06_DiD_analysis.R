@@ -283,7 +283,9 @@ create_latex_table <- function(models, headers, title, file, label,
   alpha <- models[[1]]$DIDparams$alp
   conf_level <- (1 - alpha) * 100
 
-  # ---- LaTeX ----
+  # ----------------------------
+  # LaTeX
+  # ----------------------------
   latex <- "\\begin{table}[htbp]\n"
   latex <- paste0(latex, "   \\caption{\\label{", label, "} ", title, "}\n")
 
@@ -363,9 +365,9 @@ CleanPreAverage <- function(file_path) {
   writeLines(file_content, file_path)
 }
 
-# ============================================================
+# ----------------------------
 # 1) Load data + define periods
-# ============================================================
+# ----------------------------
 cat("\n>>> Loading aggregated data <<<\n")
 aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
 cat(">>> Data loaded: ", nrow(aggregated_data), " rows <<<\n")
@@ -376,9 +378,9 @@ main_periods <- unique(aggregated_data$rate_period)
 base_periods <- c( "universal")  #"varying",
 start_date   <- min(floor_date(aggregated_data$date, "week"))
 
-# ============================================================
+# ----------------------------
 # 2) Estimate and save CS objects (heavy; skip if files exist)
-# ============================================================
+# ----------------------------
 cat("\n>>> CS estimation: att_gt (heavy step) <<<\n")
 
 for (period in periods) {
@@ -446,9 +448,9 @@ cat("\n>>> Finished CS estimation <<<\n")
 
                    
                
-# ============================================================
+# ----------------------------
 # 3) Calendar-time ATT-by-cohort plot (per period)
-# ============================================================
+# ----------------------------
 cat("\n>>> Calendar-time ATT plots <<<\n")
 
 for (period in periods) {
@@ -491,9 +493,9 @@ for (period in periods) {
   cat(">>> Saved calendar-time plot for:", period, "<<<\n")
 }
 
-# ============================================================
+# ----------------------------
 # 4) Dynamic ATT plots (per period + combined facet)
-# ============================================================
+# ----------------------------
 cat("\n>>> Dynamic ATT plots <<<\n")
 
 create_dynamic_data <- function(period_data, period_name) {
@@ -578,9 +580,9 @@ ggsave("graphs/dynamic_att_combined.png", plot = p_dynamic_combined,
 
 cat(">>> Saved combined dynamic ATT plot <<<\n")
 
-# ============================================================
+# ----------------------------
 # 5) Calendar ATT plots (per period + combined facet)
-# ============================================================
+# ----------------------------
 cat("\n>>> Calendar ATT plots <<<\n")
 
 
@@ -614,9 +616,9 @@ for (period in periods) {
     alp  = 0.05
   )
 
-  # ------------------------------------------------------------------
+  # ----------------------------
   # 1) Weekly calendar ATT, with an added se column
-  # ------------------------------------------------------------------
+  # ----------------------------
   plot_data <- create_calendar_data(period_data, period, start_date) %>%
     mutate(
       week_date = as.Date(week_date),
@@ -625,9 +627,9 @@ for (period in periods) {
     ) %>%
     arrange(week_date)
 
-  # ------------------------------------------------------------------
+  # ----------------------------
   # 2) Last 12 months window (up to last observed week)
-  # ------------------------------------------------------------------
+  # ----------------------------
   n_weeks <- nrow(plot_data)
   win_n   <- min(52, n_weeks)   # use all available weeks if fewer than 52
 
@@ -658,9 +660,9 @@ for (period in periods) {
     weights = rep(1 / win_n, win_n)
   )
 
-  # ------------------------------------------------------------------
+  # ----------------------------
   # 3) Non-treated equivalent over same weeks
-  # ------------------------------------------------------------------
+  # ----------------------------
   dat <- as.data.frame(est_cs$DIDparams$data)
   dat <- dat[, !duplicated(names(dat)), drop = FALSE]
   a   <- as.numeric(est_cs$DIDparams$anticipation)
@@ -685,9 +687,9 @@ for (period in periods) {
   share_baseline <- mean_att / baseline_mean   # in levels
   share_label    <- scales::percent(share_baseline, accuracy = 0.1)
 
-  # ------------------------------------------------------------------
+  # ----------------------------
   # 4) Shading + label for last 12 months
-  # ------------------------------------------------------------------
+  # ----------------------------
   shade_df <- tibble(
     xmin = w_start,
     xmax = w_end,
@@ -719,9 +721,9 @@ for (period in periods) {
     "≈ ", share_label, " of non-treated level"
   )
 
-  # ------------------------------------------------------------------
+  # ----------------------------
   # 5) Plot with shading + label
-  # ------------------------------------------------------------------
+  # ----------------------------
   p <- ggplot(plot_data, aes(x = week_date, y = estimate)) +
     geom_rect(
       data = shade_df,
@@ -782,7 +784,9 @@ last12m_tab <- dplyr::bind_rows(last12m_summary) %>%
   ) %>%
   dplyr::arrange(period)
 
-# ---- LaTeX output (simple) ----
+# ----------------------------
+# LaTeX output (simple)
+# ----------------------------
 latex_file <- file.path("tables/calendar_last12m_summary.tex")
 
 table_note <- paste0(
@@ -861,9 +865,9 @@ ggsave("graphs/calendarplot_combined.png", plot = p_calendar_combined,
 
 cat(">>> Saved combined calendar ATT plot <<<\n")
 
-# ============================================================
+# ----------------------------
 # 6) CS “simple” estimates per period -> inject into did.tex
-# ============================================================
+# ----------------------------
 cat("\n>>> CS simple aggregation + LaTeX injection <<<\n")
 
 cs_estimates <- list()
@@ -930,9 +934,9 @@ create_latex_table(
 )
                                        
                
-# ============================================================
+# ----------------------------
 # 7) TWFE table (fixest) -> write did.tex -> CleanPreAverage
-# ============================================================
+# ----------------------------
 cat("\n>>> TWFE table (fixest::etable) <<<\n")
 
 # list CS ids

@@ -1,6 +1,12 @@
-# ====================================================================
-### HP Installation and Solar PV on Electricity Consumption
-# ====================================================================
+# ============================================================
+# HP Installation and Solar PV on Electricity Consumption
+#
+# Estimates how HP installation affects electricity consumption
+# depending on whether the household has solar PV, using a TWFE
+# model split by rate period, and writes the LaTeX regression table.
+#
+# Outputs: tables/hp_did_solar.tex
+# ============================================================
 # Register the pre-treatment average fit statistic
 fitstat_register("pre_avg_solar", function(x) {
   
@@ -68,9 +74,9 @@ fitstat_register("pre_avg_rest", function(x) {
 }, "Pre-Treatment Consumption - No Solar PV")
 
 
-# ================================================================
-# Fit the model
-# ================================================================
+# ----------------------------
+# Fit the Model
+# ----------------------------
 # Load IDs
 ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 

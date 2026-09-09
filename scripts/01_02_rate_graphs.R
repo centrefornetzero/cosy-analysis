@@ -1,6 +1,21 @@
-## Rates Graphs 
+# ============================================================
+# Cosy Tariff Rate Graphs
+#
+# This script:
+#   1) plots the Cosy Octopus rate schedule over a single day
+#      against the typical (Flexible Octopus) price per kWh
+#   2) plots rates by rate period and GSP group for a given date
+#   3) plots how rates for each rate period have changed over time
+#      by GSP group
+#
+# Outputs: graphs/Cosy Tariff.png,
+#          graphs/Rates_by_Rate_Period_and_GSP_Group.png,
+#          graphs/Rate_Changes_by_Period.png
+# ============================================================
 
-### Cosy Rate by Period
+# ----------------------------
+# Cosy Rate by Period
+# ----------------------------
 
 # Load the prices
 rates <- fread(file.path(datapath, "input/cosy_-_rate_analysis_2024_07_15.csv"))  %>%
@@ -117,7 +132,9 @@ ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group))
 ggsave("graphs/Cosy Tariff.png", width = 10, height = 4, dpi = 300)
 
 
-### Rates by Rate Period and GSP Group as of 01 June 2024
+# ----------------------------
+# Rates by Rate Period and GSP Group as of 01 June 2024
+# ----------------------------
 
 # Create rate_period indicator
 rates <- rates %>%
@@ -163,7 +180,9 @@ ggsave("graphs/Rates_by_Rate_Period_and_GSP_Group.png", width = 10, height = 6, 
 
 
 
-### Rates Over Time
+# ----------------------------
+# Rates Over Time
+# ----------------------------
 
 # Get the global min and max unit_rate
 global_min_rate <- min(rates$unit_rate, na.rm = TRUE)

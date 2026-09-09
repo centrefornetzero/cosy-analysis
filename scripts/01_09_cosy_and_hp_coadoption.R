@@ -1,4 +1,23 @@
-### Main Results Coefficients With and Without Controlling for Heat Pump
+# ============================================================
+# Cosy and Heat Pump Co-adoption
+#
+# This script:
+#   1) registers pre-treatment-average fitstats for the HP-installed
+#      and non-HP subgroups
+#   2) merges heat pump install dates (both OE-recorded and
+#      survey-reported) into the Cosy panel to build is_hp_installed
+#   3) estimates the joint effect of Cosy and HP adoption on
+#      electricity consumption, with HP installation as a separate
+#      regressor
+#   4) among the HP-installed subsample, estimates Cosy's effect
+#      with and without controlling for HP installation
+#
+# Outputs: tables/did_hp_install.tex, tables/did_hp_install_overall.tex
+# ============================================================
+
+# ----------------------------
+# Main Results Coefficients With and Without Controlling for Heat Pump
+# ----------------------------
 # Register the pre-treatment average fit statistic
 fitstat_register("pre_avg3", function(x) {
   

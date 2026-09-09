@@ -1,3 +1,19 @@
+# ============================================================
+# Heat Pump Data Loading
+#
+# This script:
+#   1) reads half-hourly/period-level and daily heat pump consumption
+#      extracts, aggregates them to account level, and joins household
+#      covariates and daily weather
+#   2) derives is_hp_installed, treated, and a capped temperature-bin
+#      fixed effect (hdd), and writes the daily panel (hp_installed)
+#   3) builds a weekly account-level panel combining electricity and
+#      gas consumption (overall_weekly), merges in weekly weather, and
+#      derives the hdd/temp_degree fixed effects used downstream
+#
+# Outputs: output/hp_installed.rds, output/overall_weekly.rds
+# ============================================================
+
 # get consumption by period
 hp_installed_period <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_18.csv")) %>%
   rename(total_consumption=total_read_value,
@@ -109,11 +125,14 @@ deals_and_installations <- fread(file.path(datapath, "input/cosy_-_hp_deals_and_
 
 
 
-# ====================================================================
+# ----------------------------
 # Create did data by combining elec and gas consumption data
-#====================================================================
-# ------------------- Load elec consumption data ----------------
-hp_installed <- 
+# ----------------------------
+
+# ----------------------------
+# Load elec consumption data
+# ----------------------------
+hp_installed <-
   hp_installed %>%
   filter(rate_period == "Overall") 
 
@@ -126,7 +145,9 @@ hp_installed_weekly <-
   ungroup
 
 
-# ------------------- Load gas consumption data ----------------
+# ----------------------------
+# Load gas consumption data
+# ----------------------------
 cosy_hp_install_gas_consumption <- fread(file.path(datapath, "input/cosy_-_hp_users_gas_2024_06_13.csv")) %>%
   group_by(account_id) %>%
   distinct(account_id, settlement_week, .keep_all = TRUE) %>%
@@ -156,7 +177,9 @@ merged_data <- all_combinations %>%
   ) %>%
   select(account_id, settlement_week, gas_consumption = weekly_consumption)
 
-# ------------------- Merge gas and elec consumption ------------------
+# ----------------------------
+# Merge gas and elec consumption
+# ----------------------------
 # Define overall_weekly by merging with electricity data
 overall_weekly <- 
   hp_installed_weekly %>%

@@ -1,8 +1,25 @@
-## HP Installation on Electricity Consumption Controlling for EV Ownership 
+# ============================================================
+# HP Installation and EV Ownership
+#
+# This script:
+#   1) detects EV charging from half-hourly interval data and
+#      aggregates it to account/mpan/date/rate-period, deriving
+#      has_ev (whether an EV has been detected as of that date)
+#   2) estimates HP installation's effect on electricity consumption
+#      with and without controlling for EV ownership
+#   3) estimates HP installation's effect on the probability of EV
+#      charging occurring in each rate period
+#
+# Outputs: tables/hp_did_ev.tex, tables/hp_ev_charging.tex
+# ============================================================
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# --------------------- Data Cleaning --------------------------
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ----------------------------
+# HP installation on electricity consumption controlling for EV ownership
+# ----------------------------
+
+# ----------------------------
+# Data cleaning
+# ----------------------------
 # EV charging is detected at half-hourly resolution
 
 
@@ -74,7 +91,9 @@ CleanPreAverage("tables/hp_did_ev.tex")
 
 
 
-## HP Installation on Probability of Charging EV by Period
+# ----------------------------
+# HP installation on probability of charging EV by period
+# ----------------------------
 
 # Identify the period with the highest EV charging for each mpan and date
 ev_charging_max <- ev_charging %>%
@@ -122,7 +141,9 @@ etable(m_charging1, m_charging2, m_charging3, m_charging4,
 file_path <- "tables/hp_ev_charging.tex"
 file_content <- readLines(file_path)
 
-# ---- configurable settings ----
+# ----------------------------
+# Configurable settings
+# ----------------------------
 new_row_name   <- "Baseline charging"          # what the row should be called in the table
 new_label_line <- "\\emph{Baseline charging}\\\\"
 
@@ -130,7 +151,6 @@ new_label_line <- "\\emph{Baseline charging}\\\\"
 # the etable's row names, such as "Is HP Installed", "Treatment", or "Constant"
 anchor_pattern <- "Is HP Installed"
 insert_offset  <- 2   # how many lines after the anchor match to insert
-# ------------------------------
 
 # 1) locate the pre-treatment row(s)
 pre_idx <- grep("Pre-Treatment Consumption", file_content)

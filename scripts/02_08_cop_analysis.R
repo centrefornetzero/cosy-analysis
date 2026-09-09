@@ -1,6 +1,25 @@
-# ====================================================================
-# --------- read in elec + gas consumption data ---------
-# ====================================================================
+# ============================================================
+# Heat Pump COP / Quasi-Efficiency Analysis
+#
+# This script:
+#   1) loads the CS main-results table and the CS electricity
+#      estimation sample, and rebuilds the weekly panel restricted
+#      to those account IDs
+#   2) estimates how HP installation affects electricity and gas
+#      consumption by outside temperature bin
+#   3) bootstraps a temperature-binned "quasi-COP" (ratio of gas
+#      reduction to electricity increase) and compares it against
+#      engineering COP curves (EPRI, Brattle)
+#
+# Outputs: graphs/hp_temperature_gas_elec.png,
+#          graphs/hp_temperature_gas_elec_blog_version.png,
+#          graphs/quasi_cop.png, scratch/cop_boot_no_boxing.csv,
+#          scratch/gas_electricity_by_temperature.csv
+# ============================================================
+
+# ----------------------------
+# Read in Elec + Gas Consumption Data
+# ----------------------------
 
 # Load main yearly results
 eff_df <- fread(file.path(datapath, "output/eff_df.csv")) 
@@ -35,9 +54,9 @@ rm(all_combinations, merged_data, weather_weekly, electricity_daily, cosy_hp_ins
 gc()
 
 
-# ====================================================================
-# --------- HP Impacts by Outside Temperature --------------
-# ====================================================================   
+# ----------------------------
+# HP Impacts by Outside Temperature
+# ----------------------------
 # Fit the model
 m1 <- feols(c(elec_consumption, gas_consumption) ~ i(is_hp_installed) | 
               hdd + account_id + settlement_week, 
@@ -151,9 +170,9 @@ ggsave(paste0("graphs/hp_temperature_gas_elec_blog_version.png"),
        width = 17, height = 8, units = "cm")
 
 
-# ====================================================================
-# --------- COP - Energy Demand Ratio --------------
-# ====================================================================  
+# ----------------------------
+# COP - Energy Demand Ratio
+# ----------------------------
 # Calculate the average value for the dashed line
 main_results <- eff_df %>% filter(window == "Last 12 months")
 

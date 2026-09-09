@@ -1,23 +1,23 @@
-# ==============================================================================
+# ============================================================
 # Event Study — Heat Pump Installation Effects (weeklyised kWh)
-# ------------------------------------------------------------------------------
+# ----------------------------
 # What this script does:
 #  1) Builds an event-study panel at account-day level
 #  2) Constructs event time in weeks since installation (binned to [-52, 52])
 #  3) Weeklyised half-hourly consumption to "kWh/week" for interpretability
 #  4) Estimates TWFE event-study regressions with a common anticipation window
 #  5) Produces consistent plots (anticipation shading + thousand separators)
-# ==============================================================================
+# ============================================================
 
-# ------------------------------------------------------------------------------
+# ----------------------------
 # Paths / inputs
-# ------------------------------------------------------------------------------
+# ----------------------------
 cat("\n>>> Event study: loading hp_installed <<<\n")
 hp_installed <- read_rds(file.path(datapath, "output/hp_installed.rds"))
 
-# ------------------------------------------------------------------------------
+# ----------------------------
 # Global settings for event study + plotting
-# ------------------------------------------------------------------------------
+# ----------------------------
 WEEK_BIN      <- 52     # bin event time to [-52, 52]
 REF_WEEK      <- -4     # reference week for i(weeks_since_hp, ref=...)
 ANTIC_XMIN    <- -4     # anticipation shading start (weeks)
@@ -28,9 +28,9 @@ anticipation_df <- data.frame(
   ymin = -Inf, ymax = Inf
 )
 
-# ------------------------------------------------------------------------------
+# ----------------------------
 # Build event-study dataset
-# ------------------------------------------------------------------------------
+# ----------------------------
 event_study_df <- hp_installed %>%
   mutate(
     # Event time: integer weeks since installation
@@ -55,9 +55,9 @@ event_study_df <- hp_installed %>%
 
 gc()
 
-# ------------------------------------------------------------------------------
+# ----------------------------
 # Helper: run model
-# ------------------------------------------------------------------------------
+# ----------------------------
 run_event_study <- function(data, outcome, fe_rhs) {
   feols(
     as.formula(paste0(outcome, " ~ i(weeks_since_hp, ref = ", REF_WEEK, ") | ", fe_rhs)),
@@ -66,9 +66,9 @@ run_event_study <- function(data, outcome, fe_rhs) {
   )
 }
 
-# ------------------------------------------------------------------------------
+# ----------------------------
 # Helper: extract coefficients + plot with consistent styling
-# ------------------------------------------------------------------------------
+# ----------------------------
 plot_event_study <- function(model, filename, ylab,
                             legend_pos = "bottom",
                             add_anticipation = TRUE,
@@ -132,9 +132,9 @@ plot_event_study <- function(model, filename, ylab,
   invisible(p)
 }
 
-# ==============================================================================
+# ============================================================
 # (1) Overall rate — baseline TWFE event study (weeklyised kWh)
-# ==============================================================================
+# ============================================================
 cat("\n>>> Event study (1): Overall rate <<<\n")
 m_overall <- run_event_study(
   data    = event_study_df %>% filter(rate_period == "Overall"),
@@ -155,9 +155,9 @@ plot_event_study(
 
 rm(m_overall); gc()
 
-# ==============================================================================
+# ============================================================
 # (2) Peak Rate — same spec, weeklyised kWh (for consistency across figures)
-# ==============================================================================
+# ============================================================
 cat("\n>>> Event study (2): Peak Rate <<<\n")
 m_peak <- run_event_study(
   data    = event_study_df %>% filter(rate_period == "Peak Rate"),

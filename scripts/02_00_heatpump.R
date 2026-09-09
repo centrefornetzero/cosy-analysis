@@ -1,10 +1,18 @@
-# ===============================================
-# HEATPUMP Reproduction Script
-# ===============================================
-# This script sets up the environment, loads data,
-# runs the main analysis and produces outputs for
-# the HEATPUMP project.
-# ===============================================
+# ============================================================
+# Heat Pump Reproduction Script
+#
+# This script:
+#   1) defines the fixest variable-label dictionary and the shared
+#      table/plot helpers (CleanPreAverage, format_number,
+#      format_decimal, the pre_avg and t_obs fitstats) used across
+#      the heat pump sub-scripts
+#   2) sets elec_color/gas_color from the global hp_color/not_hp_color
+#      (set in main.R)
+#   3) sources the numbered 02_0X sub-scripts in sequence, wiping the
+#      environment back to list_env between stages so each sub-script
+#      only relies on objects it (re)creates or that were explicitly
+#      whitelisted
+# ============================================================
 
 # set dictionary
 setFixest_dict(c(consumption_hh = "Consumption in kWh per half hour",
@@ -35,9 +43,11 @@ setFixest_dict(c(consumption_hh = "Consumption in kWh per half hour",
                  ev_charging = "EV Charging",
                  has_ev = "EV User"))
 
-## Define most used functions
+# ----------------------------
+# Define most used functions
+# ----------------------------
 
-### Add pre-treatment average statistics to tables
+# Add pre-treatment average statistics to tables
 CleanPreAverage <- function(file_path) {
   
   # Read the generated LaTeX file

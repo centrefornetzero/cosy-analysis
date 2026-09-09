@@ -1,10 +1,29 @@
-## Heterogeneity analysis
+# ============================================================
+# Heat Pump Heterogeneity Analysis
+#
+# This script:
+#   1) loads the heat pump panel (restricted to the electricity
+#      comparison sample and estimation window) and re-derives
+#      weekly/yearly consumption and temperature bins
+#   2) estimates HP installation's effect on consumption interacted
+#      with outside temperature, EPC rating, previous heat source,
+#      MSOA income, property value, heat loss decile, region, and
+#      floor area (including as a share of daily consumption)
+#   3) plots each set of heterogeneous effects, expressed both in
+#      levels and as a share of the average treatment effect
+#
+# Outputs: graphs/hp_temperature_*.png, graphs/hp_epc_*.png,
+#          graphs/hp_hs_*.png, graphs/hp_income_*.png,
+#          graphs/hp_property_value_*.png, graphs/hp_heatloss_*.png,
+#          graphs/hp_region_combined.png, graphs/hp_floor_area_*.png,
+#          graphs/hp_share_floor_area_*.png
+# ============================================================
 
 cat("\n>>> HP heterogeneity analysis: script start <<<\n")
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-### Impact of Heat Pump Installation by Outside Temperature
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ----------------------------
+# Impact of heat pump installation by outside temperature
+# ----------------------------
 cat(">>> outside temperature <<<\n")
 
 # Load IDs
@@ -106,9 +125,9 @@ for (i in 1:5) {
 }
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Impact of Heat Pump Installation by EPC Rating 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ----------------------------
+# Impact of heat pump installation by EPC rating
+# ----------------------------
 
 rm(tempreg)
 
@@ -209,9 +228,9 @@ rm(m2a)
 
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Impact of Heat Pump Installation by Previous Heat Source
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ----------------------------
+# Impact of heat pump installation by previous heat source
+# ----------------------------
 
 
 m_sources <- feols(consumption_yearly ~ i(is_hp_installed, hp_survey_outcome_existing_heat_source, ref=0)  | 
@@ -294,9 +313,9 @@ for (i in 1:5) {
 rm(m_sources)
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Impact of Heat Pump Installation by MSOA Income
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ----------------------------
+# Impact of heat pump installation by MSOA income
+# ----------------------------
 cat(">>> MSOA income <<<\n")
 # Load and preprocess the cosy_hp_details data
 cosy_hp_details <- fread(file.path(datapath,  "input/cosy_-_hp_details_2024_07_03.csv")) %>%
@@ -455,7 +474,9 @@ ggplot(all_coefs %>% filter(outcome == "Total Consumption", period != "Overall")
 ggsave("graphs/hp_income_category_combined.png", device = "png", width = 16, height = 12, units = "cm")
 
 
-## property value
+# ----------------------------
+# Impact of heat pump installation by property value
+# ----------------------------
 # create property value decile
 breaks <- hp_installed %>%
   filter(!is.na(property_value)) %>%
@@ -536,9 +557,9 @@ for (i in 1:5) {
 
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Impact of Heat Pump Installation by Heat Loss Decile
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ----------------------------
+# Impact of heat pump installation by heat loss decile
+# ----------------------------
 cat(">>> heat loss decile <<<\n")
 
 # survey
@@ -614,10 +635,9 @@ for (i in 1:5) {
 }
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-### Impact of Heat Pump Installation on Half-Hourly
-# Electricity Consumption by region
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ----------------------------
+# Impact of heat pump installation on half-hourly electricity consumption by region
+# ----------------------------
 cat(">>> by region <<<\n")
 m_region <- feols(consumption_yearly ~ i(is_hp_installed, region, ref =0) |
                     account_id + hdd + date,
@@ -669,9 +689,9 @@ ggsave("graphs/hp_region_combined.png", device = "png", width = 16, height = 12,
 
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-### Impact of Heat Pump Installation by Floor Area
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ----------------------------
+# Impact of heat pump installation by floor area
+# ----------------------------
 cat(">>> floor area <<<\n")
 
 ##

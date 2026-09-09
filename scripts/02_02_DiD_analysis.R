@@ -17,7 +17,9 @@
 # NOTE: Paths are centralized below so file locations are consistent.
 # ============================================================
 
-# -------------------------- Setup --------------------------
+# ----------------------------
+# Setup
+# ----------------------------
 
 # Optional: define colors for plots later (not used in estimation below)
 elec_color <- "#AD87CA"
@@ -35,12 +37,16 @@ path_out <- list(
 # Helper to build output file paths consistently
 out_file <- function(...) file.path(path_out$scratch, ...)
 
-# -------------------------- Load data --------------------------
+# ----------------------------
+# Load data
+# ----------------------------
 
 # Weekly panel, one row per account_id x settlement_week
 overall_weekly <- readr::read_rds(path_in$weekly)
 
-# -------------------------- Helpers --------------------------
+# ----------------------------
+# Helpers
+# ----------------------------
 
 # Build the "did-ready" dataset expected by did::att_gt:
 # - week: integer time index starting at 1
@@ -151,7 +157,9 @@ run_cs_models <- function(did_data,
   }
 }
 
-# ---------------------- Build main did_data ----------------------
+# ----------------------------
+# Build main did_data
+# ----------------------------
 
 # Main analysis window: 129 weeks from the first observed week in the data
 did_main <- make_did_data(
@@ -167,7 +175,9 @@ start_date <- did_main$start_date
 # Outcomes to estimate (electricity + gas)
 yname_vars <- c("elec_consumption", "gas_consumption")
 
-# ---------------------- CS main results ----------------------
+# ----------------------------
+# CS main results
+# ----------------------------
 
 # (A) Main spec: controls are "not yet treated"
 main_files <- c(
@@ -198,7 +208,9 @@ run_cs_models(
   xformla = NULL
 )
 
-# ---------------------- Never-treated control group spec ----------------------
+# ----------------------------
+# Never-treated control group spec
+# ----------------------------
 
 # Here we reclassify installs after week 129 as "never treated" by setting firstweek = 0.
 # That creates an explicit never-treated group within the truncated panel.
@@ -224,7 +236,9 @@ run_cs_models(
   xformla = NULL
 )
 
-# ---------------------- Gas-only subset ----------------------
+# ----------------------------
+# Gas-only subset
+# ----------------------------
 
 # Restrict to accounts with at least one non-missing gas consumption observation.
 gas_accounts <- overall_weekly %>%
@@ -272,7 +286,9 @@ saveRDS(ids_cs_elec_gas_only, file.path(datapath, "scratch/ids_cs_elec_gas_only.
 
 
 
-# ---------------------- CS with seasonality controls (trends) ----------------------
+# ----------------------------
+# CS with seasonality controls (trends)
+# ----------------------------
 
 # Add month-of-year and allow each id to have its own month pattern via id:month.
 # (This is a flexible way to control for seasonal demand differences by household.)
@@ -301,9 +317,9 @@ run_cs_models(
   xformla = ~ id:month
 )
 
-# ============================================================
+# ----------------------------
 # Anticipation robustness: re-estimate CS for anticipation = 0..10
-# ============================================================
+# ----------------------------
 
 # Reuse the main did_data construction (same origin, same truncation)
 did_ant <- make_did_data(

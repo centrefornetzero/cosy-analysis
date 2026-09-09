@@ -19,9 +19,9 @@
 elec_color <- hp_color
 gas_color  <- not_hp_color
 
-# ============================================================
+# ----------------------------
 # Small utilities
-# ============================================================
+# ----------------------------
 
 checkpoint <- function(msg) cat(paste0(">>> ", msg, " <<<\n"))
 
@@ -61,9 +61,9 @@ pre_avg_from_aggte <- function(aggte_simple, outcome_col) {
     pull(pre_avg)
 }
 
-# ============================================================
+# ----------------------------
 # LaTeX table creator for CS-only (2-column: Electricity / Gas)
-# ============================================================
+# ----------------------------
 create_latex_table_cs <- function(models, headers, title, file, label,
                                   pre_treatment_values,
                                   note = "",
@@ -185,10 +185,10 @@ latex <- paste0(latex, "\\end{table}\n")
 
   writeLines(latex, file)
 }
-# ============================================================
+# ----------------------------
 # LaTeX patcher for TWFE+CS combined table produced by fixest::etable
+# ----------------------------
 #    Works for EXACT structure: m1,m2,m1,m2  => 4 models => 5 columns total
-# ============================================================
 patch_etable_twfe_cs <- function(file_path,
                                 cs_estimates, cs_pre, cs_se, cs_n, cs_nG, cs_nT,
                                 coef_pattern = "Is HP Installed \\$=\\$ 1") {
@@ -321,9 +321,9 @@ patch_etable_twfe_cs <- function(file_path,
   checkpoint("LaTeX patch applied")
 }
 
-# ============================================================
+# ----------------------------
 # Plot helpers
-# ============================================================
+# ----------------------------
 
 create_dynamic_plot <- function(elec_data, gas_data, elec_color, gas_color) {
   # Anticipation shading
@@ -594,9 +594,9 @@ rolling_pre_avg_calendar_52w <- function(aggte_obj, start_date, outcome_col, win
 }
    
 
-# ============================================================
+# ----------------------------
 # Load data + set colors
-# ============================================================
+# ----------------------------
 
 checkpoint("Load data + setup")
 
@@ -618,9 +618,9 @@ did_data <- overall_weekly %>%
 
 checkpoint("DID index built")
 
-# ============================================================
+# ----------------------------
 # CS simple tables (full vs gas-only) — build once, reuse helpers
-# ============================================================
+# ----------------------------
 
 checkpoint("CS simple: load RDS + build CS-only table")
 
@@ -679,9 +679,9 @@ create_latex_table_cs(
 checkpoint("Saved tables/hp_did_overall_cs.tex")
                          
                          
-# ============================================================
+# ----------------------------
 # CS simple: load RDS + build CS-only tables for anticipation = 0..10
-# ============================================================
+# ----------------------------
 
 checkpoint("CS simple: loop over anticipation periods")
 
@@ -839,9 +839,9 @@ create_latex_table_cs(
 
 checkpoint("Saved tables/hp_did_overall_cs_gas_only.tex")
 
-# ============================================================
+# ----------------------------
 # Dynamic plot (CS)
-# ============================================================
+# ----------------------------
 
 checkpoint("Dynamic CS plot (electricity + gas)")
 
@@ -854,10 +854,10 @@ p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color)
 ggsave("graphs/dynamic_hp_plot_combined.png", plot = p_dyn, width = 10, height = 8, dpi = 300)
 checkpoint("Saved graphs/dynamic_hp_plot_combined.png")
 
-# ============================================================
+# ----------------------------
 # Calendar plot (CS) + shaded last-2-years windows + annual sums + 'Empirical efficiency' labels
+# ----------------------------
 # 'Empirical efficiency' = elec_increase / (0.9 * |gas_decrease|)
-# ============================================================
 
 checkpoint("Calendar CS plot (electricity + gas) + annual labels + 'Empirical efficiency'")
 
@@ -1040,9 +1040,9 @@ ggsave("graphs/hp_calendarplot_combined.png",
                          
 checkpoint("Saved graphs/hp_calendarplot_combined_with_annual_labels.png and output/hp_calendarplot_combined.csv")
        
-# ============================================================
+# ----------------------------
 # 12m rolling ATT plot + quarterly callouts + COP panel + median label
-# ============================================================
+# ----------------------------
 
 checkpoint("Build 12m rolling plot + quarterly points + COP panel")
 
@@ -1206,9 +1206,9 @@ ggsave(out_file, plot = p_combined, width = 12, height = 9, dpi = 300)
 message("Saved ", out_file)
 checkpoint("DONE: 12m plot + quarterly points + COP panel")  
                          
-# ============================================================
+# ----------------------------
 # TWFE models + combined TWFE/CS LaTeX table (patched)
-# ============================================================
+# ----------------------------
 
 checkpoint("TWFE models + TWFE/CS combined LaTeX table")
 
@@ -1318,10 +1318,10 @@ patch_etable_twfe_cs(
 
 checkpoint("Saved tables/hp_did_overall_detailed.tex (patched)")
 
-# ============================================================
+# ----------------------------
 # NEVER-TREATED robustness: TWFE + CS detailed table (patched)
+# ----------------------------
 # Output: tables/hp_did_never_treated_detailed.tex
-# ============================================================
 
 checkpoint("NEVER-TREATED: build DID index and models")
 
@@ -1433,9 +1433,9 @@ patch_etable_twfe_cs(
 checkpoint("Saved tables/hp_did_never_treated_detailed.tex (patched)")
                    
    
-# ============================================================
+# ----------------------------
 # Compare simple CS estimates using various anticipation periods
-# ============================================================
+# ----------------------------
 
 checkpoint("Plotting anticipation graph")                         
                          
@@ -1501,11 +1501,10 @@ ggsave("graphs/HP_anticipation.png")
                          
 checkpoint("Anticipation graph saved: graphs/HP_anticipation.png")                         
 
-# ============================================================
+# ----------------------------
 # Dynamic CS plot (electricity + gas) for anticipation = 0..10
+# ----------------------------
 # Saves one combined plot per anticipation period
-# ============================================================
-
 
 checkpoint("Dynamic CS plots by anticipation (electricity + gas)")
 
@@ -1579,11 +1578,11 @@ for (a in anticipation_periods) {
 
 checkpoint("Finished saving dynamic CS plots for anticipation = 0..10")
     
-# ============================================================
+# ----------------------------
 # Calendar CS plots for anticipation = 0..10 (weekly only)
+# ----------------------------
 # Saves: graphs/calendar_weekly_anticipation_<a>.png
 #        output/hp_calendarplot_weekly_anticipation_<a>.csv
-# ============================================================
 
 anticipation_periods <- 0:10
 cs_base_dir <- file.path(datapath, "scratch")
@@ -1640,9 +1639,9 @@ for (a in anticipation_periods) {
   checkpoint(paste0("Saved ", out_png, " and ", out_csv))
 }
                          
-# ============================================================
+# ----------------------------
 # Dynamic plots with trends
-# ============================================================
+# ----------------------------
 
 checkpoint("Dynamic plot for monthly trends")
 

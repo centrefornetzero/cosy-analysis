@@ -1,3 +1,19 @@
+# ============================================================
+# Sample Descriptive Statistics (Pre/Post Summary Table)
+#
+# This script:
+#   1) loads the Callaway & Sant'Anna estimation objects for the
+#      heat pump adoption sample (electricity, gas) and the Cosy
+#      tariff adoption sample (by rate period)
+#   2) computes observation counts, means and SDs for each series,
+#      split into pre- and post-adoption periods (excluding the
+#      anticipation window)
+#   3) assembles a two-panel LaTeX summary table (Panel A: heat
+#      pump adoption sample, Panel B: tariff adoption sample) with
+#      an explanatory footnote
+#
+# Outputs: tables/summary_prepost.tex
+# ============================================================
 
 # Load the CS estimates for the Heat Pump Adoption (Elec, Gas)
 est_cs_elec_weekly <- readRDS(file.path(datapath, "scratch/est_cs_elec_weekly.RDS"))
@@ -10,7 +26,9 @@ est_cs_afternoon <- readRDS(file.path(datapath, "scratch/did_cosy_Afternoon Off-
 est_cs_peak <- readRDS(file.path(datapath, "scratch/did_cosy_Peak Rate_universal.RDS"))
 est_cs_other <- readRDS(file.path(datapath, "scratch/did_cosy_Other_universal.RDS"))
 
-# 1) Generic summary-stat helper ----------------------------------------------
+# ----------------------------
+# 1) Generic Summary-Stat Helper
+# ----------------------------
 
 summarise_outcome <- function(df, y, id = "id", scale = 1) {
   y  <- rlang::ensym(y)
@@ -26,7 +44,9 @@ summarise_outcome <- function(df, y, id = "id", scale = 1) {
     )
 }
 
-# 2) Wrapper for CS objects, split by pre/post period -------------------------
+# ----------------------------
+# 2) Wrapper for CS Objects, Split by Pre/Post Period
+# ----------------------------
 cs_summary_prepost <- function(obj, y,
                                id = "id",
                                label = NA_character_,
@@ -51,7 +71,9 @@ cs_summary_prepost <- function(obj, y,
   )
 }
 
-# 3) Apply to all estimates ---------------------------------------------------
+# ----------------------------
+# 3) Apply to All Estimates
+# ----------------------------
 
 # Row labels are deliberately self-explanatory: the panel header (group_rows)
 # already says whether the row is electricity/gas use (Panel A) or which tariff
@@ -76,7 +98,9 @@ summaries <- bind_rows(
                      label = "Standard rate, all other hours", scale = 30*7*52.25)
 )
 
-# 4) Create LaTeX table -------------------------------------------------------
+# ----------------------------
+# 4) Create LaTeX Table
+# ----------------------------
 
 sample_levels <- c(
   "Electricity consumption",
@@ -153,7 +177,9 @@ for (i in seq_len(nrow(panel_ranges))) {
 latex_table
 save_kable(latex_table, file = "tables/summary_prepost.tex")
 
-# ---- Add explanatory note inside the float so it always follows the table ----
+# ----------------------------
+# Add Explanatory Note Inside the Float (So It Always Follows the Table)
+# ----------------------------
 # Defines Pre/Post, the annualisation, why Panel B is electricity-only, and the
 # tariff bands (with clock times) so "morning"/"other" are unambiguous.
 prepost_note <- paste0(

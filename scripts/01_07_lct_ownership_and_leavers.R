@@ -1,7 +1,26 @@
-# =================================================================
-### Adoption on Electricity Consumption Controlling for EV Charging
-# =================================================================
-# ev half hours 
+# ============================================================
+# LCT Ownership and Leavers (Cosy Tariff)
+#
+# This script:
+#   1) merges detected EV-charging intervals into the Cosy
+#      consumption panel and estimates the impact of Cosy adoption
+#      on electricity consumption controlling for EV charging, plus
+#      the probability of EV charging occurring in each rate period
+#   2) classifies households by their Cosy contract history (stayed
+#      on tariff, switched, multiple contracts) to identify
+#      "leavers" and estimates the impact of Cosy for leavers
+#   3) merges survey data on LCT ownership (solar PV, home battery,
+#      EV) and estimates the impact of Cosy by LCT ownership
+#
+# Outputs: tables/did_ev.tex, tables/ev_charging.tex,
+#          tables/did_leavers.tex, graphs/leavers_ev.png,
+#          tables/leavers_ev_numbers.tex, tables/did_lcts.tex
+# ============================================================
+
+# ----------------------------
+# Adoption on Electricity Consumption Controlling for EV Charging
+# ----------------------------
+# ev half hours
 # Read the CSV file
 ev_charging <- fread(file.path(datapath, "input/cosy_-_ev_detection_2024_07_04.csv")) %>%
    mutate(ev_charging = 1,
@@ -70,7 +89,9 @@ etable(m1c, tex = TRUE, title = "Adoption on Electricity Consumption Controlling
 CleanPreAverage("tables/did_ev.tex")
 
 
-###  Adoption on Probability of Charging EV by Period
+# ----------------------------
+# Adoption on Probability of Charging EV by Period
+# ----------------------------
 
 # Identify the period with the highest EV charging for each mpan and date
 ev_charging_max <- ev_charging %>%
@@ -166,9 +187,9 @@ file_content <- append(x, note, after = grep("\\centering", x)-1)
 writeLines(x, file_path)
 
 
-# =================================================================
-### Impact of Cosy for Leavers
-# =================================================================
+# ----------------------------
+# Impact of Cosy for Leavers
+# ----------------------------
 # Function to create the ggplot for each period
 create_ggplot <- function(period_data, period_name) {
   # Extract coefficients, standard errors, and event time
@@ -324,7 +345,9 @@ writeLines(c(
   sprintf("\\newcommand{\\StayersEVPct}{%.0f\\%%}", 100 * leaver_pcts$proportion[leaver_pcts$leavers == FALSE])
 ), "tables/leavers_ev_numbers.tex")
 
-### Impact of Cosy by LCTs Ownership
+# ----------------------------
+# Impact of Cosy by LCTs Ownership
+# ----------------------------
 survey_responses <- fread(file.path(datapath, "input/cosy_-_smart_tariff_survey_2024_09_12.csv"))
 
 # Step 1: Clean and split 'all_lcts' column without modifying original data

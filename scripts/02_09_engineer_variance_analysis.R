@@ -1,8 +1,25 @@
-## Decompose treatment effects into household vs installer engineer effects
+# ============================================================
+# Heat Pump Installer Engineer Variance Decomposition
+#
+# This script:
+#   1) fits a TWFE model of HP installation effects on half-hourly
+#      consumption, interacted with the installing engineer, and
+#      validates it via an in-sample/out-of-sample engineer split
+#   2) decomposes the variance of consumption outcomes into fixed
+#      effects, the average treatment effect and the engineer
+#      interaction, using both a manual decomposition and a
+#      bias-corrected fixed-effects covariance (felm)
+#   3) checks whether the engineer-specific treatment effect
+#      correlates with household fixed effects
+#
+# Outputs: tables/variance_decomp.tex,
+#          tables/bias_corrected_decomp.tex,
+#          graphs/engineer_vs_household_fe.png
+# ============================================================
 
-# =======================
+# ----------------------------
 # 1. Data Preparation & Regression
-# =======================
+# ----------------------------
 # Load IDs
 ids_cs_elec <-  readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 
@@ -43,11 +60,12 @@ reg <- feols(
 
 etable(reg)
 
-# =====================================================================
-# Out-of-sample validation: train the heat-pump consumption model on half
-# of the engineers and test whether it predicts consumption outcomes for
-# customers of the other engineers
-# =====================================================================
+# ----------------------------
+# Out-of-Sample Validation
+# ----------------------------
+# Trains the heat-pump consumption model on half of the engineers and
+# tests whether it predicts consumption outcomes for customers of the
+# other engineers.
 # stratified randomisation
 set.seed(123)
 installers$insample <- randomizr::strata_rs(strata = installers$hp_engineer,
@@ -119,9 +137,9 @@ ggplot(plot_data,
 
 
 
-# =====================================================================
-## manual decomposition of variance for FE
-# =====================================================================
+# ----------------------------
+# Manual Decomposition of Variance for Fixed Effects
+# ----------------------------
 fes <- fixef(reg)
 fe_account <- fes$account_id[unique(as.character(df$account_id))]
 fe_date <- fes$date[as.character(df$date)]
@@ -159,10 +177,11 @@ stargazer(var_decomp,
 
 
 
-# =====================================================================
+# ----------------------------
 # 3. Bias-Corrected FE Covariance (felm)
-# Re-estimates the variance decomposition using bias-corrected fixed-effect covariances
-# =====================================================================
+# ----------------------------
+# Re-estimates the variance decomposition using bias-corrected
+# fixed-effect covariances.
 
 df2 <- df %>%
   inner_join(data.frame(date = as.Date(names(fes$date)), time_fe = fes$date)) %>%
@@ -198,9 +217,9 @@ stargazer(var_table,
           type = "latex")
 
 
-# =====================================================================
-# 4. Covariance: Account FE × Interaction Effect
-# ====================================================================
+# ----------------------------
+# 4. Covariance: Account FE x Interaction Effect
+# ----------------------------
 account_fe_vec <- fe_sub[fe_sub$fe == "account_id", c("idx", "effect")]
 colnames(account_fe_vec) <- c("account_id", "account_fe")
 account_fe_vec$account_id <- as.character(account_fe_vec$account_id)
@@ -214,7 +233,9 @@ cor_account_interaction <- cor(df2$account_fe, df2$interaction_pred, use = "comp
 cat("Covariance:", cov_account_interaction, "\n")
 cat("Correlation:", cor_account_interaction, "\n")
 
+# ----------------------------
 # 5. Plot: Engineer FE vs Avg Household FE
+# ----------------------------
 
 engineer_house_fe <- df2 %>%
   group_by(hp_engineer) %>%

@@ -1,33 +1,44 @@
-# Run this on the server (Vertex AI Workbench) to gather the facts needed for
-# the README's "Computational Requirements" section (per the Social Science
-# Data Editors template / DCAS #13), including a genuine cold-start timed run
-# of the full pipeline. Not part of the analysis pipeline itself.
+# ============================================================
+# Session Info and Cold-Start Runtime Diagnostic
 #
-# Usage: source("scripts/utils_session_info.R") on its own -- self-contained,
-# does not need scripts/main.R sourced first (it only reuses main.R's cheap
-# working-directory/datapath logic below, not the six analysis stages).
+# Standalone diagnostic script, not part of the analysis pipeline and
+# not sourced by main.R -- meant to be run manually on the production
+# server (Vertex AI Workbench) to gather the facts needed for the
+# README's "Computational Requirements" section (per the Social
+# Science Data Editors template / DCAS #13), including a genuine
+# cold-start timed run of the full pipeline.
 #
-# NOTE: this now runs the *entire* pipeline (source("scripts/main.R")) as
-# part of gathering the Runtime figure, so it is NOT quick -- expect this to
-# take as long as a full pipeline run does. If you only want the OS/CPU/R
-# version/package info without the long wait, comment out the "RUNTIME" block
-# at the bottom before sourcing.
+# This script:
+#   1) reuses main.R's working-directory/datapath detection (without
+#      sourcing the rest of main.R), so it is self-contained
+#   2) records OS, CPU, memory, disk, R version and package version
+#      info
+#   3) deletes the pipeline's cached intermediate files and re-runs
+#      the full pipeline via system.time() to time a genuine
+#      cold-start run (see the "Runtime" section below)
 #
-# Outputs:
-#   data/output/session_info.txt -- OS/CPU/memory/disk/R/package info, plus
-#     console echo as it runs. Fully overwritten each run (opened in "wt"
-#     mode, which truncates first), so re-runs never mix stale content with
-#     fresh content.
-#   data/output/runtime_log.txt -- one line per timed run, APPENDED (not
-#     overwritten) so repeated attempts build a history. Written the instant
-#     the timed run finishes -- success or error -- so the measurement
-#     survives even if the interactive session disconnects right after.
+# Usage: source("scripts/utils_session_info.R") on its own.
 #
-# Belt-and-suspenders note: on most Jupyter/Workbench setups the kernel keeps
-# running server-side even if your browser tab disconnects, so the above
-# should be enough on its own. If you want to be independent of the
-# interactive session from the start too (e.g. protect against a kernel
-# restart), run this via Rscript in the background instead, from a terminal:
+# Outputs: data/output/session_info.txt -- OS/CPU/memory/disk/R/
+#            package info, plus console echo as it runs; fully
+#            overwritten each run
+#          data/output/runtime_log.txt -- one line per timed run;
+#            appended (not overwritten), written the instant the
+#            timed run finishes so the measurement survives even if
+#            the interactive session disconnects right after
+# ============================================================
+
+# NOTE: step 3 above runs the *entire* pipeline, so this is NOT
+# quick -- expect it to take as long as a full pipeline run does. If
+# you only want the OS/CPU/R version/package info without the long
+# wait, comment out the "Runtime" block at the bottom before sourcing.
+#
+# Belt-and-suspenders note: on most Jupyter/Workbench setups the kernel
+# keeps running server-side even if your browser tab disconnects, so
+# the above should be enough on its own. If you want to be independent
+# of the interactive session from the start too (e.g. protect against
+# a kernel restart), run this via Rscript in the background instead,
+# from a terminal:
 #   nohup Rscript -e 'source("scripts/utils_session_info.R")' &
 # and check the two output files whenever you next check in.
 
@@ -88,7 +99,9 @@ local({
 
 cat("\nSaved to:", file.path(datapath, "output", "session_info.txt"), "\n")
 
-# ==== RUNTIME (comment out this whole block if you only want the info above) ====
+# ----------------------------
+# Runtime
+# ----------------------------
 #
 # Four cache locations exist in the pipeline (skip-if-exists): scratch/aggregated_data.RDS
 # (01_01_load_data.R), scratch/did_cosy_<period>_universal.RDS, one per rate_period

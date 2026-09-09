@@ -314,10 +314,10 @@ latex_lines <- c(
 writeLines(latex_lines, "tables/MVPF.tex")
 cat("Saved LaTeX tabular to tables/MVPF.tex\n")
 
-# ============================================================
-# 10) Waterfall chart — preferred MVPF
-#     (UK SCC = HMG central, r = 3.5%, m = m_default)
-# ============================================================
+# ----------------------------
+# 10) Waterfall Chart — Preferred MVPF
+# ----------------------------
+# UK SCC = HMG central, r = 3.5%, m = m_default
 
 # --- Preferred scenario discount rate (baseline) ---
 r_pref <- 0.035
@@ -333,9 +333,9 @@ NPV_clim_gov      <- npv(clim_gov_stream, r_pref)
 NPV_aq            <- npv(aq_benefits, r_aq)
 NPV_vat_energy    <- npv(vat_energy, r_pref)
 
-# ============================================================
-# Subsidy level S such that MVPF = 1 (First-£ algebra)
-# ============================================================
+# ----------------------------
+# Subsidy Level S such that MVPF = 1 (First-£ Algebra)
+# ----------------------------
 
 # Reuses NPV_clim_consumer, NPV_aq, NPV_clim_gov, NPV_vat_energy, vat_boiler_oneoff,
 # and LBD_TOTAL computed above.
@@ -363,9 +363,9 @@ cat("S at MVPF = 1 (base): ", money_gbp(S_at_MVPF_1), "\n")
 cat("S at MVPF = 1 (+LBD): ", money_gbp(S_at_MVPF_1_LBD), "\n")
 
 
-# ============================================================
-# Waterfall components per £ of subsidy
-# ============================================================
+# ----------------------------
+# Waterfall Components per £ of Subsidy
+# ----------------------------
 
 # ---- BENEFITS (scaled per £ subsidy) ----
 transfer_benefit <- (1 - 0.5 * m_default) * SUBSIDY_HP
@@ -493,13 +493,13 @@ ggsave("graphs/waterfall_hp_preferred.png", plot = p_wf,
 
 cat("Saved waterfall to graphs/waterfall_hp_preferred.png\n")
 
-# ============================================================
-# 11) SENSITIVITY ANALYSIS: MVPF over additionality share (m) and SCC
-#     Two judgment calls referees flagged: (i) the marginal/inframarginal
-#     split m (Boomhower & Davis, JPubEc 2014 find ~50% additionality in a
-#     similar program, but note this varies a lot across programs/settings),
-#     and (ii) the SCC, where reasonable analysts pick very different values.
-# ============================================================
+# ----------------------------
+# 11) Sensitivity Analysis: MVPF over Additionality Share (m) and SCC
+# ----------------------------
+# Two judgment calls referees flagged: (i) the marginal/inframarginal split
+# m (Boomhower & Davis, JPubEc 2014 find ~50% additionality in a similar
+# program, but note this varies a lot across programs/settings), and (ii)
+# the SCC, where reasonable analysts pick very different values.
 
 m_grid <- seq(0.10, 0.90, by = 0.01)
 # Multiples of the HMG central SCC path; ~0.25x-2.25x roughly spans the

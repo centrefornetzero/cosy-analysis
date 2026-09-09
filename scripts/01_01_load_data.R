@@ -1,11 +1,29 @@
-#  Create the main dataset for Cosy adoption analysis
-
-# This script can take a long time to run, so it is wrapped in a conditional that checks whether the output file has already been created.
+# ============================================================
+# Load and Build the Cosy Adoption Dataset
+#
+# This script:
+#   1) reads the raw electricity smart-meter readings and merges in
+#      the Cosy Octopus agreement data to flag cosy_contract_active
+#      and each household's first_adoption date, with a data-
+#      integrity check on first_adoption
+#   2) adds an "Overall" rate-period rollup of daily consumption
+#   3) merges in covariates: customer details, GSP-level weather,
+#      previous contract history, EPC letter, EAC in MWh, and a
+#      temperature bin
+#
+# The heavy merge is cached: this script is wrapped in a conditional
+# that checks whether the output file has already been created, and
+# can take a long time to run on first build.
+#
+# Outputs: scratch/aggregated_data.RDS
+# ============================================================
 
 # Delete file to rerun everything
 # file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
 
-## Merging consumption and customers info datasets
+# ----------------------------
+# Merging consumption and customers info datasets
+# ----------------------------
 if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
   start <- Sys.time()
   print('hello')
@@ -26,7 +44,9 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
                
   print('checkpoint 1')    
 
-  # ------------ Add indicator if customer is on Cosy -------------------
+  # ----------------------------
+  # Add indicator if customer is on Cosy
+  # ----------------------------
   # first create panel data that shows which dates cosy is active for each mpan
   # also add in earliest Cosy adoption date 
   agreements_active <- 
@@ -66,7 +86,9 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     left_join(first_adoption_lookup, by = "hashed_mpan") %>%
     inner_join(distinct(agreements_active, hashed_mpan))
 
-  # ------------ Checkpoint: first_adoption data-integrity check --------------
+  # ----------------------------
+  # Checkpoint: first_adoption data-integrity check
+  # ----------------------------
   # first_adoption must (a) never be NA here -- every hashed_mpan at this
   # point came from an inner_join against agreements_active, so all of them
   # have a real adoption date -- and (b) be a single constant value per
@@ -99,7 +121,9 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
   }
   rm(integrity_check, n_households_with_na, n_households_inconsistent)
 
-  # -------------------- Caculate overall daily consumption --------------------
+  # ----------------------------
+  # Caculate overall daily consumption
+  # ----------------------------
   aggregate_daily <- 
     aggregated_data %>% 
       group_by(account_id, hashed_mpan, date, cosy_contract_active, first_adoption) %>%
@@ -133,7 +157,9 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     print(paste('checkpoint 3', Sys.time() - start))
     start <- Sys.time()
     
-  # ------------------------- Add in covariates ----------------------------
+  # ----------------------------
+  # Add in covariates
+  # ----------------------------
   # Add covariates
     # add customers characteristics
   # from queries/cosy - cosy details

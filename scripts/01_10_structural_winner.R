@@ -1,3 +1,21 @@
+# ============================================================
+# Structural vs Load-Shifting Decomposition of Cosy Savings
+#
+# This script:
+#   1) loads the Cosy rate schedule and computes the typical
+#      (Flexible Octopus) marginal price for reference
+#   2) builds property-value-decile categories and estimates
+#      load-shifting coefficients (Cosy interacted with property
+#      value decile) via feols
+#   3) decomposes Cosy savings, overall and by property value
+#      decile, into a "structural" gain (from price differences at
+#      pre-adoption consumption levels) and a load-shifting gain
+#      (from the behavioral consumption response)
+#   4) plots the savings share by property value decile, with the
+#      sample average and savings in GBP on a secondary axis
+#
+# Outputs: graphs/property_value_average_bill_saving.png
+# ============================================================
 
 # Load the prices
 rates <- fread(file.path(datapath, "input/cosy_-_rate_analysis_2024_07_15.csv"))  %>%
@@ -162,7 +180,9 @@ ggplot(cosy_saving5, aes(x = `property_value_category`, y = share_gain, fill = `
     legend.position = "none"  # Remove legend
   )
 
+# ----------------------------
 # Average Cosy Savings by Property Value
+# ----------------------------
 
 # Create the ggplot
 ggplot(cosy_saving5, aes(x = `property_value_category`, y = share_gain, fill = `property_value_category`)) +

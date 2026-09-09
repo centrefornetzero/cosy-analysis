@@ -1,3 +1,15 @@
+# ============================================================
+# Smart Meter Data Availability (Heat Pump Sample)
+#
+# Loads the CS electricity estimation sample and the weekly
+# consumption panel, then uses panelView to visualize which
+# households have electricity and gas smart-meter data before and
+# after heat pump installation.
+#
+# Outputs: graphs/hp_data_availability.png,
+#          graphs/hp_gas_data_availability.png
+# ============================================================
+
 # Load main sample IDs
 ids_cs_elec <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
 

@@ -1,3 +1,17 @@
+# ============================================================
+# Heat Pump Installation and Deal Summary Graphs
+#
+# This script:
+#   1) builds weekly counts of heat pump installations and deals from
+#      hp_installed and deals_and_installations
+#   2) plots installations and deals over time against the Boiler
+#      Upgrade Scheme increase announcement date
+#   3) plots the monthly distribution of installations
+#
+# Outputs: graphs/combined_weekly_installations_deals.png,
+#          graphs/monthly_installation.png
+# ============================================================
+
 # Prepare the data for installations
 weekly_installations <- hp_installed %>%
   group_by(account_id) %>%

@@ -1,5 +1,19 @@
 # -*- coding: utf-8 -*-
-# Half hourly analysis for HP installation and Cosy (sample non-half-hourly accounts)
+# ============================================================
+# Half-Hourly Analysis (HP Installation and Cosy Tariff)
+#
+# This script:
+#   1) samples 500 non-half-hourly-billed HP accounts and estimates
+#      the effect of HP installation on electricity consumption by
+#      half-hourly settlement period
+#   2) samples 500 Cosy tariff accounts and estimates the effect of
+#      Cosy adoption on electricity consumption by settlement period
+#   3) plots both sets of half-hourly effects together, and
+#      individually, against time of day
+#
+# Outputs: graphs/combined_impact_hourly_consumption.png,
+#          graphs/hp_only.png, graphs/tariff_only.png
+# ============================================================
 
 library(arrow)
 library(dplyr)
@@ -7,9 +21,9 @@ library(data.table)
 library(stringr)
 library(fixest)
 
-################################################################################
-## Paths
-################################################################################
+# ----------------------------
+# Paths
+# ----------------------------
 
 parquet_base_path <- file.path(datapath, "input/parquet/hp_adopters_elec")
 parquet_base_path_cosy <- file.path(datapath, "input/parquet/cosy_elec")
@@ -20,9 +34,9 @@ ev_path        <- file.path(datapath, "input/cosy_-_ev_detection_2024_07_04.csv"
 weather_path   <- file.path(datapath, "input/Cosy Analysis Weather Mar 26 daily.csv")
 
 
-################################################################################
-## Load covariates / joins
-################################################################################
+# ----------------------------
+# Load Covariates / Joins
+# ----------------------------
 
 ev_charging <- fread(ev_path) %>%
   mutate(ev_charging = 1,
@@ -39,9 +53,9 @@ hp_details <- fread(hp_details_path) %>%
   mutate(installed_at = as.Date(installed_at),
          account_id = as.character(account_id))
 
-################################################################################
-## Identify eligible non-half-hourly accounts AND present in parquet
-################################################################################
+# ----------------------------
+# Identify Eligible Non-Half-Hourly Accounts Present in Parquet
+# ----------------------------
 
 # list account folders in parquet
 account_dirs <- list.files(parquet_base_path, pattern = "^account_id=", full.names = TRUE)
@@ -63,9 +77,9 @@ sample_accounts <- sample(eligible_accounts, size = min(500, length(eligible_acc
 message("Eligible non-HH accounts in parquet: ", length(eligible_accounts))
 message("Sampled accounts: ", length(sample_accounts))
 
-################################################################################
-## Load the 500 account parquet folders
-################################################################################
+# ----------------------------
+# Load the 500 Account Parquet Folders
+# ----------------------------
 
 hp_list <- lapply(sample_accounts, function(aid) {
   path <- file.path(parquet_base_path, paste0("account_id=", aid))
@@ -92,9 +106,9 @@ message("Rows loaded: ", nrow(hp))
 message("Unique accounts loaded: ", dplyr::n_distinct(hp$account_id))
 
 
-################################################################################
-## Construct variables used in regressions
-################################################################################
+# ----------------------------
+# Construct Variables Used in Regressions
+# ----------------------------
 
 # The code below expects interval_start to exist in hp.
 # If the parquet source uses a different timestamp column, rename it here.
@@ -128,9 +142,9 @@ hp <- hp %>%
   mutate(ev_charging = ifelse(is.na(ev_charging), 0, ev_charging)) %>%
   filter(settlement_date + weeks(4) < installed_at | settlement_date >= installed_at)
 
-################################################################################
-## Regression
-################################################################################
+# ----------------------------
+# Regression
+# ----------------------------
 
 m_hourly_hp <- feols(
   value ~ i(settlement_period, ref = 1) +
@@ -148,9 +162,9 @@ gc()
 
 
 
-################################################################################
-## Load the 500 account parquet folders for cosy tariff
-################################################################################
+# ----------------------------
+# Load the 500 Account Parquet Folders for Cosy Tariff
+# ----------------------------
 
 
 # (parquet_base_path_cosy already set above)

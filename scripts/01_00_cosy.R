@@ -1,16 +1,24 @@
-# ===============================================
-# COSY Reproduction Script
-# ===============================================
-# This script sets up the environment, loads data,
-# runs the main analysis and produces outputs for
-# the COSY project.
-# ===============================================
+# ============================================================
+# Cosy Tariff Analysis — Orchestrator
+#
+# This script:
+#   1) sets the fixest variable-label dictionary and registers the
+#      custom fitstats (pre_avg, t_obs) and the CleanPreAverage()
+#      LaTeX post-processing helper used by later sub-scripts
+#   2) overrides as.Date() so a numeric input defaults to a
+#      1970-01-01 origin
+#   3) sources the numbered 01_0X sub-scripts in sequence: data
+#      loading, rate graphs, summary graphs, data availability,
+#      balance tables, DiD analysis, LCT ownership/leavers,
+#      heterogeneity analysis, Cosy/HP co-adoption, structural
+#      winner analysis, and survey figures
+# ============================================================
 
 
 
-# -----------------------------
+# ----------------------------
 # Variable Labels for Output
-# -----------------------------
+# ----------------------------
 
 # set dictionary
 setFixest_dict(c(total_consumption = "Consumption in kWh per period", 
@@ -49,9 +57,9 @@ setFixest_dict(c(total_consumption = "Consumption in kWh per period",
                  has_ev = "EV User"))
 
 
-# -----------------------------
+# ----------------------------
 #  Define main functions
-# -----------------------------
+# ----------------------------
 
 # Function to format numbers
 format_number <- function(number) {
