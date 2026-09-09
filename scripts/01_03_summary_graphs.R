@@ -1,6 +1,6 @@
 
 
-## Summary Statistics Tables and Graphs {#sec:sumstats}
+## Summary Statistics Tables and Graphs
 # Calculate the share on ToU tariff (is_charged_half_hourly) after adoption
 Next_contract <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024_07_24.csv")) %>%
   arrange(hashed_mpan, desc(as.Date(agreement_valid_from))) %>%
@@ -45,7 +45,7 @@ first_cosy_contracts <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2
 
 
 # =============================================================================
-###------------ Figure 3: Weekly Adoption of the Cosy tariff ------------
+###------------ Weekly Adoption of the Cosy tariff ------------
 # =============================================================================
 # Prepare the data
 aggregated_data <- read_rds(file.path(datapath, "scratch/aggregated_data.RDS"))

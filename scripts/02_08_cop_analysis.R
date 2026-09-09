@@ -36,7 +36,7 @@ gc()
 
 
 # ====================================================================
-# --------- Figure 4: HP Impacts by Outside Temperature --------------
+# --------- HP Impacts by Outside Temperature --------------
 # ====================================================================   
 # Fit the model
 m1 <- feols(c(elec_consumption, gas_consumption) ~ i(is_hp_installed) | 
@@ -152,7 +152,7 @@ ggsave(paste0("graphs/hp_temperature_gas_elec_blog_version.png"),
 
 
 # ====================================================================
-# --------- Figure 5: COP - Energy Demand Ratio --------------
+# --------- COP - Energy Demand Ratio --------------
 # ====================================================================  
 # Calculate the average value for the dashed line
 main_results <- eff_df %>% filter(window == "Last 12 months")

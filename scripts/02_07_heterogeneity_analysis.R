@@ -297,7 +297,7 @@ rm(m_sources)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Impact of Heat Pump Installation by MSOA Income
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-cat(">>> Figure 7: MSOA income <<<\n")
+cat(">>> MSOA income <<<\n")
 # Load and preprocess the cosy_hp_details data
 cosy_hp_details <- fread(file.path(datapath,  "input/cosy_-_hp_details_2024_07_03.csv")) %>%
   inner_join(hp_installed %>% filter(treated == 1) %>% select(account_id) %>% distinct()) %>%
@@ -539,7 +539,7 @@ for (i in 1:5) {
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Impact of Heat Pump Installation by Heat Loss Decile
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-cat(">>> Figure A.8: heat loss decile <<<\n")
+cat(">>> heat loss decile <<<\n")
 
 # survey
 hl <- fread(file.path(datapath, "input/cosy_-_hp_details_2024_07_03.csv")) %>%
@@ -618,7 +618,7 @@ for (i in 1:5) {
 ### Impact of Heat Pump Installation on Half-Hourly
 # Electricity Consumption by region
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-cat(">>> Figure A.9: by region <<<\n")
+cat(">>> by region <<<\n")
 m_region <- feols(consumption_yearly ~ i(is_hp_installed, region, ref =0) |
                     account_id + hdd + date,
                   data = hp_installed %>% filter(!is.na(region), !region=="", rate_period == "Overall"),
@@ -672,7 +672,7 @@ ggsave("graphs/hp_region_combined.png", device = "png", width = 16, height = 12,
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### Impact of Heat Pump Installation by Floor Area
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-cat(">>> Figure A.7: floor area <<<\n")
+cat(">>> floor area <<<\n")
 
 ##
 breaks <- hp_installed %>%

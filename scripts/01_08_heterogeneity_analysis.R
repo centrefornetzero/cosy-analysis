@@ -9,7 +9,7 @@ gc()
 # ===========================================================================
 ### Impact of Cosy by Outside Temperature
 # ===========================================================================
-cat("\n>>> Cosy heterogeneity: Figure 11, outside temperature <<<\n")
+cat("\n>>> Cosy heterogeneity: outside temperature <<<\n")
 # Fit the model
 m1 <- feols(consumption_hh ~ i(cosy_contract_active, ref=0)  | 
               hdd, 
@@ -307,7 +307,7 @@ ggsave("graphs/cosy_temperature_share_all.png", plot = p, width = 16, height = 8
 # ===========================================================================
 ### Cosy Adoption by Previous Tariff Type
 # ===========================================================================
-cat("\n>>> Cosy heterogeneity: Table A.12, previous tariff type <<<\n")
+cat("\n>>> Cosy heterogeneity: previous tariff type <<<\n")
 
 # Register the pre-treatment average fit statistic
 fitstat_register("pre_avg_tou", function(x) {
@@ -648,7 +648,7 @@ gc()
 # ===========================================================================
 ### Impact of Cosy Adoption by EPC Score on Consumption
 # ===========================================================================
-cat("\n>>> Cosy heterogeneity: Figure A.28, EPC score <<<\n")
+cat("\n>>> Cosy heterogeneity: EPC score <<<\n")
 m2a <- feols(consumption_hh ~ i(cosy_contract_active, epc_letter, ref=0)  |
                hdd + date + account_id,
              data = aggregated_data, 
@@ -1450,7 +1450,7 @@ ggsave("graphs/property_value_combined.png", device = "png", width = 16, height 
 
 
 ### Impact of Cosy by Region
-cat("\n>>> Cosy heterogeneity: Figure A.36, region <<<\n")
+cat("\n>>> Cosy heterogeneity: region <<<\n")
 m_region <- feols(consumption_hh ~ i(cosy_contract_active, region, ref =0)
                   | hdd + account_id + date,
                   data = aggregated_data %>% filter(!is.na(region), !region==""),
@@ -1524,7 +1524,7 @@ rm(list = ls(pattern = "^m_"))
 gc()
 
 ### Impact of Cosy Adoption by MSOA Income on Consumption
-cat("\n>>> Cosy heterogeneity: Figure A.35, MSOA income <<<\n")
+cat("\n>>> Cosy heterogeneity: MSOA income <<<\n")
 # Load and preprocess the cosy_hp_details data
 cosy_hp_details <- fread(file.path(datapath, "input/cosy_-_cosy_details_2024_07_24.csv")) %>%
   inner_join(aggregated_data %>% select(hashed_mpan) %>% distinct(), by = "hashed_mpan") %>%
