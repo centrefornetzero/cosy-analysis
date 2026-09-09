@@ -12,18 +12,6 @@
 #          graphs/monthly_installation.png
 # ============================================================
 
-# Prepare the data for installations
-weekly_installations <- hp_installed %>%
-  group_by(account_id) %>%
-  mutate(treated = max(is_hp_installed)) %>%
-  filter(treated ==1) %>%
-  ungroup() %>%
-  select(account_id, installed_at) %>%
-  distinct() %>%
-  mutate(first_week = as.Date(floor_date(installed_at, "week"))) %>%
-  group_by(first_week) %>%
-  summarise(installations = n())
-
 # Prepare weekly count of installations
 weekly_installations <- hp_installed %>%
   group_by(account_id) %>%

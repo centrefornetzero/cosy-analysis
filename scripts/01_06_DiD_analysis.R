@@ -335,37 +335,6 @@ create_latex_table <- function(models, headers, title, file, label,
   writeLines(latex, file)
 }
 # ----------------------------
-# Helper: CleanPreAverage -- moves the pre-treatment average row into
-# place in the fixest-generated table and relabels the sample-size row
-# ----------------------------
-CleanPreAverage <- function(file_path) {
-  file_content <- readLines(file_path)
-
-  idx <- grep("Half Hourly Consumption", file_content)
-  pre_avg_line_index <- if (length(idx) == 1) idx else idx[2]
-
-  pre_avg_lines <- file_content[pre_avg_line_index]
-  file_content  <- file_content[-c(pre_avg_line_index, pre_avg_line_index)]
-
-  coeff_end_index <- grep("Fixed-effects", file_content) - 2
-
-  file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
-  file_content <- append(file_content, "\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
-  file_content <- append(file_content, "\\midrule", after = coeff_end_index)
-
-  sample_line <- grep("Size of the 'effective' sample", file_content)
-  if (length(sample_line) > 0) {
-    file_content[sample_line] <- gsub(
-      "Size of the 'effective' sample",
-      "Number of Households",
-      file_content[sample_line]
-    )
-  }
-
-  writeLines(file_content, file_path)
-}
-
-# ----------------------------
 # 1) Load data + define periods
 # ----------------------------
 cat("\n>>> Loading aggregated data <<<\n")
@@ -947,8 +916,8 @@ ids <- aggte_simple$DIDparams$data$id %>% unique()
 # internal handling of unbalanced panels.
 mpans <- did_data %>% filter(id %in% ids) %>% pull(hashed_mpan) %>% unique()
 
-# Cache the 6,631-household CS-estimable sample so did_leavers.tex (01_06)
-# and did_prevar.tex (01_07) can be restricted to the same sample as
+# Cache the CS-estimable sample so did_leavers.tex (01_06) and
+# did_prevar.tex (01_07) can be restricted to the same sample as
 # did.tex/cosy_did_cs.tex without needing this whole script to run first.
 saveRDS(mpans, file.path(datapath, "scratch/cosy_mpans_universe.RDS"))
 

@@ -33,12 +33,12 @@ The code is organized as a numbered pipeline of R scripts orchestrated by [`scri
 | Customer survey responses | Heat pump usage survey (backup heating, comfort, NPS/feedback) fielded to Octopus Energy customers | Centre for Net Zero / Octopus Energy Group | Personal data; no independent ethics/consent framework governs redistribution (see [Ethics](#ethics-and-human-subjects) below) |
 | EV detection flags | Household-level electric vehicle charging detection derived from consumption patterns | Centre for Net Zero, derived from restricted consumption data | Derived from restricted data above |
 
-**Access for verification/replication purposes:** ⚠️ *TODO — confirm with Centre for Net Zero / Octopus Energy before submission.* As of this draft:
-- There is **no established, author-independent process** by which an outside researcher can request access to these data (to be confirmed).
-- Centre for Net Zero / Octopus Energy Group have indicated they are **unlikely** to be able to provide a private, unpublished copy of the data directly to the AEA Data Editor or a designated third-party replicator for verification purposes.
-- Given the above, per the AEA Data and Code Availability Policy's provisions for non-public data, the authors commit to: (i) preserving the data and code for no less than five years following publication; (ii) providing reasonable assistance to requests for clarification and replication; (iii) making all code publicly available (done, this package); and (iv) publicly disclosing the source of the data with contact information (below).
+**Access for verification/replication purposes:**
+- There is **no established, author-independent process** by which an outside researcher can request access to these data.
+- Centre for Net Zero / Octopus Energy Group have indicated they are unable to provide a private, unpublished copy of the data directly to the AEA Data Editor or a designated third-party replicator for verification purposes.
+- Given the above, per the AEA Data and Code Availability Policy's provisions for non-public data, the authors commit to: (i) preserving the data and code for no less than five years following publication; (ii) providing reasonable assistance to requests for clarification and replication; (iii) making all code publicly available; and (iv) publicly disclosing the source of the data with contact information (below).
 
-**Contact for data provenance questions:** Louise Bernard, louise.bernard@centrefornetzero.org. <!-- TODO: confirm whether a dedicated CNZ/Octopus data-access or DPO contact should be listed instead of/in addition to a named author. -->
+**Contact for data provenance questions:** info@centrefornetzero.org
 
 ### Public data
 
@@ -57,22 +57,30 @@ All of the following are cited in the paper's bibliography (`overleaf-export/...
 | Delta-EE / BEIS heating measures cost report | Counterfactual gas boiler cost | `delta2018` | Yes/public (BEIS Research Paper 2020/028) |
 | Rennert et al. (2022), *Nature* | Social cost of carbon (IWG-lineage estimate) | `rennert2022` | Citation only (journal article, not a data extract) |
 | BEIS Energy Follow-Up Survey | External benchmark for backup-heating prevalence | `beis2021efus` | Citation only |
-| National Grid ESO / WattTime marginal carbon intensity | Marginal emissions factors | — | ⚠️ **WattTime data may be subject to commercial/API license terms** — to confirm before redistributing the raw extract; NGESO carbon intensity API data is public |
-| UK & US social cost of carbon series (HMG, IWG) | Welfare/MVPF carbon valuation | — | To confirm exact public source per series |
+| National Grid ESO / WattTime marginal carbon intensity | Marginal emissions factors | — | Yes/public — confirmed shareable |
+| UK & US social cost of carbon series (HMG, IWG) | Welfare/MVPF carbon valuation | — | Defra 2023 htts://www.gov.uk/government/publications/greenhouse-gas-reorting-conversion-factors-2023  |
 | Air quality cost data | Air-quality externality in MVPF | `ukgov2024` (Table 15) | Yes/public, part of Green Book data tables |
 
 Note: Energy Performance Certificate (EPC) ratings are **not** a public-data item here — they are supplied by Octopus Energy Group linked to household accounts via UPRN, and are therefore listed under "Restricted data" above, not shared.
 
 **Open items flagged above (⚠️), to resolve before deposit:**
-1. Confirm (with Octopus Energy Group / Centre for Net Zero legal or data protection contact) whether any formal, author-independent data access process exists or could be established, and get the exact wording/URL/contact to cite — AEA's policy is explicit that "upon request to the authors" alone does not satisfy the requirement.
-2. Confirm redistribution terms for the WattTime extract and the MCS Data Dashboard export.
-3. Decide whether the public reference datasets above should be **shipped as files** in the deposit (simplest, satisfies DCAS #2–3 for the portion of raw data that is public) or **only cited** with instructions to re-download (acceptable per DCAS #2 only if reproducible "within a reasonable time frame and with reasonable resources" — likely true here given these are small public tables).
+1. Confirm redistribution terms for the MCS Data Dashboard export.
+2. Decide whether the public reference datasets above should be **shipped as files** in the deposit (simplest, satisfies DCAS #2–3 for the portion of raw data that is public) or **only cited** with instructions to re-download (acceptable per DCAS #2 only if reproducible "within a reasonable time frame and with reasonable resources" — likely true here given these are small public tables).
+
+`eff_df.csv` (the electricity/gas consumption-change results reported in the paper, used as
+input to `scripts/05_MVPF.R`) is included in this repository at [`public_data/eff_df.csv`](public_data/eff_df.csv).
+
+`scripts/05_MVPF.R`'s other input, `HP and Cosy paper welfare analysis.xlsx` (compiling most of
+the public reference series in the table above — DESNZ/Defra carbon intensity, Green Book
+Formulas tables, MCS cost data, GDP deflator, SCC), now lives at `public_data/HP and Cosy paper
+welfare analysis.xlsx`. Note this bundles in the MCS Data Dashboard data (open item 1 above,
+still unconfirmed) — resolve that before treating this file as cleared for deposit.
 
 ### Ethics and human subjects
 
 No separate IRB approval or formal Data Protection Impact Assessment was conducted for this research; the underlying customer survey and data use were treated as routine commercial customer analytics by Centre for Net Zero / Octopus Energy Group rather than as academic human-subjects research requiring independent ethics review.
 
-⚠️ **TODO(Louise):** Per DCAS #10/#11, if the customer survey referenced in `scripts/01_11_cosy_survey_figures.R` (and cited in the paper, e.g. footnote on backup heating prevalence) is to be described as part of the replication package, please confirm: (a) whether the survey instrument/questionnaire can be included or described, and (b) whether any co-author's academic institution has its own IRB determination on file that should be cited instead. Given no formal review exists, you may want to loop in the AEA Data Editor early (per their guidance, "reach out... if you believe your particular situation is not covered by the examples and guidance") rather than have this surface for the first time during verification.
+Per DCAS #10/#11: the customer survey referenced in `scripts/01_11_cosy_survey_figures.R` (fielded to Cosy Octopus tariff adopters, and cited in the paper's "Survey Responses" section, `\label{subsec:survey}`) is described in full in that script's header comment (question wording and response options for all ten questions, including the branching logic).
 
 ## Computational Requirements
 
@@ -140,15 +148,17 @@ See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for the full variable-level metadat
 source("scripts/main.R")
 ```
 
-This runs the full pipeline end-to-end with no manual intervention required, producing all figures (`graphs/`) and tables (`tables/`) referenced in the paper. To run a single stage instead, first run the package-loading and parameter block at the top of `main.R` (this defines `hp_color`, `cosy_color`, etc., and the `datapath` variable that later scripts depend on), then `source()` the relevant `0X_00_*.R` file directly.
+This runs the full pipeline end-to-end with no manual intervention required, producing all figures (`graphs/`) and tables (`tables/`) referenced in the paper. **The six orchestrators are not independent of one another and should be run in this sequence**, not in isolation: `03_00_balance_tables_and_reweighting.R` reads cached files that only `01_00_cosy.R` (`scratch/aggregated_data.RDS`, `scratch/cosy_survey_respondent_kids.RDS`) and `02_00_heatpump.R` (`output/hp_installed.rds`, `output/overall_weekly.rds`, `scratch/ids_cs_elec.RS`, `scratch/ids_cs_gas.RS`) produce; `05_MVPF.R` reads `output/eff_df.csv`, produced by `02_00_heatpump.R`; and `06_sample_descriptive_statistics.R` reads cached files produced by both `01_00_cosy.R` (`scratch/did_cosy_*_universal.RDS`) and `02_00_heatpump.R` (`scratch/est_cs_elec_weekly.RDS`, `scratch/est_cs_gas_weekly.RDS`). Only `01_00_cosy.R`, `02_00_heatpump.R`, and `04_00_half_hourly_analysis.R` read no cached output from another orchestrator, so those three are the only ones that can be re-run individually once the earlier stages have completed at least once. To re-run any single stage, first run the package-loading and parameter block at the top of `main.R` (this defines `hp_color`, `cosy_color`, etc., and the `datapath` variable that later scripts depend on), then `source()` the relevant `0X_00_*.R` file directly — but only after every orchestrator it depends on (per the list above) has already been run and its cached files exist.
 
-**Environment:** `main.R` checks `getwd()` against one author's hardcoded local path to choose between two `datapath` values, both of which resolve to a mounted GCS bucket -- there is no local `data/` folder anywhere in this pipeline by design; all restricted input/scratch/output data lives on GCS. On the production environment (GCP Vertex AI Workbench), the bucket must be mounted before starting R:
+**Environment:** `datapath` is read from the `COSY_DATAPATH` environment variable (see `scripts/main.R`), which must point at the mounted data directory containing `input/`, `scratch/`, and `output/` -- there is no local `data/` folder anywhere in this pipeline by design; all restricted input/scratch/output data lives on a separately-mounted bucket. Copy [`.Renviron.example`](.Renviron.example) to `.Renviron` (git-ignored) at the repository root and set `COSY_DATAPATH` there before running `scripts/main.R`. In production (GCP Vertex AI Workbench), the bucket is mounted via `gcsfuse` before starting R, e.g.:
 
 ```bash
-gcsfuse --implicit-dirs --rename-dir-limit=100 --max-conns-per-host=100 cnz-oe-extract-57d7be9d0a /home/jupyter/gcs
+gcsfuse --implicit-dirs --rename-dir-limit=100 --max-conns-per-host=100 <bucket-name> <mount-point>
 ```
 
-`graphs/` and `tables/` (repo-relative) and the entire GCS-mounted `datapath` tree are not version-controlled; they are populated by running the pipeline against the (restricted) input data.
+then set `COSY_DATAPATH=<mount-point>/cosy2` in `.Renviron`.
+
+`graphs/` and `tables/` (repo-relative) and the entire mounted `datapath` tree are not version-controlled; they are populated by running the pipeline against the (restricted) input data.
 
 ## List of Tables and Programs
 

@@ -52,7 +52,6 @@ temp_labels[temp_levels == 0]  <- "< 0°C"
 temp_labels[temp_levels == 25] <- "≥ 25°C"
 temp_labels[!(temp_levels %in% c(0, 25))] <-
   paste0(temp_levels[!(temp_levels %in% c(0, 25))], "°C")
-rm(m1, m1c, ev_charging, ev_users, ev_charging_agg)
 
 # Fit the model
 m1 <- feols(consumption_weekly ~ i(is_hp_installed) | hdd + account_id + date, 

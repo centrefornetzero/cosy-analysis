@@ -179,12 +179,14 @@ if (length(eff_idx) > 0) {
 }
 
 # Add note
-note <- "\\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} We show the results of four OLS models where the dependent variable is whether a charging event occurred in the period of interest – morning off-peak 4am-7am (column 1), afternoon off-peak 1pm-4pm (column 2), peak 4pm-7pm (column 3), and all other hours of the day (column 4). The sample is 127,789 charging events among 1,743 adopters for whom we detect evidence of EV charging. Where a charging events stretches across multiple periods, we attribute it to the period that comprises the \\textit{majority} of the event (in minutes). We see that among these EV owning adopters, adoption is associated with more charging the off-peak period and less in the peak and other periods.}"
+n_charging_events <- format(nrow(ev_charging_max), big.mark = ",")
+n_ev_adopters <- format(n_distinct(ev_charging_max$account_id), big.mark = ",")
+note <- paste0("\\floatfoot{\\justifying \\footnotesize \\upshape \\textbf{Note:} We show the results of four OLS models where the dependent variable is whether a charging event occurred in the period of interest – morning off-peak 4am-7am (column 1), afternoon off-peak 1pm-4pm (column 2), peak 4pm-7pm (column 3), and all other hours of the day (column 4). The sample is ", n_charging_events, " charging events among ", n_ev_adopters, " adopters for whom we detect evidence of EV charging. Where a charging events stretches across multiple periods, we attribute it to the period that comprises the \\textit{majority} of the event (in minutes). We see that among these EV owning adopters, adoption is associated with more charging the off-peak period and less in the peak and other periods.}")
 
 file_content <- append(x, note, after = grep("\\centering", x)-1)
 
 # Write the modified content back to the LaTeX file
-writeLines(x, file_path)
+writeLines(file_content, file_path)
 
 
 # ----------------------------
@@ -259,8 +261,6 @@ contract_analysis <- fread(file.path(datapath, "input/Cosy_-_agreement_data_2024
 category_counts <- contract_analysis %>%
   count(category)
 
-print(category_counts)
-
 # reset data
 aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
 mpans <- readRDS(file.path(datapath, "scratch/cosy_mpans_universe.RDS"))
@@ -301,7 +301,7 @@ leavers_did <- aggregated_data %>%
     week = as.numeric(week)
   )
 
-# Same 6,631-household CS-estimable sample used in did.tex/cosy_did_cs.tex
+# Same CS-estimable sample used in did.tex/cosy_did_cs.tex
 # (cached by 01_06_DiD_analysis.R; re-run that script first if this is missing)
 mpans <- readRDS(file.path(datapath, "scratch/cosy_mpans_universe.RDS"))
 
@@ -372,9 +372,6 @@ survey_responses <- survey_responses %>%
          `Has EV Charger` = as.numeric(!has_charger_ev=="")) %>%
   select(-c(has_ev, has_charger_ev, charging_method))
 
-# View the resulting dataframe
-summary(survey_responses)
-
 # reset data
 aggregated_data <- readRDS(file.path(datapath, "scratch/aggregated_data.RDS"))
 mpans <- readRDS(file.path(datapath, "scratch/cosy_mpans_universe.RDS"))
@@ -415,47 +412,6 @@ survey_responses_filtered <- survey_responses %>%
   filter(account_id %in% unique(aggregated_data$account_id)) 
 
 # Unused: graphs/lct_combinaison.png is not referenced anywhere in the paper.
-# lct_matrix <-survey_responses_filtered %>%
-#   group_by(`Has EV`, `Solar panels or other microgeneration`, `Home battery`) %>%
-#   summarise(count = n()) %>%
-#   ungroup() %>%
-#   mutate(share = count / sum(count))
-# 
-# # Step 3: Create readable labels for combinations
-# lct_matrix_wide <- lct_matrix %>%
-#   mutate(
-#     # Combine only the values that exist, ignoring any empty or missing LCTs
-#     Combination = trimws(paste(
-#       ifelse(`Has EV` == 1, "EV", ""),
-#       ifelse(`Home battery` == 1, "Battery", ""),
-#       ifelse(`Solar panels or other microgeneration` == 1, "Solar", "")
-#     )),
-#     # Remove any trailing/leading spaces and '+' when no tech is present
-#     Combination = gsub("\\s+", " + ", Combination),  # Ensures proper spacing
-#     Combination = gsub("^\\s*\\+\\s*", "", Combination),  # Removes leading '+'
-#     Combination = gsub("\\s*\\+\\s*$", "", Combination),  # Removes trailing '+'
-#     # If nothing is in the combination, label it as "No other LCT"
-#     Combination = ifelse(Combination == "", "No other LCT", Combination)
-#   ) %>%
-#   arrange(desc(share))
-# 
-# # Step 4: Create a bar plot with ColorBrewer and no borders
-# ggplot(lct_matrix_wide, aes(x = reorder(Combination, -share), y = share, fill = Combination)) +
-#   geom_bar(stat = "identity") +  # No border around bars
-#   coord_flip() +  # Flip coordinates for easier reading
-#   scale_fill_brewer(palette = "Set3") +  # Use ColorBrewer scheme
-#   scale_y_continuous(labels = scales::percent_format()) +
-#   labs(
-#     x = " ",
-#     y = paste0("Proportion of Sample (%) [N=", dim(survey_responses_filtered)[1], ']')
-#   ) +
-#   theme_minimal() +
-#   theme(
-#     legend.position = "none")  # Remove legend
-# 
-# ggsave("graphs/lct_combinaison.png",
-#        width = 16, height = 8, units = "cm")
-
 
 #  Calculate the share of each LCT
 lct_summary <- survey_responses_filtered %>%

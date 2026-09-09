@@ -1,0 +1,5 @@
+# Copy this file to .Renviron (git-ignored, never committed) at the repository
+# root, then set COSY_DATAPATH to the mounted data directory on your machine --
+# the root containing input/, scratch/, and output/. See the README's
+# "Environment" section for how the data directory is mounted in production.
+COSY_DATAPATH=/path/to/mounted/gcs/bucket/cosy2

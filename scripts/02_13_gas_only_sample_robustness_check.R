@@ -577,7 +577,6 @@ cop_boot_plot <- cop_boot %>%
 
 p_quasi <- ggplot(cop_boot_plot, aes(x = degree, y = median)) +
   geom_col(alpha = 0.6, fill = hp_color) +
-  geom_hline(yintercept = 3.49, linetype = "dashed", color = hp_color) +
   geom_errorbar(aes(ymin = lower, ymax = upper_plot), width = 0.2, color = hp_color) +
   annotate("text", x = "15°C", y = 6.1, label = "truncated", size = 2, color = hp_color) +
   annotate("text", x = "5°C", y = avg_cop + 1.5, label = paste0("Sample average ~ ", round(avg_cop, 2)), color = hp_color, size = 4) +

@@ -10,9 +10,6 @@
 #          graphs/hp_gas_data_availability.png
 # ============================================================
 
-# Load main sample IDs
-ids_cs_elec <- readRDS(file.path(datapath, "scratch/ids_cs_elec.RS"))
-
 # Load data for regression
 overall_weekly <- 
   read_rds(file.path(datapath, "output/overall_weekly.rds")) %>%

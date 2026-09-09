@@ -7,6 +7,9 @@
 .RData
 .Rproj.user/
 
+# Local environment config (machine-specific COSY_DATAPATH) -- see .Renviron.example
+.Renviron
+
 # macOS system files
 .DS_Store
 Icon?
@@ -45,3 +48,5 @@ overleaf-export/
 cosy-analysis.Rproj
 lit/
 cosy-analysis.git/
+
+.databricks

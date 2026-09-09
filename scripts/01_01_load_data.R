@@ -25,8 +25,6 @@
 # Merging consumption and customers info datasets
 # ----------------------------
 if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
-  start <- Sys.time()
-  print('hello')
 
   # Load smart meter consumption data at the day - rate period level
   # queries/cosy - cosy electricity readings
@@ -39,10 +37,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
            consumption_hh = mean_read_value) %>%
     mutate(date = as.Date(settlement_date)) %>% 
     filter(!is.na(date))     %>%
-    select(-c(settlement_date)) 
-  
-               
-  print('checkpoint 1')    
+    select(-c(settlement_date))
 
   # ----------------------------
   # Add indicator if customer is on Cosy
@@ -63,9 +58,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     group_by(hashed_mpan) %>%
     mutate(first_adoption = min(date)) %>%
     ungroup()
-    
-    print('checkpoint 2')
-    
+
   # merge panel of active cosy dates to consumption data
   #
   # NOTE: first_adoption must be joined separately, by hashed_mpan ALONE, not
@@ -153,10 +146,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     group_by(hashed_mpan) %>%
     filter(n_distinct(account_id) == 1) %>%
     ungroup
-    
-    print(paste('checkpoint 3', Sys.time() - start))
-    start <- Sys.time()
-    
+
   # ----------------------------
   # Add in covariates
   # ----------------------------
@@ -187,10 +177,7 @@ if(!file.exists(file.path(datapath, "scratch/aggregated_data.RDS"))) {
     filter(is_cosy) %>%
     slice_head(n=1) %>%
     select(hashed_mpan, starts_with("previous"))
-    
-    print(paste('checkpoint 4', Sys.time() - start))
-    start <- Sys.time()
-  
+
   # Create EPC letters
   aggregated_data <- 
     aggregated_data <- aggregated_data %>%

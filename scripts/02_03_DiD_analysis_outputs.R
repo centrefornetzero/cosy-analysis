@@ -942,6 +942,12 @@ eff_df <- annual_sums %>%
   pivot_wider(names_from = type, values_from = annual_kwh) %>%
   mutate(emp_eff = (0.9 * (-Gas)) / Electricity)
 fwrite(eff_df, file.path(datapath, "output/eff_df.csv")) # save main results for later plots
+
+# Also save a copy to the git-tracked public_data/ folder: these are the
+# consumption-change results reported in the paper, used as input to
+# scripts/05_MVPF.R.
+dir.create("public_data", showWarnings = FALSE)
+fwrite(eff_df, "public_data/eff_df.csv")
        
 # Shading rectangles for the calendar plot (harmonised)
 shade_df <- tibble(
@@ -1448,8 +1454,8 @@ anticipation_periods <- 0:10  # The range of anticipation periods
 # Define a function to process each anticipation week
 process_week <- function(anticipation_week) {
   # File paths
-  elec_file <- paste0(output_base_path, output_filenames[1], "_anticipation_", anticipation_week, ".RDS")
-  gas_file  <- paste0(output_base_path, output_filenames[2], "_anticipation_", anticipation_week, ".RDS")
+  elec_file <- file.path(output_base_path, paste0(output_filenames[1], "_anticipation_", anticipation_week, ".RDS"))
+  gas_file  <- file.path(output_base_path, paste0(output_filenames[2], "_anticipation_", anticipation_week, ".RDS"))
   
   # Read and calculate aggregate estimates
   elec_agg <- aggte(readRDS(elec_file), type = "simple", na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05, min_e=-80, max_e=80)

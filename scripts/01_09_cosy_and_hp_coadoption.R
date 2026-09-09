@@ -140,7 +140,7 @@ if (length(coeff_end_index) > 1) {
 # Insert the pre-treatment average row after the coefficients
 file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
 file_content <- append(file_content, pre_avg_lines2, after = coeff_end_index)
-file_content <- append(file_content,"\\emph{Pre-Treatment Average}\\", after = coeff_end_index)
+file_content <- append(file_content,"\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
 # Add a \midrule after the pre-treatment average
 file_content <- append(file_content, "\\midrule", after = coeff_end_index + length(pre_avg_lines))
 
@@ -194,7 +194,7 @@ if (length(coeff_end_index) > 1) {
 # Insert the pre-treatment average row after the coefficients
 file_content <- append(file_content, pre_avg_lines, after = coeff_end_index)
 file_content <- append(file_content, pre_avg_lines2, after = coeff_end_index)
-file_content <- append(file_content,"\\emph{Pre-Treatment Average}\\", after = coeff_end_index)
+file_content <- append(file_content,"\\emph{Pre-Treatment Average}\\\\", after = coeff_end_index)
 # Add a \midrule after the pre-treatment average
 file_content <- append(file_content, "\\midrule", after = coeff_end_index + length(pre_avg_lines))
 

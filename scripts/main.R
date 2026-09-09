@@ -7,8 +7,8 @@
 #
 # This script:
 #   1) installs/loads the required packages
-#   2) detects the working directory and sets `datapath` accordingly
-#      (Louise's Mac vs the GCP Vertex AI workbench)
+#   2) reads `datapath` from the COSY_DATAPATH environment variable (see
+#      .Renviron.example and the README's Environment section)
 #   3) sets global plot colors (hp_color, cosy_color, flexible_color,
 #      not_hp_color, rating_colors, red_palette) and the fixest
 #      estimation config used throughout the pipeline
@@ -41,14 +41,20 @@ install_if_needed <- function(package) {
 # Load (and install if needed) each package
 lapply(packages, install_if_needed)
 
-# Make sure working directory is "cosy-analysis"
-if (getwd() != "/Users/louise/Documents/GitHub/cosy-analysis") {
-  setwd("/home/jupyter/cosy-analysis")
-  # establish the home directory
-  datapath <- "../gcs/cosy2"
-} else {
-  datapath <-  "~/gcs/cnz-oe-extract-57d7be9d0a/cosy2"
+# Run this from the repository root (e.g. an R session or Rscript invocation
+# with the working directory already set to cosy-analysis/).
+if (!file.exists("scripts/main.R")) {
+  stop("Run this from the repository root: scripts/main.R was not found relative to getwd().")
 }
+
+# COSY_DATAPATH must point at the mounted data directory (the root containing
+# input/, scratch/, and output/) -- copy .Renviron.example to .Renviron and
+# set it there; see the README's Environment section.
+datapath <- Sys.getenv("COSY_DATAPATH", unset = NA)
+if (is.na(datapath) || datapath == "") {
+  stop("COSY_DATAPATH is not set. Copy .Renviron.example to .Renviron, set COSY_DATAPATH to your mounted data directory, and restart R.")
+}
+datapath <- path.expand(datapath)
 
 checkpoint <- function(msg) cat(paste0(">>> ", msg, " <<<\n"))
 

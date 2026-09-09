@@ -50,9 +50,7 @@ overall_weekly <-  overall_weekly %>%
   filter(week <= 129, firstweek <= 129)  %>%
   filter(week < firstweek - 4 | week >= firstweek)
 
-rm(all_combinations, merged_data, weather_weekly, electricity_daily, cosy_hp_install_gas_consumption)
 gc()
-
 
 # ----------------------------
 # HP Impacts by Outside Temperature
@@ -177,7 +175,6 @@ ggsave(paste0("graphs/hp_temperature_gas_elec_blog_version.png"),
 main_results <- eff_df %>% filter(window == "Last 12 months")
 
 avg_cop <- round(main_results$emp_eff, digits = 2)
-print(paste0("Average empirical efficiency ~ ", avg_cop))
 
 # Create rounded tempeture
 overall_weekly <- overall_weekly %>%
@@ -193,7 +190,6 @@ if (!file.exists(file.path(datapath, "scratch/cop_boot_no_boxing.csv"))) {
 
     for (b in 1:B) {
 
-      start <- Sys.time()
       pb$tick()
 
       # Resample account_ids with replacement
@@ -219,8 +215,6 @@ if (!file.exists(file.path(datapath, "scratch/cop_boot_no_boxing.csv"))) {
         select(temp, quasi_cop)
 
       results[[b]] <- boot_coefs
-
-      print(paste0(b, ": ", Sys.time() - start))
     }
 
 

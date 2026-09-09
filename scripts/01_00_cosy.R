@@ -153,10 +153,10 @@ CleanPreAverage <- function(file_path) {
   
   # Modify the label for "Size of the 'effective' sample" to "Number of Households"
   sample_line <- grep("Size of the 'effective' sample", file_content)
-  file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
-  
+  if (length(sample_line) > 0) {
+    file_content[sample_line] <- gsub("Size of the 'effective' sample", "Number of Households", file_content[sample_line])
+  }
 
-  print(file_content)
   # Write the modified content back to the LaTeX file
   writeLines(file_content, file_path)
 }

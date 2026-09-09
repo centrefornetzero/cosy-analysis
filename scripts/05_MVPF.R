@@ -6,7 +6,7 @@
 # ----------------------------
 # 0) PATHS
 # ----------------------------
-PATH_XLSX <- file.path(datapath, "input/HP and Cosy paper welfare analysis.xlsx")
+PATH_XLSX <- "public_data/HP and Cosy paper welfare analysis.xlsx"
 stopifnot(file.exists(PATH_XLSX))
 
 dir.create("tables", showWarnings = FALSE)
@@ -27,7 +27,11 @@ SUBSIDY_HP  <- 7500
 BOILER_COST <- 2250
 
 # Calculate the average value for the dashed line
-main_results <- fread(file.path(datapath, "output/eff_df.csv"))  %>% filter(window == "Last 12 months")
+# Prefer the private, freshly-generated copy; fall back to the git-tracked
+# public_data/ copy so this script can be run from this repository alone.
+eff_df_path <- file.path(datapath, "output/eff_df.csv")
+if (!file.exists(eff_df_path)) eff_df_path <- "public_data/eff_df.csv"
+main_results <- fread(eff_df_path)  %>% filter(window == "Last 12 months")
 
 ELEC_KWH_CHANGE <- main_results$Electricity
 GAS_KWH_CHANGE  <- main_results$Gas

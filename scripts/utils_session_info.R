@@ -43,14 +43,13 @@
 # and check the two output files whenever you next check in.
 
 if (!exists("datapath")) {
-  # Same working-directory/datapath logic as scripts/main.R, duplicated here
-  # so this script doesn't depend on main.R having been sourced first.
-  if (getwd() != "/Users/louise/Documents/GitHub/cosy-analysis") {
-    setwd("/home/jupyter/cosy-analysis")
-    datapath <- "../gcs/cosy2"
-  } else {
-    datapath <- "~/gcs/cnz-oe-extract-57d7be9d0a/cosy2"
+  # Same COSY_DATAPATH logic as scripts/main.R, duplicated here so this
+  # script doesn't depend on main.R having been sourced first.
+  datapath <- Sys.getenv("COSY_DATAPATH", unset = NA)
+  if (is.na(datapath) || datapath == "") {
+    stop("COSY_DATAPATH is not set. Copy .Renviron.example to .Renviron, set COSY_DATAPATH to your mounted data directory, and restart R.")
   }
+  datapath <- path.expand(datapath)
 }
 
 local({
@@ -78,7 +77,7 @@ local({
 
   cat("\n==== DISK SPACE (home + data mount) ====\n")
   cat(system("df -h ~ 2>/dev/null", intern = TRUE), sep = "\n")
-  cat(system("df -h /home/jupyter/gcs 2>/dev/null", intern = TRUE), sep = "\n")
+  cat(system(paste("df -h", shQuote(datapath), "2>/dev/null"), intern = TRUE), sep = "\n")
 
   cat("\n==== R VERSION AND PACKAGES ====\n")
   print(sessionInfo())

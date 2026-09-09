@@ -26,6 +26,46 @@ N_SENT    <- 1000
 SEND_DATE <- as.Date("2024-07-08")
 
 # ----------------------------
+# Survey instrument (on-screen question wording, for reference against the
+# column checks and transmute() below). Questions 6-7 are shown only to
+# respondents who answered "Yes" to question 5.
+# ----------------------------
+#  1 (v2)      Do you have a heat pump? -- Yes / No
+#  2 (v5)      What's the brand of your current heat pump? (type-or-select) --
+#              Daikin, Earth Save Products, Grant, Heliotherm, Hitachi, LG,
+#              Mitsubishi, NIBE, Panasonic, Samsung, Stiebel Eltron, Toshiba
+#              ("Don't know" if unsure)
+#  3 (v7)      When was your heat pump installed? -- date
+#  4 (v8)      Do you know your heat pump's size in kW? -- Not sure, Less
+#              than 2 kW, 2-3 kW, 3-4 kW, 4-5 kW, 5-7 kW, 7-9 kW, 9-12 kW,
+#              12-16 kW, 16 kW or more
+#  5 (v9,v10)  Do you change your energy use in response to Cosy's different
+#              unit rates? -- A. Yes  B. Don't respond to Cosy's different
+#              unit rates  C. Didn't know Cosy had different unit rates
+#              D. Other (free text in v10)
+#  6 (v11-17)  How do you change your heating to respond to Cosy's different
+#              unit rates? (choose as many as apply) -- A. Smart thermostat
+#              or other remote control  B. Lower flow temperatures
+#              C. Activate a special mode on heat pump  D. Manual
+#              adjustments  E. Use alternative heating sources  F. Don't
+#              adjust heating at all  G. Other
+#  7 (v18-22)  Do you change other aspects of your home's electricity
+#              consumption? (choose as many as apply) -- A. EV charger
+#              B. Home battery  C. Other appliances  D. Don't adjust any
+#              other aspects of home's electricity consumption  E. Other
+#  8           When did you last upgrade the insulation in your home? --
+#              date (not read by this script)
+#  9           When you switched to Cosy Octopus, were there any other
+#              changes to the way you used energy - unrelated to switching
+#              to Cosy? (choose as many as apply) -- A. More working from
+#              home  B. Less working from home  C. New members of the
+#              household  D. Fewer members of the household  E. Other (not
+#              read by this script)
+# 10 (v29-33)  Does your home have any of the following? (choose as many as
+#              apply) -- A. Electric vehicle(s)  B. Solar PV panels
+#              C. Batteries  D. None of the above  E. Other
+#
+# ----------------------------
 # Load
 # ----------------------------
 # Five columns are literally named "Other" and two headers carry trailing
