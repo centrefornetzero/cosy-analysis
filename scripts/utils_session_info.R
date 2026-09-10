@@ -88,7 +88,7 @@ local({
     "dplyr", "ggplot2", "RColorBrewer", "tidyr", "scales", "readr",
     "forcats", "viridis", "stringr", "stargazer", "panelView", "readxl", "purrr",
     "progress", "lfe", "tibble", "didimputation", "ggtext", "MatchIt", "zoo",
-    "patchwork"
+    "patchwork", "arrow"
   )
   for (p in packages) {
     v <- tryCatch(as.character(packageVersion(p)), error = function(e) "NOT INSTALLED")
