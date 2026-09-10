@@ -198,19 +198,22 @@ format_number_2dp <- function(x) {
 CleanBalanceSections <- function(file_path) {
   x <- readLines(file_path)
 
-  # Replace NA cells on the section header rows with blanks
-  # Stargazer prints "NA" for those cells; those lines are blanked out.
-  x <- gsub("(\\\\textbf\\{Pre-matching\\}).*",
-            "\\\\[-0.8ex]\\\\textbf{Pre-matching} &  &  &  \\\\",
-            x)
-  x <- gsub("(\\\\textbf\\{Post-matching\\}).*",
-            "\\\\[-0.8ex]\\\\textbf{Post-matching} &  &  &  \\\\",
-            x)
+  # Stargazer LaTeX-escapes the raw LaTeX passed in via the Variable column
+  # (backslashes become "\textbackslash ", braces become "\{"/"\}"), so the
+  # literal "\textbf{Pre-matching}"/"\textbf{Post-matching}" this used to
+  # grep for never actually appears in stargazer's output and the section
+  # header rows were left un-cleaned. Match on the untouched "Pre-matching"/
+  # "Post-matching" text instead, and rebuild each row from scratch as a
+  # clean spanning header rather than trying to patch the escaped output.
+  x[grepl("Pre-matching", x, fixed = TRUE)] <-
+    "\\multicolumn{4}{l}{\\textbf{Pre-matching}} \\\\"
+  x[grepl("Post-matching", x, fixed = TRUE)] <-
+    "\\multicolumn{4}{l}{\\textbf{Post-matching}} \\\\"
 
-  # Add a little spacing + a midrule before Post-matching (optional)
-  post_idx <- grep("\\\\textbf\\{Post-matching\\}", x)
+  # Add a midrule before Post-matching to separate the two blocks
+  post_idx <- grep("Post-matching", x, fixed = TRUE)
   if (length(post_idx) == 1) {
-    x <- append(x, "\\\\midrule", after = post_idx - 1)
+    x <- append(x, "\\midrule", after = post_idx - 1)
   }
 
   writeLines(x, file_path)
@@ -563,6 +566,7 @@ hp_details <- fread(file.path(datapath, "input/cosy_-_hp_aggregated_up_2024_06_1
   ) %>%
   group_by(account_id) %>%
   mutate(treated = max(is_hp_installed)) %>%
+  ungroup() %>%
   distinct(account_id, treated, property_value, floor_area, energy_efficiency, estimated_annual_consumption) %>%
   filter(treated == 1, !is.na(property_value), !is.na(floor_area), !is.na(energy_efficiency), !is.na(estimated_annual_consumption))
 

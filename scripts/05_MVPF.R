@@ -260,13 +260,13 @@ calc_hp <- function(label, r_disc, m, scc_vec) {
 }
 
 # ----------------------------
-# 7) TABLE ROWS: MAC-based (m = 0.50, 0.25) and SCC/IAM-based (r = 2%, 3.5%)
+# 7) TABLE ROWS: MAC-based SCC (m = 0.50, 0.25) and IAM-based SCC (r = 2%, 3.5%)
 # ----------------------------
 out_tbl <- bind_rows(
-  calc_hp("MAC-based", r_disc = 0.035, m = 0.50, scc_vec = scc_hmg),
-  calc_hp("MAC-based", r_disc = 0.035, m = 0.25, scc_vec = scc_hmg),
-  calc_hp("SCC (IAM)", r_disc = 0.020, m = 0.50, scc_vec = scc_rennert),
-  calc_hp("SCC (IAM)", r_disc = 0.035, m = 0.50, scc_vec = scc_rennert)
+  calc_hp("MAC-based SCC", r_disc = 0.035, m = 0.50, scc_vec = scc_hmg),
+  calc_hp("MAC-based SCC", r_disc = 0.035, m = 0.25, scc_vec = scc_hmg),
+  calc_hp("IAM-based SCC", r_disc = 0.020, m = 0.50, scc_vec = scc_rennert),
+  calc_hp("IAM-based SCC", r_disc = 0.035, m = 0.50, scc_vec = scc_rennert)
 
 )
 
@@ -278,9 +278,9 @@ latex_tbl <- out_tbl %>%
     disc_str = paste0(round(100 * discount_rate, 1), "\\%"),
     marg_str = paste0(round(100 * marginal, 0), "\\%"),
 
-    avg_str  = format(signif(Average, 3), trim = TRUE),
-    fp_str   = format(signif(`First £`, 3), trim = TRUE),
-    fplbd_str = format(signif(`First £, w/ LBD`, 3), trim = TRUE),
+    avg_str  = formatC(Average, format = "f", digits = 2),
+    fp_str   = formatC(`First £`, format = "f", digits = 2),
+    fplbd_str = formatC(`First £, w/ LBD`, format = "f", digits = 2),
     
     res_str  = money_gbp(Resource),
     gov_str  = money_gbp(Government),
@@ -297,7 +297,7 @@ row_lines <- apply(latex_tbl, 1, function(r) {
   )
 })
 
-# 3) Insert a midrule after row 2 to separate the MAC-based rows from the SCC (IAM)-based rows
+# 3) Insert a midrule after row 2 to separate the MAC-based SCC rows from the IAM-based SCC rows
 if (length(row_lines) >= 3) {
   row_lines <- append(row_lines, "\\midrule", after = 2)
 }
@@ -308,7 +308,7 @@ latex_lines <- c(
   "\\toprule",
   "\\multicolumn{3}{c}{ } & \\multicolumn{3}{c}{MVPF} & \\multicolumn{3}{c}{Cost per tonne} \\\\",
   "\\cmidrule(l{3pt}r{3pt}){4-6} \\cmidrule(l{3pt}r{3pt}){7-9}",
-  " & Discount Rate & Marginal & Average & First \\pounds & First \\pounds, w/ LBD & Resource & Government & Social \\\\",
+  " & \\shortstack{Discount \\\\ Rate} & \\shortstack{Additionality \\\\ Rate} & Average & First \\pounds & \\shortstack{First £ \\\\ w/ LBD} & Resource & Government & Social \\\\",
   "\\midrule",
   row_lines,
   "\\bottomrule",

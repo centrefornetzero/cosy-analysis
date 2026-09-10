@@ -1218,8 +1218,15 @@ checkpoint("DONE: 12m plot + quarterly points + COP panel")
 
 checkpoint("TWFE models + TWFE/CS combined LaTeX table")
 
-# Fitstat helpers (register once)
-fitstat_register("pre_avg", function(x) {
+# Fitstat helpers (register once). Named distinctly from the generic
+# pre_avg/t_obs registered in 02_00_heatpump.R -- these read fixef_vars[2]
+# because the TWFE models below have only two fixed effects (account_id +
+# settlement_week), unlike the generic 3-FE (hdd + account_id + date) models
+# elsewhere. fitstat_register() is a global, session-wide side effect not
+# reset by the per-script environment cleanup, so reusing the shared
+# "pre_avg"/"t_obs" names here would silently corrupt those fitstats for
+# every sub-script sourced after this one (e.g. 02_06_ev_ownership.R).
+fitstat_register("pre_avg_2fe", function(x) {
   model_data <- eval(x$call$data, envir = x$call_env)
   outcome_variable <- all.vars(x$fml_all$linear)[1]
   obs_used <- obs(x)
@@ -1236,7 +1243,7 @@ fitstat_register("pre_avg", function(x) {
   format_decimal(pre_avg, digits = 1)
 }, "Pre-Treatment Consumption")
 
-fitstat_register("t_obs", function(x) {
+fitstat_register("t_obs_2fe", function(x) {
   t_var <- x$fixef_vars[2]
   format_number(x$fixef_sizes[t_var])
 }, "Number of Time Periods")
@@ -1292,7 +1299,7 @@ cs_nT <- list(
 etable(
   m1, m2,
   m1, m2,
-  fitstat = ~ N + g + pre_avg + t_obs + r2,
+  fitstat = ~ N + g + pre_avg_2fe + t_obs_2fe + r2,
   headers = list(
     list("TWFE" = 2, "CS" = 2),
     list(rep(c("Electricity", "Gas"), times = 2))
@@ -1414,7 +1421,7 @@ etable(
   depvar = FALSE,
   tex = TRUE,
   title = "HP Installation on Energy Consumption in kWh (Never-treated)",
-  fitstat = ~ N + g + pre_avg + t_obs + r2,
+  fitstat = ~ N + g + pre_avg_2fe + t_obs_2fe + r2,
   file = "tables/hp_did_never_treated_detailed.tex",
   replace = TRUE,
   label = "tab:hp-did-never-treated-conso-detailed",
