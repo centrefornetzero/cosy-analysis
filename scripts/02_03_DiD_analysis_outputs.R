@@ -25,8 +25,15 @@ gas_color  <- not_hp_color
 
 checkpoint <- function(msg) cat(paste0(">>> ", msg, " <<<\n"))
 
-format_decimal <- function(x, digits = 1) formatC(x, format = "f", digits = digits, big.mark = ",")
-format_number  <- function(x) formatC(x, format = "d", big.mark = ",")
+# Suffixed "_local" so these don't shadow the shared format_decimal/
+# format_number defined in 02_00_heatpump.R's top-level setup (digits = 2
+# default there, vs digits = 1 here) -- a plain `format_decimal <- ...`
+# reassignment here would silently persist in the global environment for
+# every sub-script sourced after this one, since it isn't a fitstat_register()
+# call and the per-script environment cleanup only removes *new* names, not
+# reassignments of names already whitelisted in list_env.
+format_decimal_local <- function(x, digits = 1) formatC(x, format = "f", digits = digits, big.mark = ",")
+format_number_local  <- function(x) formatC(x, format = "d", big.mark = ",")
 
 confidence_star <- function(coef, se, alpha) {
   ci_lower <- coef - qnorm(1 - alpha / 2) * se
@@ -81,12 +88,12 @@ create_latex_table_cs <- function(models, headers, title, file, label,
     coef  <- m$overall.att
     se    <- m$overall.se
     alpha <- m$DIDparams$alp
-    paste0(format_decimal(coef, digits), confidence_star(coef, se, alpha))
+    paste0(format_decimal_local(coef, digits), confidence_star(coef, se, alpha))
   })
 
   # --- SEs ---
   standard_errors <- sapply(models, function(m) {
-    paste0("(", format_decimal(m$overall.se, digits), ")")
+    paste0("(", format_decimal_local(m$overall.se, digits), ")")
   })
  
   # Anticipation
@@ -118,15 +125,15 @@ create_latex_table_cs <- function(models, headers, title, file, label,
 
     # Extract and format fit stats exactly the same way
     n_households <- sapply(models, function(m)
-      format_number(get_did_stat(m, "n_households"))
+      format_number_local(get_did_stat(m, "n_households"))
     )
 
     nG <- sapply(models, function(m)
-      format_number(get_did_stat(m, "nG"))
+      format_number_local(get_did_stat(m, "nG"))
     )
 
     nT <- sapply(models, function(m)
-      format_number(get_did_stat(m, "nT"))
+      format_number_local(get_did_stat(m, "nT"))
     )
 
 
@@ -138,7 +145,7 @@ create_latex_table_cs <- function(models, headers, title, file, label,
   alpha <- models[[1]]$DIDparams$alp
   conf_level <- (1 - alpha) * 100
 
-  pretreat_fmt <- sapply(pre_treatment_values, function(x) format_decimal(x, digits))
+  pretreat_fmt <- sapply(pre_treatment_values, function(x) format_decimal_local(x, digits))
 
   k <- length(headers)
 
@@ -1240,12 +1247,12 @@ fitstat_register("pre_avg_2fe", function(x) {
   }
 
   pre_avg <- mean(data_used[[outcome_variable]][data_used$is_hp_installed == 0], na.rm = TRUE)
-  format_decimal(pre_avg, digits = 1)
+  format_decimal_local(pre_avg, digits = 1)
 }, "Pre-Treatment Consumption")
 
 fitstat_register("t_obs_2fe", function(x) {
   t_var <- x$fixef_vars[2]
-  format_number(x$fixef_sizes[t_var])
+  format_number_local(x$fixef_sizes[t_var])
 }, "Number of Time Periods")
 
 # Build week / firstweek and the anticipation=4 treatment indicator
@@ -1275,24 +1282,24 @@ m2 <- feols(gas_consumption ~ i(is_hp_installed) |  account_id  + settlement_wee
 # CS stats for patching (use *formatted strings* for LaTeX injection)
 main_periods <- c("Electricity", "Gas")
 cs_estimates <- list(
-  Electricity = format_decimal(aggte_simple_elec$overall.att, 1),
-  Gas         = format_decimal(aggte_simple_gas$overall.att, 1)
+  Electricity = format_decimal_local(aggte_simple_elec$overall.att, 1),
+  Gas         = format_decimal_local(aggte_simple_gas$overall.att, 1)
 )
 cs_se <- list(
-  Electricity = format_decimal(aggte_simple_elec$overall.se, 1),
-  Gas         = format_decimal(aggte_simple_gas$overall.se, 1)
+  Electricity = format_decimal_local(aggte_simple_elec$overall.se, 1),
+  Gas         = format_decimal_local(aggte_simple_gas$overall.se, 1)
 )
 cs_n <- list(
-  Electricity = format_number(aggte_simple_elec$DIDparams$id_count),
-  Gas         = format_number(aggte_simple_gas$DIDparams$id_count)
+  Electricity = format_number_local(aggte_simple_elec$DIDparams$id_count),
+  Gas         = format_number_local(aggte_simple_gas$DIDparams$id_count)
 )
 cs_nG <- list(
-  Electricity = format_number(aggte_simple_elec$DIDparams$treated_groups_count),
-  Gas         = format_number(aggte_simple_gas$DIDparams$treated_groups_count)
+  Electricity = format_number_local(aggte_simple_elec$DIDparams$treated_groups_count),
+  Gas         = format_number_local(aggte_simple_gas$DIDparams$treated_groups_count)
 )
 cs_nT <- list(
-  Electricity = format_number(aggte_simple_elec$DIDparams$time_periods_count),
-  Gas         = format_number(aggte_simple_gas$DIDparams$time_periods_count)
+  Electricity = format_number_local(aggte_simple_elec$DIDparams$time_periods_count),
+  Gas         = format_number_local(aggte_simple_gas$DIDparams$time_periods_count)
 )
 
 # Create the initial 4-model table: (TWFE Elec, TWFE Gas, placeholder, placeholder)
@@ -1388,24 +1395,24 @@ checkpoint("NEVER-TREATED: load CS results")
 
 # Statistics used for patching the CS columns (stored as formatted strings for LaTeX)
 cs_estimates_never <- list(
-  Electricity = format_decimal(aggte_simple_elec_never$overall.att, 1),
-  Gas         = format_decimal(aggte_simple_gas_never$overall.att, 1)
+  Electricity = format_decimal_local(aggte_simple_elec_never$overall.att, 1),
+  Gas         = format_decimal_local(aggte_simple_gas_never$overall.att, 1)
 )
 cs_se_never <- list(
-  Electricity = format_decimal(aggte_simple_elec_never$overall.se, 1),
-  Gas         = format_decimal(aggte_simple_gas_never$overall.se, 1)
+  Electricity = format_decimal_local(aggte_simple_elec_never$overall.se, 1),
+  Gas         = format_decimal_local(aggte_simple_gas_never$overall.se, 1)
 )
 cs_n_never <- list(
-  Electricity = format_number(aggte_simple_elec_never$DIDparams$id_count),
-  Gas         = format_number(aggte_simple_gas_never$DIDparams$id_count)
+  Electricity = format_number_local(aggte_simple_elec_never$DIDparams$id_count),
+  Gas         = format_number_local(aggte_simple_gas_never$DIDparams$id_count)
 )
 cs_nG_never <- list(
-  Electricity = format_number(aggte_simple_elec_never$DIDparams$treated_groups_count),
-  Gas         = format_number(aggte_simple_gas_never$DIDparams$treated_groups_count)
+  Electricity = format_number_local(aggte_simple_elec_never$DIDparams$treated_groups_count),
+  Gas         = format_number_local(aggte_simple_gas_never$DIDparams$treated_groups_count)
 )
 cs_nT_never <- list(
-  Electricity = format_number(aggte_simple_elec_never$DIDparams$time_periods_count),
-  Gas         = format_number(aggte_simple_gas_never$DIDparams$time_periods_count)
+  Electricity = format_number_local(aggte_simple_elec_never$DIDparams$time_periods_count),
+  Gas         = format_number_local(aggte_simple_gas_never$DIDparams$time_periods_count)
 )
 
 checkpoint("NEVER-TREATED: create etable + patch")
