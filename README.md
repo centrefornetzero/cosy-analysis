@@ -46,14 +46,14 @@ All of the following are cited in the paper's bibliography (`overleaf-export/...
 
 | Dataset | Used for | Citation key | Redistributed in this package? |
 |---|---|---|---|
-| ONS mid-year income estimates (MSOA, FYE2023) | Local-area income covariate | `ons_income_fye2023` | To confirm — public ONS release, can likely be re-derived from source rather than shipped |
+| ONS mid-year income estimates (MSOA, FYE2023) | Local-area income covariate | `ons_income_fye2023` | Cited only — public ONS release, re-download from source rather than shipped |
 | ONS House Price Statistics for Small Areas (HPSSA), Dataset 3 | MSOA-level mean property prices | `ons_hpssa3` | Same as above |
 | ONS postcode-to-geography lookups (2011/2021, 2021–2023 vintages) | Crosswalk from postcode to MSOA/LSOA/LAD | `ons_pcd_msoa2011_2021`, `ons_pcd_msoa2021_2023` | Same as above |
 | UK ETS allowance prices | Carbon pricing scenarios (§ Operating Cost Scenarios) | `UKETS` | Yes/public |
 | DESNZ Boiler Upgrade Scheme statistics | Subsidy program context | `DESNZ:BUS2025` | Yes/public |
 | Greenhouse Gas Reporting: Conversion Factors (2023, 2025) | Carbon intensity of gas/electricity | `ukgov2023`, `ukgov2025` | Yes/public |
 | Green Book & supplementary guidance (2020, 2023, 2024) | Discount rates, valuation of energy/GHG, appraisal data tables | `ukgov2020`, `ukgov2023valuation`, `ukgov2024` | Yes/public |
-| MCS Data Dashboard | Average heat pump installation costs | `mcs_dashboard` | To confirm — dashboard export, redistribution terms not yet checked |
+| MCS Data Dashboard | Average heat pump installation costs | `mcs_dashboard` | Yes — permitted for academic use |
 | Delta-EE / BEIS heating measures cost report | Counterfactual gas boiler cost | `delta2018` | Yes/public (BEIS Research Paper 2020/028) |
 | Rennert et al. (2022), *Nature* | Social cost of carbon (IWG-lineage estimate) | `rennert2022` | Citation only (journal article, not a data extract) |
 | BEIS Energy Follow-Up Survey | External benchmark for backup-heating prevalence | `beis2021efus` | Citation only |
@@ -63,18 +63,13 @@ All of the following are cited in the paper's bibliography (`overleaf-export/...
 
 Note: Energy Performance Certificate (EPC) ratings are **not** a public-data item here — they are supplied by Octopus Energy Group linked to household accounts via UPRN, and are therefore listed under "Restricted data" above, not shared.
 
-**Open items flagged above (⚠️), to resolve before deposit:**
-1. Confirm redistribution terms for the MCS Data Dashboard export.
-2. Decide whether the public reference datasets above should be **shipped as files** in the deposit (simplest, satisfies DCAS #2–3 for the portion of raw data that is public) or **only cited** with instructions to re-download (acceptable per DCAS #2 only if reproducible "within a reasonable time frame and with reasonable resources" — likely true here given these are small public tables).
-
 `eff_df.csv` (the electricity/gas consumption-change results reported in the paper, used as
 input to `scripts/05_MVPF.R`) is included in this repository at [`public_data/eff_df.csv`](public_data/eff_df.csv).
 
 `scripts/05_MVPF.R`'s other input, `HP and Cosy paper welfare analysis.xlsx` (compiling most of
 the public reference series in the table above — DESNZ/Defra carbon intensity, Green Book
 Formulas tables, MCS cost data, GDP deflator, SCC), now lives at `public_data/HP and Cosy paper
-welfare analysis.xlsx`. Note this bundles in the MCS Data Dashboard data (open item 1 above,
-still unconfirmed) — resolve that before treating this file as cleared for deposit.
+welfare analysis.xlsx`.
 
 ### Ethics and human subjects
 
@@ -84,7 +79,7 @@ Per DCAS #10/#11: the customer survey referenced in `scripts/01_11_cosy_survey_f
 
 ## Computational Requirements
 
-Captured from the production Vertex AI Workbench instance via `scripts/utils_session_info.R` (2026-08-18). ⚠️ **TODO** — the Runtime section below still needs a genuine cold-start timed run (see instructions in that script).
+Captured from the production Vertex AI Workbench instance via `scripts/utils_session_info.R` (software/hardware: 2026-08-18; runtime: 2026-09-09).
 
 ### Software
 - R version: 4.5.1 (2025-06-13), platform `x86_64-pc-linux-gnu`
@@ -94,7 +89,7 @@ Captured from the production Vertex AI Workbench instance via `scripts/utils_ses
   |---|---|---|---|---|
   | knitr | 1.51 | | readxl | 1.5.0 |
   | kableExtra | 1.4.0 | | purrr | 1.2.0 |
-  | did | 2.1.2 | | progress | 1.2.3 |
+  | did | 2.5.1 | | progress | 1.2.3 |
   | fixest | 0.14.2 | | lfe | 3.1.1 |
   | data.table | 1.18.0 | | tibble | 3.3.0 |
   | lubridate | 1.9.5 | | didimputation | 0.5.0 |
@@ -105,9 +100,9 @@ Captured from the production Vertex AI Workbench instance via `scripts/utils_ses
   | scales | 1.4.0 | | stringr | 1.6.0 |
   | readr | 2.1.6 | | stargazer | 5.2.3 |
   | forcats | 1.0.1 | | panelView | 1.1.18 |
-  | viridis | 0.6.5 | | arrow | ⚠️ TODO — capture via `scripts/utils_session_info.R` |
+  | viridis | 0.6.5 | | arrow | 22.0.0.1 |
 
-- Operating system: Debian GNU/Linux 11 (bullseye), kernel `5.10.0-45-cloud-amd64`
+- Operating system: Debian GNU/Linux 11 (bullseye), kernel `5.10.0-46-cloud-amd64`
 
 ### Hardware
 - OS: Debian GNU/Linux 11 (bullseye)
@@ -116,8 +111,8 @@ Captured from the production Vertex AI Workbench instance via `scripts/utils_ses
 - Disk space: `/home/jupyter` local disk 492 GiB (149 GiB used, 343 GiB available at time of capture); GCS-mounted data bucket (`/home/jupyter/gcs`) reports 1.0 PiB available (shared, not dedicated)
 
 ### Runtime
-- Full pipeline (`source("scripts/main.R")`): *TBD — needs a cold-start timed run; see `scripts/utils_session_info.R`'s Runtime guidance, which deletes the two cached intermediate files first so the timing isn't artificially fast*
-- Per-stage breakdown: *TBD* (optional — only needed if runtime is heterogeneous across stages)
+- Full pipeline (`source("scripts/main.R")`), cold start (all cached intermediates deleted first per `scripts/utils_session_info.R`): measured 2026-09-09 at 28,753.2s elapsed (~8h) on the hardware above (user 61,486.1s, sys 19,028.2s — reflecting parallelism across the 64 logical CPUs)
+- Per-stage breakdown: not captured (optional — only needed if runtime is heterogeneous across stages)
 
 ## Description of Programs
 
@@ -236,7 +231,7 @@ Every table/figure below is `\input{}`/`\includegraphics{}`'d directly into `ove
 
 ## License
 
-This package will be deposited in the AEA Data and Code Repository (openICPSR); license terms will be set at deposit time using openICPSR's default license (per DCAS #15). ⚠️ TODO — confirm with Octopus Energy Group/Centre for Net Zero whether their IP policy requires any deviation from the default before deposit.
+This package will be deposited in the AEA Data and Code Repository (openICPSR), using openICPSR's default license (per DCAS #15) — confirmed with Centre for Net Zero/Octopus Energy Group that their IP policy requires no deviation from the default.
 
 ---
 

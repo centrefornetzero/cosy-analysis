@@ -45,11 +45,6 @@ CLIMATE_FE_SHARE <- uk_gdp_as_proportion_of_global * uk_tax_as_proportion_of_gdp
 # of the scenario discount rate r_disc used for climate benefits below
 r_aq <- 0.035
 
-# Learning-by-doing (LBD) cost reductions: environmental + price components
-lbd_environmental_heatpump <- 3192.62
-lbd_price_heatpump <- 1697.59
-LBD_TOTAL <- lbd_environmental_heatpump + lbd_price_heatpump
-
 # First-£ parameters (keep explicit & editable)
 elasticity <- 1.2
 
@@ -160,6 +155,24 @@ scc_hmg <- tibble(year = YEARS) |>
 # Rennert SCC (constant across years), converted to £2023
 rennert_scc_gbp2023 <- (RENNERT_USD2020 * GBP_PER_USD_2020) * GBP2020_to_GBP2023
 scc_rennert <- rep(rennert_scc_gbp2023, T)
+
+# ----------------------------
+# 5b) LEARNING-BY-DOING (LBD): dynamic price + environmental benefits
+# ----------------------------
+# scripts/lbd_model.R picks up total_installation_cost_hp, tonnes_saved,
+# scc_hmg and YEARS (all defined above) to calibrate itself to this heat pump
+# analysis instead of its own standalone defaults, and to scale its DP/DE
+# welfare terms into £ per household using this program's own install cost.
+# Sourced into its own environment (not this script's) so its internals (e.g.
+# disc, F -- generic names reused for different things in each script) can't
+# clobber objects this script relies on later, mirroring the pipeline's usual
+# environment-hygiene pattern for sub-scripts.
+lbd_env <- new.env(parent = globalenv())
+source("scripts/lbd_model.R", local = lbd_env)
+lbd_price_heatpump <- lbd_env$DP_dollars
+lbd_environmental_heatpump <- lbd_env$DE_dollars
+LBD_TOTAL <- lbd_environmental_heatpump + lbd_price_heatpump
+rm(lbd_env)
 
 # ----------------------------
 # 6) SINGLE-SCENARIO CALCULATION
