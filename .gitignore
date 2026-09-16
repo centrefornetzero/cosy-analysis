@@ -48,6 +48,8 @@ overleaf-export/
 cosy-analysis.Rproj
 lit/
 cosy-analysis.git/
+.vscode/
+databricks.yml
 
 # Superseded explorations and old R Markdown knit artifacts -- may contain
 # stale hardcoded local paths; not part of the replication package
