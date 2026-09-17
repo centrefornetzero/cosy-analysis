@@ -159,16 +159,17 @@ scc_rennert <- rep(rennert_scc_gbp2023, T)
 # ----------------------------
 # 5b) LEARNING-BY-DOING (LBD): dynamic price + environmental benefits
 # ----------------------------
-# scripts/lbd_model.R picks up total_installation_cost_hp, tonnes_saved,
-# scc_hmg and YEARS (all defined above) to calibrate itself to this heat pump
-# analysis instead of its own standalone defaults, and to scale its DP/DE
-# welfare terms into £ per household using this program's own install cost.
+# scripts/05_01_lbd_model.R is an INPUT to this script: it picks up
+# total_installation_cost_hp, tonnes_saved, scc_hmg and YEARS (all defined
+# above) to calibrate itself to this heat pump analysis instead of its own
+# standalone defaults, and to scale its DP/DE welfare terms into £ per
+# household using this program's own install cost.
 # Sourced into its own environment (not this script's) so its internals (e.g.
 # disc, F -- generic names reused for different things in each script) can't
 # clobber objects this script relies on later, mirroring the pipeline's usual
 # environment-hygiene pattern for sub-scripts.
 lbd_env <- new.env(parent = globalenv())
-source("scripts/lbd_model.R", local = lbd_env)
+source("scripts/05_01_lbd_model.R", local = lbd_env)
 lbd_price_heatpump <- lbd_env$DP_dollars
 lbd_environmental_heatpump <- lbd_env$DE_dollars
 LBD_TOTAL <- lbd_environmental_heatpump + lbd_price_heatpump

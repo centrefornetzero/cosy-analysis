@@ -1,6 +1,7 @@
 # =============================================================================
 #  LEARNING-BY-DOING WELFARE MODEL
-#  Standalone R implementation (base R only -- no packages required)
+#  Input sub-script to 05_MVPF.R -- sourced at its Section 5b, after that
+#  script has built tonnes_saved, scc_hmg, YEARS and total_installation_cost_hp.
 #
 #  Computes, for a subsidy to a learning technology:
 #     E(t)   : $ of lifetime pollution damage avoided by a unit bought in year t
@@ -18,87 +19,61 @@
 #  1. INPUTS -- edit this block only
 # =============================================================================
 #
-#  *** PICK ONE "UNIT" AND USE IT EVERYWHERE. ***
-#
-#  This is the single easiest way to get silently wrong answers. X0, x0, cost0
-#  and emis_per_yr must all refer to the SAME physical thing -- one rooftop
-#  system, or one turbine, or one car, or one watt. Not a mix.
-#
 #  The calibration below is for the UK AIR-SOURCE HEAT PUMP subsidy analysed in
-#  05_MVPF.R, with production tracked in GW of installed heat pump capacity:
-#     cost0  = £1,075/kW x 1,000,000 kW/GW      = £1,075m per GW
-#     X0     = ~1,000 GW global cumulative capacity in operation (~2021-22)
-#     x0     = 107 GW added globally in 2025
-#     emis   = 1.16 t CO2e/household/yr, rescaled to per-GW via avg_hp_kw
+#  05_MVPF.R, with production tracked in NUMBER OF INSTALLS (one unit = one
+#  household's heat pump), matching the actual Policy-Impacts/mvpf-climate
+#  cost_curve_simple.wls convention this was validated against:
+#     price0 = total_installation_cost_hp - SUBSIDY_HP  (net, per install)
+#     X0     = global cumulative installs to date, EXCLUDING this year's
+#              additions, converted from GW via avg_hp_kw
+#     x0     = installs added globally this year, converted from GW
+#     emis   = tonnes_saved is already per household -- no rescaling needed
 #  Section 7 prints a unit-consistency check. Read it.
 #
 ## ---- Unit conversion ---------------------------------------------------------
 avg_hp_kw    <- 8          # average heat pump system size (kW), used to convert
-                           #   the paper's per-household emissions figure into the
-                           #   per-GW terms used for X0/x0/cost0 below.
-                           #   The size the paper's own LBD calculation assumed
-                           #   (Sethu Odayappan/Robert Metcalfe email thread,
-                           #   "LBD", Sep 2024: "the average HP size that we are
-                           #   assuming (based on a message from Rob) is 8 kW").
+                           #   the paper's GW-denominated global production
+                           #   figures (X0/x0 below) into number-of-installs
+                           #   (Odayappan/Metcalfe, "LBD" email thread, Sep 2024).
 
 ## ---- Learning curve ---------------------------------------------------------
-theta        <- -0.04995697  # learning elasticity: d ln(cost) / d ln(cum. production)
-                           #   NOT an independent estimate -- solved jointly with
-                           #   epsilon below so this script's DP_dollars/DE_dollars
-                           #   reproduce the pre-existing lbd_price_heatpump (£1,697.59)
-                           #   and lbd_environmental_heatpump (£3,192.62) this script
-                           #   replaced, holding X0/x0/avg_hp_kw/cost0 at their
-                           #   sourced values (see below). This implies a learning
-                           #   rate of only ~3.4% cost decline per doubling of
-                           #   cumulative installations -- markedly below the 14%
-                           #   rate (Weiss et al. 2009) the paper currently cites
-                           #   for heat pumps (main.tex line 611). Flagged to
-                           #   Rob/Andrew -- see email draft -- pending their view
-                           #   on whether reproducing the old figures or keeping
-                           #   the cited 14% rate should take priority.
+learning_rate <- 0.14     # 14% cost reduction per doubling of cumulative
+                           #   production: air-source heat pump rate from
+                           #   Weiss et al. (2009); main.tex line 611.
+theta         <- log(1 - learning_rate) / log(2)
+                           # learning elasticity: d ln(cost) / d ln(cum. production).
+                           #   progress ratio = 2^theta = 1 - learning_rate.
                            #   MUST be negative
 
 ## ---- Demand -----------------------------------------------------------------
-epsilon      <- -2.265146 # own-price elasticity of demand. MUST be negative.
-                           #   NOT an independent estimate -- see theta above; the
-                           #   two were solved jointly to reproduce the old
-                           #   lbd_price_heatpump/lbd_environmental_heatpump
-                           #   figures exactly, given cost0's updated MCS-dashboard
-                           #   value below. Close to the Muehlegger & Rapson (2022)
-                           #   EV estimate (-2.1) used earlier in this process, and
-                           #   further from the additionality-implied estimate
-                           #   (~-1.695, derived from this program's own m=0.5
-                           #   additionality assumption and
-                           #   total_installation_cost_hp/SUBSIDY_HP) than the
-                           #   previous solve was.
+epsilon      <- -1.2      # own-price elasticity of demand. MUST be negative.
+                           #   Reflects 50% infra-marginal buyers; main.tex line 611.
 pass_through <- 1.0       # share of a $1 subsidy that actually reaches the price (0-1)
 
 ## ---- Where we are on the curve today ----------------------------------------
-X0           <- 1220      # CUMULATIVE production to date, in GW, EXCLUDING this year
-                           #   The paper's own figure (Odayappan/Metcalfe/Schein
-                           #   email thread, "LBD", Sep 2024, quoting draft text
-                           #   citing \citep{iea2023net}): "By the end of 2023,
+X0_gw        <- 1220      # CUMULATIVE production to date, in GW
+                           #   \citep{iea2023net}): "By the end of 2023,
                            #   there was 1220 GW of heat pump capacity operating
-                           #   worldwide (up from 500 GW in 2010)". Not currently
-                           #   in main.tex -- likely cut from an earlier draft.
-x0           <- 110       # production DURING the current year, GW/year
+                           #   worldwide (up from 500 GW in 2010)".
+x0_gw        <- 110       # production DURING the current year, GW/year
                            #   Same source: "with sales in 2023 being 110 GW".
                            #   X0 = where you are on the curve; x0 = how fast you're moving
 
+X0           <- (X0_gw - x0_gw) / avg_hp_kw * 1e6
+                           # cumulative INSTALLS to date, EXCLUDING this year's own
+                           #   additions -- the 1220 GW figure already includes this
+                           #   year's 110 GW, so it's netted out here before
+                           #   converting GW -> number of avg_hp_kw-sized installs.
+x0           <- x0_gw / avg_hp_kw * 1e6
+                           # installs added globally this year
+
 ## ---- Costs ------------------------------------------------------------------
-cost0        <- 1423.25e6 # total production cost of ONE unit today ($) -- here, £ per GW
-                           #   £1,423.25/kW x 1e6 kW/GW: average "Average
-                           #   installation cost per kW" from the MCS Installation
-                           #   Insights dashboard
-                           #   (datadashboard.mcscertified.com/InstallationInsights),
-                           #   Nov 2023 - Jun 2024 -- the exact 8-month window
-                           #   05_MVPF.R's own "MCS cost data" sheet averages to get
-                           #   total_installation_cost_hp: the same dashboard's
-                           #   "Average installation cost" column over these same
-                           #   8 months averages £12,712.62, matching
-                           #   total_installation_cost_hp to the penny. Dividing
-                           #   the two implies an average system size of ~8.93kW,
-                           #   corroborating avg_hp_kw = 8 above.
+cost0        <- total_installation_cost_hp - pass_through * SUBSIDY_HP
+                           # net (post-subsidy) price of ONE install, £ -- the
+                           #   quantity cost_curve_simple.wls's own "price" argument
+                           #   represents. total_installation_cost_hp and
+                           #   SUBSIDY_HP are both sourced from 05_MVPF.R's
+                           #   environment (05_MVPF.R:26,110).
 markup       <- 0.0       # mu. 0 = perfect competition (price = marginal cost)
                            #   Not separately estimated for HPs in the paper; kept
                            #   at the model's original perfect-competition default.
@@ -114,40 +89,19 @@ rho          <- 0.035     # annual discount rate: UK Green Book / HMG preferred
 ## ---- Pollution / E(t) --------------------------------------------------------
 lifetime     <- 20        # years the product lasts: the paper's assumed 20-year
                            #   heat pump lifetime (main.tex line 603).
-#  emis_per_yr, grid_decarb, scc0 and scc_growth below are used ONLY as a
-#  standalone fallback E(t) when this script is run on its own. When sourced
-#  from 05_MVPF.R, Section 5 overrides E_vec with that script's own
-#  tonnes_saved x scc_hmg stream (rescaled to per-GW via avg_hp_kw), which is
-#  the actual empirical/SCC path used elsewhere in the paper.
-emis_per_yr  <- 1.16 / avg_hp_kw * 1e6  # tons CO2e avoided per GW PER YEAR, as of today
-                           #   1.16 t CO2e/household/yr at 2024 GB grid intensity
-                           #   (main.tex line 603), rescaled to per-GW.
-grid_decarb  <- -0.0216    # annual proportional decline in emissions avoided,
-                           #   because the counterfactual grid keeps getting cleaner.
-                           #   NEGATIVE here: a heat pump's avoided emissions rise
-                           #   over time as the GB grid decarbonizes (main.tex line
-                           #   603: 1.16 -> 1.74 t/yr from 2024 to 2043), the
-                           #   opposite of a technology displacing a cleaning grid.
-scc0         <- 287       # social cost of carbon today, $/ton -- here, £/tonne
-                           #   UK MAC-based carbon value, 2023 prices, the paper's
-                           #   preferred spec (main.tex line 605/619).
-scc_growth   <- 0.0       # annual real growth in the SCC
-                           #   No explicit flat growth rate is stated in the paper;
-                           #   left at 0 for the standalone fallback (see note above
-                           #   -- the real scc_hmg path is used when sourced).
+#  The emissions-avoided and SCC paths themselves are not set here: Section 5
+#  below builds E(t) directly from 05_MVPF.R's own tonnes_saved/scc_hmg/YEARS.
 
 ## ---- Numerics ---------------------------------------------------------------
 T_max        <- 300       # integration horizon in years (discounting kills the tail)
 dt           <- 0.05      # time step
-program_cost <- 1.0       # $ size of the subsidy program, to convert D's into dollars
-                           #   NOTE: this is independent of the GW units above --
-                           #   it scales the dimensionless per-$1 welfare terms
-                           #   into the $ benefit attributable to ONE HOUSEHOLD's
-                           #   adoption, for use in 05_MVPF.R.
-if (exists("total_installation_cost_hp", inherits = TRUE)) {
-  program_cost <- total_installation_cost_hp  # sourced from 05_MVPF.R: use its
-                                               # own per-household install cost
-}
+program_cost <- SUBSIDY_HP
+                           # $ size of the subsidy program, to convert D's into
+                           #   dollars -- matches the actual replication
+                           #   package's convention (e.g. federal_ev.do:753:
+                           #   cost_wtp = DP * avg_subsidy), confirmed by
+                           #   reproducing Sethu's original £1,697.59/£3,192.62
+                           #   figures with program_cost = SUBSIDY_HP.
 
 
 # =============================================================================
@@ -248,33 +202,24 @@ if (fixed_frac == 0) {
 # the counterfactual. A solar panel doesn't avoid pollution in the abstract; it
 # avoids whatever the grid would otherwise have burned, and that changes as the
 # grid decarbonizes.
-
-emis_at <- function(s) emis_per_yr * (1 - grid_decarb)^s   # tons/yr avoided, year s
-scc_at  <- function(s) scc0 * (1 + scc_growth)^s           # $/ton, year s
+#
+# Built directly from 05_MVPF.R's own tonnes_saved (per-household CO2e avoided,
+# already reflecting the DESNZ grid-decarbonization path) and scc_hmg (MAC-based
+# SCC), both indexed over YEARS <- 2024:2043 -- the same grid-decarbonization
+# and carbon-value series 05_MVPF.R itself uses, so LBD and MVPF are always
+# consistent. s = 0..19 indexes calendar time since 2024; held flat beyond 2043
+# via rule = 2, since neither projection extends further. tonnes_saved is
+# already per household -- no rescaling, since X0/x0/cost0 are now also
+# denominated per install (Section 1).
+hp_s    <- seq_along(YEARS) - 1
+emis_at <- function(s) approx(hp_s, tonnes_saved, xout = s, rule = 2)$y
+scc_at  <- function(s) approx(hp_s, scc_hmg,      xout = s, rule = 2)$y
 
 E_of_t <- function(t) {
   a <- 0:(lifetime - 1)                  # age of the unit
   sum(emis_at(t + a) * scc_at(t + a) / (1 + rho)^a)
 }
 E_vec <- vapply(tgrid, E_of_t, numeric(1))
-
-# ---- OVERRIDE: use 05_MVPF.R's real streams instead of the approximation above ----
-# When sourced from 05_MVPF.R, tonnes_saved and scc_hmg already exist (its actual
-# per-household CO2e-avoided and MAC-based SCC paths for YEARS <- 2024:2043).
-# s = 0..19 indexes calendar time since 2024; held flat beyond 2043 via rule = 2,
-# since neither the grid-intensity nor SCC projections extend further. Rescaled
-# from per-household to per-GW via avg_hp_kw to match X0/x0/cost0's units.
-if (exists("tonnes_saved", inherits = TRUE) && exists("scc_hmg", inherits = TRUE) &&
-    exists("YEARS", inherits = TRUE)) {
-  hp_s    <- seq_along(YEARS) - 1
-  emis_at <- function(s) approx(hp_s, tonnes_saved, xout = s, rule = 2)$y / avg_hp_kw * 1e6
-  scc_at  <- function(s) approx(hp_s, scc_hmg,      xout = s, rule = 2)$y
-  E_of_t <- function(t) {
-    a <- 0:(lifetime - 1)
-    sum(emis_at(t + a) * scc_at(t + a) / (1 + rho)^a)
-  }
-  E_vec <- vapply(tgrid, E_of_t, numeric(1))
-}
 
 
 # =============================================================================
@@ -361,7 +306,7 @@ cat(sprintf("    DP  %14.2f\n    Dpi %14.2f\n    DE  %14.2f\n    TOT %14.2f\n",
 cat("\n================ SANITY CHECKS ==============\n")
 chk <- function(ok, msg) cat(sprintf("  [%s] %s\n", if (ok) "OK  " else "FAIL", msg))
 chk(DP > 0,  "DP > 0  (learning makes future units cheaper)")
-chk(DE > 0 || emis_per_yr <= 0, "DE > 0  (induced units avoid pollution)")
+chk(DE > 0 || all(tonnes_saved <= 0), "DE > 0  (induced units avoid pollution)")
 if (markup == 0) {
   chk(abs(Dpi) < 1e-12, "Dpi = 0  (markup = 0, so all learning gains go to consumers)")
 } else {
@@ -373,40 +318,12 @@ chk(all(diff(unit_cost(X)) <= 1e-12), "unit cost is falling")
 # Unit-consistency smell test. E(0) is the lifetime pollution value of one unit;
 # price0 is what one unit costs. Their ratio should be economically plausible --
 # somewhere around 0.01x to 10x. A ratio of 1000 almost always means X0/cost0/
-# emis_per_yr are denominated in different things (per-watt vs per-system, etc).
+# tonnes_saved are denominated in different things (per-watt vs per-system, etc).
 ratio <- E_vec[1] / price0
 chk(ratio > 0.001 && ratio < 100,
     sprintf("E(0)/price = %.3f  (expect roughly 0.001-100 if units agree)", ratio))
 if (ratio <= 0.001 || ratio >= 100) {
   cat(sprintf("\n  !! E(0) = $%.0f but one unit costs $%.0f.\n", E_vec[1], price0))
-  cat("     Check that X0, x0, cost0 and emis_per_yr all describe the SAME unit.\n")
+  cat("     Check that X0, x0, cost0 and tonnes_saved all describe the SAME unit.\n")
 }
 chk(x0 <= X0, "x0 <= X0 (annual output below cumulative)")
-
-# --- plots -------------------------------------------------------------------
-# Skipped when sourced from 05_MVPF.R (detected via total_installation_cost_hp)
-# so these base-R diagnostic plots don't interleave with that script's own
-# ggplot figures.
-if (!exists("total_installation_cost_hp", inherits = TRUE)) {
-  op <- par(mfrow = c(2, 2), mar = c(4.2, 4.4, 2.6, 1))
-
-  plot(tgrid, unit_cost(X), type = "l", lwd = 2, col = "#1f4e79",
-       xlab = "Year from today", ylab = "Cost per unit ($)",
-       main = "Cost per unit over time")
-  abline(h = F, lty = 3, col = "grey40")
-  if (F > 0) text(T_max * 0.6, F, "fixed floor F", pos = 3, cex = 0.75, col = "grey40")
-
-  plot(X, unit_cost(X), type = "l", lwd = 2, col = "#1f4e79", log = "xy",
-       xlab = "Cumulative production (log)", ylab = "Cost per unit (log)",
-       main = "The learning curve")
-
-  plot(tgrid, E_vec, type = "l", lwd = 2, col = "#c00000",
-       xlab = "Year of purchase, t", ylab = "E(t), $ per unit",
-       main = "E(t): lifetime damages avoided")
-
-  barplot(c(DP = DP, Dpi = Dpi, DE = DE), col = c("#1f4e79", "#7f7f7f", "#c00000"),
-          main = "Welfare terms, per $1 of program cost", ylab = "$")
-  abline(h = 0)
-
-  par(op)
-}

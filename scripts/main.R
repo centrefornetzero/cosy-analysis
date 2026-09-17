@@ -17,6 +17,8 @@
 #      03_00_balance_tables_and_reweighting.R,
 #      04_00_half_hourly_analysis.R, 05_MVPF.R,
 #      06_sample_descriptive_statistics.R
+#      (05_MVPF.R itself sources scripts/05_01_lbd_model.R as an input before
+#      its final welfare calculation -- LBD is not a separate top-level stage)
 # ============================================================
 
 
