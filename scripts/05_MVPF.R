@@ -82,24 +82,43 @@ stopifnot(length(elec_ci) == T, !any(is.na(elec_ci)))
 gas_ci <- read_excel(PATH_XLSX, sheet = "Defra gas and elec carbon inten",
                      range = "D26:D26", col_names = FALSE)[[1]][1]
 
-# AQ costs (already inflated in Formulas)
-aq_vals <- read_excel(PATH_XLSX, sheet = "Formulas", range = "F119:Y120", col_names = FALSE)
-aq_elec <- as.numeric(unlist(aq_vals[1, ]))
-aq_gas  <- as.numeric(unlist(aq_vals[2, ]))
-stopifnot(length(aq_elec) == T, length(aq_gas) == T)
+# GDP deflator, calendar-year index (2023 = 100): the "Air quality" and
+# "Retail energy prices forecast" source tables below are both denominated in
+# real 2022 prices, so this fixed ratio (2022 index / 2023 index) is applied
+# to bring them to the 2023 base year used throughout this script -- the same
+# single ratio the (now-removed) "Formulas" sheet applied to every cell it
+# derived from those two tables.
+defl_tbl <- read_excel(PATH_XLSX, sheet = "GDP deflator", range = "H78:I79", col_names = c("cal_year", "index"))
+deflator_2022_to_2023 <- defl_tbl$index[defl_tbl$cal_year == 2022] / defl_tbl$index[defl_tbl$cal_year == 2023]
 
-# Retail prices (HMG) from Formulas
-prices <- read_excel(PATH_XLSX, sheet = "Formulas", range = "F134:Y135", col_names = FALSE)
-elec_price <- as.numeric(unlist(prices[1, ]))
-gas_price  <- as.numeric(unlist(prices[2, ]))
-stopifnot(length(elec_price) == T, length(gas_price) == T)
+# AQ costs: "Air quality" sheet, National Average p/kWh, Electricity/Gas rows,
+# converted from p to £ and deflated to 2023 prices.
+aq_raw <- read_excel(PATH_XLSX, sheet = "Air quality", range = "D11:CC14", col_names = FALSE)
+aq_years <- as.numeric(aq_raw[1, ])
+idx_aq <- match(YEARS, aq_years)
+aq_elec <- as.numeric(aq_raw[3, ])[idx_aq] / 100 / deflator_2022_to_2023  # row 3 = Electricity
+aq_gas  <- as.numeric(aq_raw[4, ])[idx_aq] / 100 / deflator_2022_to_2023  # row 4 = Gas
+stopifnot(length(aq_elec) == T, length(aq_gas) == T, !any(is.na(aq_elec)), !any(is.na(aq_gas)))
 
-# Gas standing charge (Formulas)
-gas_sc <- as.numeric(unlist(read_excel(PATH_XLSX, sheet = "Formulas", range = "F133:Y133", col_names = FALSE)))
+# Retail prices: "Retail energy prices forecast" sheet, Central scenario,
+# Domestic sector (Table 4 electricity col 5, Table 5 gas col 15, both
+# 1-indexed from column B), converted from p to £ and deflated to 2023 prices.
+rep_raw <- suppressWarnings(read_excel(PATH_XLSX, sheet = "Retail energy prices forecast", range = "B9:U100", col_names = FALSE))
+rep_years <- suppressWarnings(as.numeric(sub("\\.0$", "", rep_raw[[1]])))
+idx_rep <- match(YEARS, rep_years)
+elec_price <- as.numeric(rep_raw[[5]])[idx_rep]  / 100 / deflator_2022_to_2023
+gas_price  <- as.numeric(rep_raw[[15]])[idx_rep] / 100 / deflator_2022_to_2023
+stopifnot(length(elec_price) == T, length(gas_price) == T, !any(is.na(elec_price)), !any(is.na(gas_price)))
+
+# Gas standing charge: a flat literal (0.2936) with no upstream source tab --
+# it was typed directly into "Formulas" cell F133 with no formula behind it,
+# so it's copied here rather than "reconstructed".
+gas_sc <- rep(0.2936, T)
 stopifnot(length(gas_sc) == T)
 
-# Boiler price for VAT loss (Formulas)
-boiler_price <- as.numeric(read_excel(PATH_XLSX, sheet = "Formulas", range = "F128:F128", col_names = FALSE)[1, ])
+# Boiler price for VAT loss: likewise a flat literal (£2,250, "Formulas" cell
+# F127) with no upstream source tab; F128's own formula (F127/1.2) is kept.
+boiler_price <- 2250 / 1.2
 vat_boiler_oneoff <- -0.2 * boiler_price
 
 # MCS installation costs: use mean as total installation cost
