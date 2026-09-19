@@ -35,7 +35,8 @@ The code is organized as a numbered pipeline of R scripts orchestrated by [`scri
 
 **Access for verification/replication purposes:**
 - There is **no established, author-independent process** by which an outside researcher can request access to these data.
-- Centre for Net Zero / Octopus Energy Group have indicated they are unable to provide a private, unpublished copy of the data directly to the AEA Data Editor or a designated third-party replicator for verification purposes.
+- Centre for Net Zero / Octopus Energy Group have indicated they are unable to provide a private, unpublished copy of the data directly to the AEA Data Editor
+- Centre for Net Zero / Octopus Energy Group have designated third-party replicator for verification purposes.
 - Given the above, per the AEA Data and Code Availability Policy's provisions for non-public data, the authors commit to: (i) preserving the data and code for no less than five years following publication; (ii) providing reasonable assistance to requests for clarification and replication; (iii) making all code publicly available; and (iv) publicly disclosing the source of the data with contact information (below).
 
 **Contact for data provenance questions:** info@centrefornetzero.org
