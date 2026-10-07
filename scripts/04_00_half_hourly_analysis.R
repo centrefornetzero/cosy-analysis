@@ -362,6 +362,7 @@ ggplot(coefs, aes(x = settlement_period, y = Estimate, group = treatment, color 
 
 # Save the plot if necessary
 ggsave("graphs/combined_impact_hourly_consumption.png", width = 10, height = 6, dpi = 300)
+ggsave("graphs/combined_impact_hourly_consumption.pdf", width = 10, height = 6, dpi = 300)
 
 # Save the limit for hp and tariff coefs
 y_min <- min(coefs$lower_ci, na.rm = TRUE)
@@ -420,6 +421,7 @@ make_plot <- function(data_subset, filename){
     )
 
   ggsave(filename, plot = p, width = 10, height = 6, dpi = 300)
+  ggsave(sub("\\.png$", ".pdf", filename), plot = p, width = 10, height = 6, dpi = 300)
 }
 
 make_plot(filter(coefs, treatment == "hp"),

@@ -527,6 +527,8 @@ p_wf
 
 ggsave("graphs/waterfall_hp_preferred.png", plot = p_wf,
        width = 10, height = 6, bg = "transparent", dpi = 300)
+ggsave("graphs/waterfall_hp_preferred.pdf", plot = p_wf,
+       width = 10, height = 6, bg = "transparent", dpi = 300)
 
 cat("Saved waterfall to graphs/waterfall_hp_preferred.png\n")
 
@@ -634,6 +636,8 @@ p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
 p_sens
 
 ggsave("graphs/MVPF_sensitivity_heatmap.png", plot = p_sens,
+       width = 10, height = 6, bg = "transparent", dpi = 300)
+ggsave("graphs/MVPF_sensitivity_heatmap.pdf", plot = p_sens,
        width = 10, height = 6, bg = "transparent", dpi = 300)
 
 cat("Saved MVPF sensitivity heatmap to graphs/MVPF_sensitivity_heatmap.png\n")

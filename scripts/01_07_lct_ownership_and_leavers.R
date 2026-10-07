@@ -338,6 +338,7 @@ ggplot(grouped_data, aes(x = as.factor(leavers), y = proportion, fill = as.facto
   theme(legend.position = "bottom")
 
 ggsave(filename= "graphs/leavers_ev.png",width = 10, height = 8, dpi = 300)
+ggsave(filename= "graphs/leavers_ev.pdf",width = 10, height = 8, dpi = 300)
 
 leaver_pcts <- grouped_data %>% filter(has_ev == TRUE)
 writeLines(c(

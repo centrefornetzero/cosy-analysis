@@ -220,5 +220,6 @@ ggplot(cosy_saving5, aes(x = `property_value_category`, y = share_gain, fill = `
 
 # Save the combined plot
 ggsave("graphs/property_value_average_bill_saving.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/property_value_average_bill_saving.pdf", device = "pdf", width = 16, height = 12, units = "cm")
 
 

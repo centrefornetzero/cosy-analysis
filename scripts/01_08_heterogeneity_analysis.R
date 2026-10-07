@@ -116,6 +116,8 @@ ggplot(coefs %>% filter(rate_period != "Overall"), aes(x = `Average Daily Temper
 
 ggsave("graphs/cosy_temperature_binned.png",
        width = 17, height = 8, units = "cm")
+ggsave("graphs/cosy_temperature_binned.pdf",
+       width = 17, height = 8, units = "cm")
 
 
 # Create the ggplot
@@ -138,6 +140,8 @@ ggplot(coefs %>% filter(rate_period != "Overall"), aes(x = `Average Daily Temper
   )
 
 ggsave("graphs/cosy_temperature_binned_blog_version.png",
+       width = 17, height = 8, units = "cm")
+ggsave("graphs/cosy_temperature_binned_blog_version.pdf",
        width = 17, height = 8, units = "cm")
 
 # Unique periods 
@@ -202,6 +206,8 @@ for (i in 1:length(tempreg)) {
   # Print the plot
   ggsave(paste0("graphs/cosy_temperature_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/cosy_temperature_", tolower(gsub(" ", "_", val)), ".pdf"),
+         width = 16, height = 8, units = "cm")
 }
 
 
@@ -242,6 +248,7 @@ ggplot(all_coefs, aes(x = daily_avg_air_temperature_celsius, y = Estimate)) +
 
 # Print the plot
 ggsave("graphs/cosy_temperature_all.png", width = 16, height = 8, units = "cm")
+ggsave("graphs/cosy_temperature_all.pdf", width = 16, height = 8, units = "cm")
 
 rm(list = ls(pattern = "^m[0-9]_"))
 gc()
@@ -328,6 +335,7 @@ p <- ggplot(all_coefs, aes(x = temp_degree, y = Estimate)) +
   facet_wrap(~sample)
 
 ggsave("graphs/cosy_temperature_share_all.png", plot = p, width = 16, height = 8, units = "cm")
+ggsave("graphs/cosy_temperature_share_all.pdf", plot = p, width = 16, height = 8, units = "cm")
 
 # ----------------------------
 # Cosy Adoption by Previous Tariff Type
@@ -551,6 +559,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/eac_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/eac_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
+         width = 16, height = 8, units = "cm")
   
   if (i<5) {
     # Create the ggplot
@@ -576,6 +586,8 @@ for (i in 1:5) {
     
     # Print the plot
     ggsave(paste0("graphs/eac_share_", tempreg_total[[i]]$model_info$sample$value %>% tolower() %>% str_replace(" ", "_"), ".png"),
+           width = 16, height = 8, units = "cm")
+    ggsave(paste0("graphs/eac_share_", tempreg_total[[i]]$model_info$sample$value %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
            width = 16, height = 8, units = "cm")
   }
 }
@@ -642,6 +654,7 @@ ggplot(all_coefs_share %>% filter(period!="Overall"), aes(x = EAC_MWh_Category, 
 
 # Save the combined plot
 ggsave("graphs/eac_share_combined.png", device = "png", width = 16, height = 12, dpi = 300)
+ggsave("graphs/eac_share_combined.pdf", device = "pdf", width = 16, height = 12, dpi = 300)
 
 
 # Create the combined ggplot using facet_wrap
@@ -665,6 +678,7 @@ ggplot(all_coefs_total %>% filter(period!="Overall"), aes(x = EAC_MWh_Category, 
 
 # Save the combined plot
 ggsave("graphs/eac_combined.png", device = "png", width = 16, height = 12, dpi = 300)
+ggsave("graphs/eac_combined.pdf", device = "pdf", width = 16, height = 12, dpi = 300)
 
 # List all objects in the environment
 rm(list = ls(pattern = "^m_"))
@@ -742,6 +756,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/epc_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/epc_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
+         width = 16, height = 8, units = "cm")
 }
 
 # m2a holds the per-period EPC models, m1 supplies the corresponding ATE values, and rating_colors (defined above) supplies the EPC letter fill colors
@@ -799,6 +815,7 @@ ggplot(all_coefs %>% filter(period!="Overall"), aes(y = factor(EPC_letter, level
 
 # Print the plot
 ggsave("graphs/cosy_epc_combined.png", width = 16, height = 8, units = "cm")
+ggsave("graphs/cosy_epc_combined.pdf", width = 16, height = 8, units = "cm")
 
 rm(m2a)
 
@@ -869,6 +886,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/heatloss_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/heatloss_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
+         width = 16, height = 8, units = "cm")
   
 }
 
@@ -923,6 +942,8 @@ for (i in 1:4) {
   
   # Print the plot
   ggsave(paste0("graphs/share_heatloss_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
+         width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/share_heatloss_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
          width = 16, height = 8, units = "cm")
   
 }
@@ -992,6 +1013,7 @@ ggplot(all_coefs_share %>% filter(period!="Overall"), aes(x = EAC_MWh_Category, 
 
 # Save the combined plot
 ggsave("graphs/heatloss_share_combined.png", device = "png", width = 16, height = 12, dpi = 300)
+ggsave("graphs/heatloss_share_combined.pdf", device = "pdf", width = 16, height = 12, dpi = 300)
 
 
 # Create the combined ggplot using facet_wrap
@@ -1016,6 +1038,7 @@ ggplot(all_coefs_total %>% filter(period!="Overall"), aes(x = EAC_MWh_Category, 
 
 # Save the combined plot
 ggsave("graphs/heatloss_combined.png", device = "png", width = 16, height = 12, dpi = 300)
+ggsave("graphs/heatloss_combined.pdf", device = "pdf", width = 16, height = 12, dpi = 300)
 
 # List all objects in the environment
 rm(list = ls(pattern = "^m_"))
@@ -1088,6 +1111,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/floor_area_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/floor_area_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
+         width = 16, height = 8, units = "cm")
   
 }
 
@@ -1143,6 +1168,8 @@ for (i in 1:4) {
   
   # Print the plot
   ggsave(paste0("graphs/share_floor_area_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
+         width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/share_floor_area_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
          width = 16, height = 8, units = "cm")
   
 }
@@ -1231,6 +1258,7 @@ ggplot(all_coefs %>% filter(outcome == "Share Consumption"), aes(x = `Floor_Area
 
 # Save the combined plot
 ggsave("graphs/floor_area_share_combined.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/floor_area_share_combined.pdf", device = "pdf", width = 16, height = 12, units = "cm")
 
 
 
@@ -1257,6 +1285,7 @@ ggplot(all_coefs %>% filter(outcome == "Total Consumption", period != "Overall")
 
 # Save the combined plot
 ggsave("graphs/floor_area_combined.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/floor_area_combined.pdf", device = "pdf", width = 16, height = 12, units = "cm")
 
 
 rm(list = ls(pattern = "^m_"))
@@ -1354,6 +1383,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/property_value_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/property_value_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
+         width = 16, height = 8, units = "cm")
   
 }
 
@@ -1414,6 +1445,8 @@ for (i in 1:4) {
   # Print the plot
   ggsave(paste0("graphs/share_property_value_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/share_property_value_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
+         width = 16, height = 8, units = "cm")
   
 }
 
@@ -1445,6 +1478,7 @@ ggplot(all_coefs %>% filter(outcome == "Share Consumption"),
 
 # Save the combined plot
 ggsave("graphs/property_value_share_combined.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/property_value_share_combined.pdf", device = "pdf", width = 16, height = 12, units = "cm")
 
 
 
@@ -1471,6 +1505,7 @@ ggplot(all_coefs %>% filter(outcome == "Total Consumption", period != "Overall")
 
 # Save the combined plot
 ggsave("graphs/property_value_combined.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/property_value_combined.pdf", device = "pdf", width = 16, height = 12, units = "cm")
 
 
 
@@ -1547,6 +1582,7 @@ ggplot(all_coefs %>% filter(period != "Overall"), aes(x = Region, y = Estimate, 
 
 # Save the plot
 ggsave("graphs/region_combined.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/region_combined.pdf", device = "pdf", width = 16, height = 12, units = "cm")
 
 
 rm(list = ls(pattern = "^m_"))
@@ -1658,6 +1694,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/income_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/income_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
+         width = 16, height = 8, units = "cm")
   
 }
 
@@ -1721,6 +1759,7 @@ ggplot(all_coefs %>% filter(outcome == "Total Consumption", period != "Overall")
 
 # Save the combined plot
 ggsave("graphs/income_category_combined.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/income_category_combined.pdf", device = "pdf", width = 16, height = 12, units = "cm")
 
 
 all_coefs <- list()
@@ -1779,5 +1818,6 @@ ggplot(all_coefs %>% filter(outcome == "Share Consumption"),
 
 # Save the combined plot
 ggsave("graphs/income_share_combined.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/income_share_combined.pdf", device = "pdf", width = 16, height = 12, units = "cm")
 
 cat("\n>>> Cosy heterogeneity analysis: done <<<\n")

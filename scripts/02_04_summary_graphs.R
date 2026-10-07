@@ -68,6 +68,7 @@ ggplot() +
 
 # Save the combined plot
 ggsave("graphs/combined_weekly_installations_deals.png", width = 15, height = 10, units = "cm", dpi = 300)
+ggsave("graphs/combined_weekly_installations_deals.pdf", width = 15, height = 10, units = "cm", dpi = 300)
 
 hp_installed %>%
   distinct(account_id, installed_at) %>%
@@ -82,4 +83,5 @@ hp_installed %>%
   theme_minimal()
 
 ggsave("graphs/monthly_installation.png", width = 12, height = 8, dpi = 300)
+ggsave("graphs/monthly_installation.pdf", width = 12, height = 8, dpi = 300)
 

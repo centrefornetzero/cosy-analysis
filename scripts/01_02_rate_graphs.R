@@ -130,6 +130,7 @@ ggplot(combined_rates, aes(x = time, y = rate, color = group, linetype = group))
   guides(linetype = "none")
 
 ggsave("graphs/Cosy Tariff.png", width = 10, height = 4, dpi = 300)
+ggsave("graphs/Cosy Tariff.pdf", width = 10, height = 4, dpi = 300)
 
 
 # ----------------------------
@@ -177,6 +178,7 @@ ggplot(rates_selection, aes(x = rate_period, y = unit_rate, fill = tariff_gsp_gr
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave("graphs/Rates_by_Rate_Period_and_GSP_Group.png", width = 10, height = 6, dpi = 300)
+ggsave("graphs/Rates_by_Rate_Period_and_GSP_Group.pdf", width = 10, height = 6, dpi = 300)
 
 
 
@@ -216,4 +218,5 @@ ggplot(rates_long, aes(x = valid_from, y = unit_rate, color = tariff_gsp_group_n
 
 
 ggsave("graphs/Rate_Changes_by_Period.png", width = 12, height = 8, dpi = 300)
+ggsave("graphs/Rate_Changes_by_Period.pdf", width = 12, height = 8, dpi = 300)
 

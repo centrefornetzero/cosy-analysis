@@ -324,7 +324,9 @@ p_cal <- ggplot(plot_cal_data, aes(x = week_date, y = estimate, colour = type, g
   theme(legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave("graphs/hp_calendarplot_combined_with_annual_labels_gas_only.png", plot = p_cal, width = 10, height = 6, dpi = 300)
+ggsave("graphs/hp_calendarplot_combined_with_annual_labels_gas_only.pdf", plot = p_cal, width = 10, height = 6, dpi = 300)
 if (write_main) ggsave("graphs/hp_calendarplot_combined_with_annual_labels.png", plot = p_cal, width = 10, height = 6, dpi = 300)
+if (write_main) ggsave("graphs/hp_calendarplot_combined_with_annual_labels.pdf", plot = p_cal, width = 10, height = 6, dpi = 300)
 
 # ----------------------------
 # 12m rolling + COP panel (gas-only)
@@ -444,7 +446,9 @@ p_cop <- ggplot(cop_ts, aes(x = week_date, y = cop)) +
 p_combined <- p_top / p_cop + plot_layout(heights = c(2.2, 1))
 
 ggsave("graphs/calendar_att_12m_with_quarter_points_and_cop_gas_only.png", plot = p_combined, width = 12, height = 9, dpi = 300)
+ggsave("graphs/calendar_att_12m_with_quarter_points_and_cop_gas_only.pdf", plot = p_combined, width = 12, height = 9, dpi = 300)
 if (write_main) ggsave("graphs/calendar_att_12m_with_quarter_points_and_cop.png", plot = p_combined, width = 12, height = 9, dpi = 300)
+if (write_main) ggsave("graphs/calendar_att_12m_with_quarter_points_and_cop.pdf", plot = p_combined, width = 12, height = 9, dpi = 300)
 
 # ----------------------------
 # quasi_cop plot (gas-only)
@@ -601,6 +605,8 @@ p_quasi <- ggplot(cop_boot_plot, aes(x = degree, y = median)) +
   theme(legend.position = "bottom")
 
 ggsave("graphs/quasi_cop_gas_only.png", plot = p_quasi, width = 16, height = 8, units = "cm")
+ggsave("graphs/quasi_cop_gas_only.pdf", plot = p_quasi, width = 16, height = 8, units = "cm")
 if (write_main) ggsave("graphs/quasi_cop.png", plot = p_quasi, width = 16, height = 8, units = "cm")
+if (write_main) ggsave("graphs/quasi_cop.pdf", plot = p_quasi, width = 16, height = 8, units = "cm")
 
 checkpoint("DONE: gas-only robustness outputs generated")

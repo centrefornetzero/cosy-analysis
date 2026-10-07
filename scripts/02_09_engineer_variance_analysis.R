@@ -261,6 +261,7 @@ ggplot(plot_data, aes(x = avg_account_fe, y = Estimate)) +
   theme(legend.position = "none")
 
 ggsave("graphs/engineer_vs_household_fe.png", width = 8, height = 6)
+ggsave("graphs/engineer_vs_household_fe.pdf", width = 8, height = 6)
 
 
 # coeftable

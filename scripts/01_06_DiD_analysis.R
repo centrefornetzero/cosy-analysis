@@ -458,6 +458,7 @@ for (period in periods) {
           legend.position = "right")
 
   ggsave(paste0("graphs/monthly_att_", tolower(period) %>% str_replace(" ", "_"), ".png"))
+  ggsave(paste0("graphs/monthly_att_", tolower(period) %>% str_replace(" ", "_"), ".pdf"))
 
   cat(">>> Saved calendar-time plot for:", period, "<<<\n")
 }
@@ -507,6 +508,8 @@ for (period in periods) {
 
   ggsave(paste0("graphs/plot_", period, ".png"),
          plot = p, device = "png", width = 10, height = 8, dpi = 300)
+  ggsave(paste0("graphs/plot_", period, ".pdf"),
+         plot = p, device = "pdf", width = 10, height = 8, dpi = 300)
 
   cat(">>> Saved dynamic plot for:", period, "<<<\n")
 
@@ -546,6 +549,8 @@ p_dynamic_combined <- ggplot(all_dynamic, aes(x = event_time, y = coefficient, c
 
 ggsave("graphs/dynamic_att_combined.png", plot = p_dynamic_combined,
        device = "png", width = 16, height = 12, dpi = 300)
+ggsave("graphs/dynamic_att_combined.pdf", plot = p_dynamic_combined,
+       device = "pdf", width = 16, height = 12, dpi = 300)
 
 cat(">>> Saved combined dynamic ATT plot <<<\n")
 
@@ -723,6 +728,8 @@ for (period in periods) {
 
   ggsave(paste0("graphs/calendarplot_", period, ".png"),
          plot = p, device = "png", width = 5, height = 4, dpi = 300)
+  ggsave(paste0("graphs/calendarplot_", period, ".pdf"),
+         plot = p, device = "pdf", width = 5, height = 4, dpi = 300)
 
   cat(">>> Saved calendar plot (with last 12m shading) for:", period, "<<<\n")
 
@@ -831,6 +838,8 @@ p_calendar_combined <- ggplot(all_calendar, aes(x = week_date, y = estimate)) +
 
 ggsave("graphs/calendarplot_combined.png", plot = p_calendar_combined,
        device = "png", width = 16, height = 12, dpi = 300)
+ggsave("graphs/calendarplot_combined.pdf", plot = p_calendar_combined,
+       device = "pdf", width = 16, height = 12, dpi = 300)
 
 cat(">>> Saved combined calendar ATT plot <<<\n")
 

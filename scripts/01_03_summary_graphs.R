@@ -99,6 +99,7 @@ ggplot(weekly_adoptions, aes(x = first_week, y = adoptions)) +
 
 # Save the plot
 ggsave("graphs/weekly_adoptions.png", width = 16, height = 8, units = "cm")
+ggsave("graphs/weekly_adoptions.pdf", width = 16, height = 8, units = "cm")
 
 
 

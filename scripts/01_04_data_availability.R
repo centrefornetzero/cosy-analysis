@@ -40,3 +40,8 @@ ggsave(
   plot = plot_panel,
   width = 16, height = 8, units = "cm"
 )
+ggsave(
+  "graphs/data_availability.pdf",
+  plot = plot_panel,
+  width = 16, height = 8, units = "cm"
+)

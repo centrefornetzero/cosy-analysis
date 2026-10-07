@@ -121,6 +121,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/hp_temperature_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/hp_temperature_", tolower(gsub(" ", "_", val)), ".pdf"),
+         width = 16, height = 8, units = "cm")
 }
 
 
@@ -221,6 +223,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/hp_epc_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/hp_epc_", tolower(gsub(" ", "_", val)), ".pdf"),
+         width = 16, height = 8, units = "cm")
 }
 
 rm(m2a)
@@ -306,6 +310,8 @@ for (i in 1:5) {
   
   # Print the plot
   ggsave(paste0("graphs/hp_hs_", tolower(gsub(" ", "_", val)), ".png"),
+         width = 20, height = 12, units = "cm")
+  ggsave(paste0("graphs/hp_hs_", tolower(gsub(" ", "_", val)), ".pdf"),
          width = 20, height = 12, units = "cm")
 }
 
@@ -411,6 +417,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/hp_income_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/hp_income_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
+         width = 16, height = 8, units = "cm")
   
 }
 
@@ -471,6 +479,7 @@ ggplot(all_coefs %>% filter(outcome == "Total Consumption", period != "Overall")
 
 # Save the combined plot
 ggsave("graphs/hp_income_category_combined.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/hp_income_category_combined.pdf", device = "pdf", width = 16, height = 12, units = "cm")
 
 
 # ----------------------------
@@ -551,6 +560,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/hp_property_value_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/hp_property_value_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
+         width = 16, height = 8, units = "cm")
   
 }
 
@@ -630,6 +641,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/hp_heatloss_", val %>% tolower() %>% str_replace(" ", "_"), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/hp_heatloss_", val %>% tolower() %>% str_replace(" ", "_"), ".pdf"),
+         width = 16, height = 8, units = "cm")
   
 }
 
@@ -683,6 +696,7 @@ ggplot(coefs_total, aes(x = Region, y = Estimate, fill = Region)) +
 
 # Save the plot
 ggsave("graphs/hp_region_combined.png", device = "png", width = 16, height = 12, units = "cm")
+ggsave("graphs/hp_region_combined.pdf", device = "pdf", width = 16, height = 12, units = "cm")
 
 
 
@@ -763,6 +777,8 @@ for (i in 1:5) {
   # Print the plot
   ggsave(paste0("graphs/hp_floor_area_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/hp_floor_area_", tolower(gsub(" ", "_", val)), ".pdf"),
+         width = 16, height = 8, units = "cm")
 }
 
 
@@ -829,6 +845,8 @@ for (i in 1:4) {
   
   # Print the plot
   ggsave(paste0("graphs/hp_share_floor_area_", tolower(gsub(" ", "_", val)), ".png"),
+         width = 16, height = 8, units = "cm")
+  ggsave(paste0("graphs/hp_share_floor_area_", tolower(gsub(" ", "_", val)), ".pdf"),
          width = 16, height = 8, units = "cm")
 }
 

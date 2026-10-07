@@ -129,6 +129,7 @@ plot_event_study <- function(model, filename, ylab,
     )
 
   ggsave(filename, plot = p, width = 16, height = 8, units = "cm")
+  ggsave(sub("\\.png$", ".pdf", filename), plot = p, width = 16, height = 8, units = "cm")
   invisible(p)
 }
 

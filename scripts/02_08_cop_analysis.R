@@ -148,8 +148,11 @@ p_outside_temp <-
   theme(legend.position = "bottom")
 
 # Print the plot
-ggsave(paste0("graphs/hp_temperature_gas_elec.png"), 
-       plot = p_outside_temp, width = 16, height = 8, 
+ggsave(paste0("graphs/hp_temperature_gas_elec.png"),
+       plot = p_outside_temp, width = 16, height = 8,
+       units = "cm")
+ggsave(paste0("graphs/hp_temperature_gas_elec.pdf"),
+       plot = p_outside_temp, width = 16, height = 8,
        units = "cm")
 
 
@@ -165,6 +168,8 @@ p_outside_temp +
 
 # Print the plot
 ggsave(paste0("graphs/hp_temperature_gas_elec_blog_version.png"),
+       width = 17, height = 8, units = "cm")
+ggsave(paste0("graphs/hp_temperature_gas_elec_blog_version.pdf"),
        width = 17, height = 8, units = "cm")
 
 
@@ -322,6 +327,7 @@ p_quasi <- ggplot(cop_boot_plot, aes(x = degree_lab, y = median)) +
   theme(legend.position = "bottom")
 
 ggsave("graphs/quasi_cop.png", plot = p_quasi, width = 16, height = 8, units = "cm")
+ggsave("graphs/quasi_cop.pdf", plot = p_quasi, width = 16, height = 8, units = "cm")
 
 
                          

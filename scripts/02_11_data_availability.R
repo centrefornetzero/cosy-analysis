@@ -33,7 +33,9 @@ plot_panel <- panelview(elec_consumption ~ is_hp_installed + hdd,
                                         "Before HP Installation", "After HP Installation", 
                                         "No smart meter data"), collapse.history = "TRUE")
 
-ggsave("graphs/hp_data_availability.png", 
+ggsave("graphs/hp_data_availability.png",
+       width = 16, height = 8, units = "cm")
+ggsave("graphs/hp_data_availability.pdf",
        width = 16, height = 8, units = "cm")
 
 
@@ -49,5 +51,7 @@ plot_panel <- panelview(gas_consumption ~ is_hp_installed,
                         legend.labs = c("Never Treated (Installation in Future)", 
                                         "Before HP Installation", "After HP Installation", 
                                         "No smart meter data"), collapse.history = "TRUE")
-ggsave("graphs/hp_gas_data_availability.png", 
+ggsave("graphs/hp_gas_data_availability.png",
+       width = 16, height = 8, units = "cm")
+ggsave("graphs/hp_gas_data_availability.pdf",
        width = 16, height = 8, units = "cm")

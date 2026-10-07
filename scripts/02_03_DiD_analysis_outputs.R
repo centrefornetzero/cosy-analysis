@@ -859,6 +859,7 @@ gas_dyn  <- aggte(readRDS(cs_files_full$Gas), type = "dynamic",
 
 p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color)
 ggsave("graphs/dynamic_hp_plot_combined.png", plot = p_dyn, width = 10, height = 8, dpi = 300)
+ggsave("graphs/dynamic_hp_plot_combined.pdf", plot = p_dyn, width = 10, height = 8, dpi = 300)
 checkpoint("Saved graphs/dynamic_hp_plot_combined.png")
 
 # ----------------------------
@@ -1028,6 +1029,8 @@ p_cal <- ggplot(plot_cal_data, aes(x = week_date, y = estimate, colour = type, g
 
 ggsave("graphs/hp_calendarplot_combined_with_annual_labels.png",
        plot = p_cal, width = 10, height = 6, dpi = 300)
+ggsave("graphs/hp_calendarplot_combined_with_annual_labels.pdf",
+       plot = p_cal, width = 10, height = 6, dpi = 300)
                          
                          
                   
@@ -1049,6 +1052,8 @@ p_cal <- ggplot(plot_cal_data, aes(x = week_date, y = estimate, colour = type, g
         axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave("graphs/hp_calendarplot_combined.png",
+       plot = p_cal, width = 10, height = 6, dpi = 300)
+ggsave("graphs/hp_calendarplot_combined.pdf",
        plot = p_cal, width = 10, height = 6, dpi = 300)
                          
 checkpoint("Saved graphs/hp_calendarplot_combined_with_annual_labels.png and output/hp_calendarplot_combined.csv")
@@ -1215,6 +1220,7 @@ p_combined <- p_top / p_cop + plot_layout(heights = c(2.2, 1))
 out_file <- file.path("graphs", "calendar_att_12m_with_quarter_points_and_cop.png")
 dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
 ggsave(out_file, plot = p_combined, width = 12, height = 9, dpi = 300)
+ggsave(sub("\\.png$", ".pdf", out_file), plot = p_combined, width = 12, height = 9, dpi = 300)
 
 message("Saved ", out_file)
 checkpoint("DONE: 12m plot + quarterly points + COP panel")  
@@ -1517,7 +1523,8 @@ ggplot(plot_data, aes(x = anticipation_week, y = estimate, color = type, fill = 
   theme_minimal() +
   theme(legend.position = "bottom")
 
-ggsave("graphs/HP_anticipation.png") 
+ggsave("graphs/HP_anticipation.png")
+ggsave("graphs/HP_anticipation.pdf")
                          
 checkpoint("Anticipation graph saved: graphs/HP_anticipation.png")                         
 
@@ -1592,6 +1599,7 @@ for (a in anticipation_periods) {
   out_file <- file.path(graphs_dir, paste0("dynamic_hp_plot_combined_anticipation_", a, ".png"))
 
   ggsave(out_file, plot = p_dyn, width = 10, height = 8, dpi = 300)
+  ggsave(sub("\\.png$", ".pdf", out_file), plot = p_dyn, width = 10, height = 8, dpi = 300)
 
   checkpoint(paste0("Saved ", out_file))
 }
@@ -1655,6 +1663,7 @@ for (a in anticipation_periods) {
   out_csv <- file.path(datapath, "output", paste0("hp_calendarplot_combined_anticipation_", a, ".csv"))
 
   ggsave(out_png, plot = p_cal, width = 8, height = 6, dpi = 300)
+  ggsave(sub("\\.png$", ".pdf", out_png), plot = p_cal, width = 8, height = 6, dpi = 300)
 
   checkpoint(paste0("Saved ", out_png, " and ", out_csv))
 }
@@ -1678,6 +1687,7 @@ gas_dyn  <- aggte(readRDS(cs_files_trends$Gas), type = "dynamic",
 
 p_dyn <- create_dynamic_plot(elec_dyn, gas_dyn, elec_color, gas_color)
 ggsave("graphs/dynamic_hp_plot_combined_with_trends.png", plot = p_dyn, width = 10, height = 8, dpi = 300)
+ggsave("graphs/dynamic_hp_plot_combined_with_trends.pdf", plot = p_dyn, width = 10, height = 8, dpi = 300)
 checkpoint("Saved graphs/dynamic_hp_plot_combined_with_trends.png")
                          
                          
