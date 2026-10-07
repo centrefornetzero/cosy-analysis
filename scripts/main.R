@@ -49,6 +49,7 @@ if (!file.exists("scripts/main.R")) {
   stop("Run this from the repository root: scripts/main.R was not found relative to getwd().")
 }
 
+
 # COSY_DATAPATH must point at the mounted data directory (the root containing
 # input/, scratch/, and output/) -- copy .Renviron.example to .Renviron and
 # set it there; see the README's Environment section.
@@ -57,6 +58,21 @@ if (is.na(datapath) || datapath == "") {
   stop("COSY_DATAPATH is not set. Copy .Renviron.example to .Renviron, set COSY_DATAPATH to your mounted data directory, and restart R.")
 }
 datapath <- path.expand(datapath)
+
+# gcsfuse's --implicit-dirs lets it read a prefix as a directory, but it
+# won't let saveRDS() write into scratch/ or output/ if no object has ever
+# been written there yet, so create them up front if missing.
+tryCatch(
+  {
+    dir.create(file.path("graphs"), showWarnings = FALSE, recursive = TRUE)
+    dir.create(file.path("tables"), showWarnings = FALSE, recursive = TRUE)
+
+    dir.create(file.path(datapath, "scratch"), showWarnings = FALSE, recursive = TRUE)
+    dir.create(file.path(datapath, "output"), showWarnings = FALSE, recursive = TRUE)
+  },
+  error = function(e) message("Could not create scratch/output directories: ", conditionMessage(e))
+)
+
 
 checkpoint <- function(msg) cat(paste0(">>> ", msg, " <<<\n"))
 

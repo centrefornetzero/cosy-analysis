@@ -21,17 +21,6 @@
 # Delete file to rerun everything
 # file.remove(file.path(datapath, "scratch/aggregated_data.RDS"))
 
-# gcsfuse's --implicit-dirs lets it read a prefix as a directory, but it
-# won't let saveRDS() write into scratch/ or output/ if no object has ever
-# been written there yet, so create them up front if missing.
-tryCatch(
-  {
-    dir.create(file.path(datapath, "scratch"), showWarnings = FALSE, recursive = TRUE)
-    dir.create(file.path(datapath, "output"), showWarnings = FALSE, recursive = TRUE)
-  },
-  error = function(e) message("Could not create scratch/output directories: ", conditionMessage(e))
-)
-
 # ----------------------------
 # Merging consumption and customers info datasets
 # ----------------------------
