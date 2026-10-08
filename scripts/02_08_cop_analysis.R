@@ -327,7 +327,7 @@ p_quasi <- ggplot(cop_boot_plot, aes(x = degree_lab, y = median)) +
   theme(legend.position = "bottom")
 
 ggsave("graphs/quasi_cop.png", plot = p_quasi, width = 16, height = 8, units = "cm")
-ggsave("graphs/quasi_cop.pdf", plot = p_quasi, width = 16, height = 8, units = "cm")
+ggsave("graphs/quasi_cop.pdf", plot = p_quasi, device = cairo_pdf, width = 16, height = 8, units = "cm")
 
 
                          
