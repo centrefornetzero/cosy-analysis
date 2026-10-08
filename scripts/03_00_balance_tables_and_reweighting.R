@@ -644,7 +644,7 @@ final_table_with_sd <- final_table %>%
 
 stargazer(
   final_table_with_sd, type = "latex", summary = FALSE,
-  title = "External Validity by Area for Tariff and Heat Pump Adopters",
+  title = "External Validity for Tariff and Heat Pump Adopters",
   rownames = FALSE,
   digits = 2,
   label = "tab:cosy-hp-random",

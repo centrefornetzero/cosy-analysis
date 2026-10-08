@@ -642,7 +642,7 @@ ggplot(all_coefs_share %>% filter(period!="Overall"), aes(x = EAC_MWh_Category, 
     x = "EAC MWh Decile",
   ) +
   scale_y_continuous(
-    name = "Estimate (kWh)", 
+    name = "% of Daily Consumption",
     labels = scales::percent_format()
   ) +
   theme_minimal() +
@@ -870,7 +870,7 @@ for (i in 1:5) {
     geom_hline(yintercept = m1[[j]]$coefficients, linetype = "dashed", color = cosy_color, alpha = 0.6) +  # Add horizontal line at ATE
     scale_fill_manual(values = red_palette) +
     labs(
-      x = "Heatloss MW Decile",
+      x = "Heatloss kW Decile",
     ) +
     scale_y_continuous(
       name = "Estimate (kWh)", 
@@ -927,7 +927,7 @@ for (i in 1:4) {
     geom_hline(yintercept = m1_share[[j]]$coefficients, linetype = "dashed", color = cosy_color, alpha = 0.6) +  # Add horizontal line at ATE
     scale_fill_manual(values = red_palette) +
     labs(
-      x = "Heatloss MW Decile",
+      x = "Heatloss kW Decile",
     ) +
     scale_y_continuous(
       name = "% of Daily Consumption",
@@ -998,7 +998,7 @@ ggplot(all_coefs_share %>% filter(period!="Overall"), aes(x = EAC_MWh_Category, 
   geom_hline(aes(yintercept = average), linetype = "dashed", color = cosy_color, alpha = 0.6) +  # Add horizontal line at ATE
   scale_fill_manual(values = red_palette) +
   labs(
-    x = "Heatloss MW Decile",
+    x = "Heatloss kW Decile",
   ) +
   scale_y_continuous(
     name = "% of Daily Consumption",
@@ -1024,7 +1024,7 @@ ggplot(all_coefs_total %>% filter(period!="Overall"), aes(x = EAC_MWh_Category, 
   geom_hline(aes(yintercept = average), linetype = "dashed", color = cosy_color, alpha = 0.6) +  # Add horizontal line at ATE
   scale_fill_manual(values = red_palette) +
   labs(
-    x = "Heatloss MW Decile",
+    x = "Heatloss kW Decile",
   ) +
   scale_y_continuous(
     name = "Estimate (kWh)"
@@ -1246,7 +1246,7 @@ ggplot(all_coefs %>% filter(outcome == "Share Consumption"), aes(x = `Floor_Area
     x = "Floor Area Decile"
   ) +
   scale_y_continuous(
-    name = "Share of Daily Comsumption (%)", 
+    name = "Share of Daily Consumption (%)",
     labels = scales::percent_format(),
   ) +  theme_minimal() +
   theme(
@@ -1466,7 +1466,7 @@ ggplot(all_coefs %>% filter(outcome == "Share Consumption"),
     x = "Property Value Decile"
   ) +
   scale_y_continuous(
-    name = "Share of Daily Comsumption (%)", 
+    name = "Share of Daily Consumption (%)",
     labels = scales::percent_format(),
   ) +  theme_minimal() +
   theme(
@@ -1806,7 +1806,7 @@ ggplot(all_coefs %>% filter(outcome == "Share Consumption"),
     x = "MSOA Income Decile"
   ) +
   scale_y_continuous(
-    name = "Share of Daily Comsumption (%)", 
+    name = "Share of Daily Consumption (%)",
     labels = scales::percent_format(),
   ) +  theme_minimal() +
   theme(

@@ -585,7 +585,7 @@ hp_installed <- hp_installed %>%
   left_join(hl)
            
 # Create pretty labels for the categories
-labels <- sapply(1:(length(breaks)-1), function(i) paste0(round(breaks[i], 1), " mW to ", round(breaks[i+1], 1), " mW"))
+labels <- sapply(1:(length(breaks)-1), function(i) paste0(round(breaks[i], 1), " kW to ", round(breaks[i+1], 1), " kW"))
 
 # Create the categories for latest_survey_heat_loss
 hp_installed <- hp_installed %>%
@@ -626,7 +626,7 @@ for (i in 1:5) {
     geom_hline(yintercept = m1[[j]]$coefficients, linetype = "dashed", color = hp_color, alpha = 0.6) +  # Add horizontal line at ATE
     scale_fill_manual(values = red_palette) +
     labs(
-      x = "Heatloss MW Decile",
+      x = "Heatloss kW Decile",
       y = "Estimate (kWh)"
     ) +
     scale_y_continuous(
