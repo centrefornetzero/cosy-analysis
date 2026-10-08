@@ -617,7 +617,8 @@ p_sens <- ggplot(sens_grid, aes(x = m, y = scc_gbp)) +
     colours = c(red_ramp, "white", cosy_color),
     values = scales::rescale(c(below_breaks, 1, avg_range[2]), from = avg_range),
     limits = avg_range,
-    name = "MVPF"
+    name = "MVPF",
+    guide = guide_colorbar(raster = FALSE)
   ) +
   scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
   facet_wrap(~ r_disc_label) +

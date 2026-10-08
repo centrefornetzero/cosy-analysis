@@ -797,19 +797,27 @@ cs_files_gas_only <- list(
 # file, which other (non-pipeline) scripts may still rely on.
 did_data_elec_gas_only <- did_data %>% dplyr::filter(account_id %in% ids_cs_gas)
 
-est_cs_elec_gas_only_matched <- did::att_gt(
-  yname = "elec_consumption",
-  tname = "week",
-  idname = "id",
-  gname = "firstweek",
-  data = did_data_elec_gas_only,
-  anticipation = 4,
-  clustervars = "id",
-  control_group = "notyettreated",
-  est_method = "ipw",
-  allow_unbalanced_panel = TRUE,
-  base_period = "universal"
-)
+est_cs_elec_gas_only_matched_file <- file.path(datapath, "scratch/est_cs_elec_gas_only_matched.RDS")
+
+if (file.exists(est_cs_elec_gas_only_matched_file)) {
+  checkpoint(paste0("Skipping (exists): ", est_cs_elec_gas_only_matched_file))
+  est_cs_elec_gas_only_matched <- readRDS(est_cs_elec_gas_only_matched_file)
+} else {
+  est_cs_elec_gas_only_matched <- did::att_gt(
+    yname = "elec_consumption",
+    tname = "week",
+    idname = "id",
+    gname = "firstweek",
+    data = did_data_elec_gas_only,
+    anticipation = 4,
+    clustervars = "id",
+    control_group = "notyettreated",
+    est_method = "ipw",
+    allow_unbalanced_panel = TRUE,
+    base_period = "universal"
+  )
+  saveRDS(est_cs_elec_gas_only_matched, est_cs_elec_gas_only_matched_file)
+}
 
 aggte_simple_elec_gasonly <- aggte(est_cs_elec_gas_only_matched, type = "simple",
                                    na.rm = TRUE, clustervars = "id", bstrap = TRUE, alp = 0.05,min_e=-80, max_e=80)

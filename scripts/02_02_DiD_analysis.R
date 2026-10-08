@@ -127,16 +127,21 @@ run_cs_models <- function(did_data,
                           est_method = "ipw") {
   
   for (i in seq_along(y_vars)) {
-    
+
     yname    <- y_vars[i]
     filename <- file_names[i]
-    
+
+    if (file.exists(filename)) {
+      message("Skipping (exists): ", filename)
+      next
+    }
+
     message("Estimating: y = ", yname,
             " | control_group = ", paste(control_group, collapse = ", "),
             " | base_period = ", base_period,
             " | anticipation = ", anticipation)
     message("Saving to: ", filename)
-    
+
     est_cs <- did::att_gt(
       yname = yname,
       tname = "week",
@@ -151,7 +156,7 @@ run_cs_models <- function(did_data,
       allow_unbalanced_panel = TRUE,
       base_period = base_period
     )
-    
+
     saveRDS(est_cs, filename)
     message("Saved: ", filename)
   }
@@ -258,31 +263,38 @@ did_gas_only <- make_did_data(
 did_data_gas_only <- did_gas_only$data
 
 gas_only_file <- out_file("est_cs_elec_weekly_gas_only.RDS")
+ids_cs_elec_gas_only_file <- file.path(datapath, "scratch/ids_cs_elec_gas_only.RS")
 
-message("Estimating electricity CS model in gas-only sample")
-est_cs_gas_only <- did::att_gt(
-  yname = "elec_consumption",
-  tname = "week",
-  idname = "id",
-  gname = "firstweek",
-  data = did_data_gas_only,
-  anticipation = 4,
-  clustervars = "id",
-  control_group = "notyettreated",
-  est_method = "ipw",
-  allow_unbalanced_panel = TRUE,
-  base_period = "universal"
-)
+if (file.exists(gas_only_file)) {
+  message("Skipping (exists): ", gas_only_file)
+  est_cs_gas_only <- readRDS(gas_only_file)
+} else {
+  message("Estimating electricity CS model in gas-only sample")
+  est_cs_gas_only <- did::att_gt(
+    yname = "elec_consumption",
+    tname = "week",
+    idname = "id",
+    gname = "firstweek",
+    data = did_data_gas_only,
+    anticipation = 4,
+    clustervars = "id",
+    control_group = "notyettreated",
+    est_method = "ipw",
+    allow_unbalanced_panel = TRUE,
+    base_period = "universal"
+  )
 
-
-saveRDS(est_cs_gas_only, gas_only_file)
-message("Saved: ", gas_only_file)
+  saveRDS(est_cs_gas_only, gas_only_file)
+  message("Saved: ", gas_only_file)
+}
 
 # extra: save account ids for gas only analysis
-ids_cs_elec_gas_only <- did_gas_only$data %>% 
- filter(id %in% unique(est_cs_gas_only$DIDparams$data$id)) %>%
-  pull(account_id)
-saveRDS(ids_cs_elec_gas_only, file.path(datapath, "scratch/ids_cs_elec_gas_only.RS"))
+if (!file.exists(ids_cs_elec_gas_only_file)) {
+  ids_cs_elec_gas_only <- did_gas_only$data %>%
+   filter(id %in% unique(est_cs_gas_only$DIDparams$data$id)) %>%
+    pull(account_id)
+  saveRDS(ids_cs_elec_gas_only, ids_cs_elec_gas_only_file)
+}
 
 
 
@@ -343,7 +355,12 @@ for (a in anticipation_periods) {
     
     yname <- yname_vars[i]
     filename <- out_file(paste0(output_stub[i], "_anticipation_", a, ".RDS"))
-    
+
+    if (file.exists(filename)) {
+      message("Skipping (exists): ", filename)
+      next
+    }
+
     est_cs <- did::att_gt(
       yname = yname,
       tname = "week",
@@ -357,7 +374,7 @@ for (a in anticipation_periods) {
       allow_unbalanced_panel = TRUE,
       base_period = "universal"
     )
-    
+
     saveRDS(est_cs, filename)
     message("Saved: ", filename)
   }

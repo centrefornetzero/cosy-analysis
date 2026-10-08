@@ -451,7 +451,8 @@ for (period in periods) {
     scale_color_gradientn(
       colors = c("lightblue", "blue", "darkblue"),
       breaks = as.Date(seq(19337, 19885, 100)),
-      labels = format(as.Date(seq(19337, 19885, 100)), "%b %Y")
+      labels = format(as.Date(seq(19337, 19885, 100)), "%b %Y"),
+      guide = guide_colorbar(raster = FALSE)
     ) +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1),
