@@ -1030,7 +1030,7 @@ p_cal <- ggplot(plot_cal_data, aes(x = week_date, y = estimate, colour = type, g
 ggsave("graphs/hp_calendarplot_combined_with_annual_labels.png",
        plot = p_cal, width = 10, height = 6, dpi = 300)
 ggsave("graphs/hp_calendarplot_combined_with_annual_labels.pdf",
-       plot = p_cal, width = 10, height = 6, dpi = 300)
+       plot = p_cal, device = cairo_pdf, width = 10, height = 6, dpi = 300)
                          
                          
                   

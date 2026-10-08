@@ -117,7 +117,7 @@ ggplot(coefs %>% filter(rate_period != "Overall"), aes(x = `Average Daily Temper
 ggsave("graphs/cosy_temperature_binned.png",
        width = 17, height = 8, units = "cm")
 ggsave("graphs/cosy_temperature_binned.pdf",
-       width = 17, height = 8, units = "cm")
+       device = cairo_pdf, width = 17, height = 8, units = "cm")
 
 
 # Create the ggplot
@@ -142,7 +142,7 @@ ggplot(coefs %>% filter(rate_period != "Overall"), aes(x = `Average Daily Temper
 ggsave("graphs/cosy_temperature_binned_blog_version.png",
        width = 17, height = 8, units = "cm")
 ggsave("graphs/cosy_temperature_binned_blog_version.pdf",
-       width = 17, height = 8, units = "cm")
+       device = cairo_pdf, width = 17, height = 8, units = "cm")
 
 # Unique periods 
 periods <- unique(aggregated_data$rate_period)

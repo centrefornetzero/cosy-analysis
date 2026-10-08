@@ -122,7 +122,7 @@ for (i in 1:5) {
   ggsave(paste0("graphs/hp_temperature_", tolower(gsub(" ", "_", val)), ".png"),
          width = 16, height = 8, units = "cm")
   ggsave(paste0("graphs/hp_temperature_", tolower(gsub(" ", "_", val)), ".pdf"),
-         width = 16, height = 8, units = "cm")
+         device = cairo_pdf, width = 16, height = 8, units = "cm")
 }
 
 

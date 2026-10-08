@@ -729,7 +729,7 @@ for (period in periods) {
   ggsave(paste0("graphs/calendarplot_", period, ".png"),
          plot = p, device = "png", width = 5, height = 4, dpi = 300)
   ggsave(paste0("graphs/calendarplot_", period, ".pdf"),
-         plot = p, device = "pdf", width = 5, height = 4, dpi = 300)
+         plot = p, device = cairo_pdf, width = 5, height = 4, dpi = 300)
 
   cat(">>> Saved calendar plot (with last 12m shading) for:", period, "<<<\n")
 
