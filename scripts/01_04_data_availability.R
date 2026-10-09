@@ -32,7 +32,8 @@ plot_panel <- panelview(
 
 plot_panel <- plot_panel +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+    plot.margin = margin(l = 20)
   )
 
 ggsave(
