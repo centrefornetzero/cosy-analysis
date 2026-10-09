@@ -148,7 +148,7 @@ etable(m_overall)
 plot_event_study(
   model    = m_overall,
   filename = "graphs/hp_event_study_overall.png",
-  ylab     = "Heat Pump Installation on Weekly\nElec Consumption (kWh)",
+  ylab     = "Heat Pump Installation on\nWeekly Electricity\nConsumption (kWh)",
   legend_pos = "bottom",
   add_anticipation = TRUE,
   comma_y = TRUE
@@ -171,7 +171,7 @@ etable(m_peak)
 plot_event_study(
   model    = m_peak,
   filename = "graphs/hp_event_study_peak_rate.png",
-  ylab     = "Heat Pump Install on Weekly\n Peak Elec Consumption (kWh)",
+  ylab     = "Heat Pump Installation on\nWeekly Peak Electricity\nConsumption (kWh)",
   legend_pos = "bottom",
   add_anticipation = TRUE,
   comma_y = TRUE
